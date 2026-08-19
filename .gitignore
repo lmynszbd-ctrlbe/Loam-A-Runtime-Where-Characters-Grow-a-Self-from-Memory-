@@ -1,0 +1,18 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual envs
+.venv/
+venv/
+
+# Runtime data / local secrets
+.loam/
+*.log
+*.pid
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
