@@ -1,36 +1,43 @@
-# v0.1.0 — Loam Final Runtime Release
+# v0.1.0 — loam Final Runtime Release
 
 > **不是“写人设”，而是“让角色从记忆长出自我”。**
 
-## Why this matters
-
-大多数“人格系统”会滚雪球：
-把上一版总结继续喂给下一版，长期会自我漂移。
-
-loam 的原则是：
-- **原文锚定**：变化依据始终回到 L0 原始对话
-- **非滚雪球**：不把“上一版人格总结”当唯一真相
-- **可审计**：任何变化都能追溯到经历来源
+“道生一，一生二”的灵感在这里落地为工程原则：
+自我不是预设文本，而是在可追溯经历中分化、生长、稳定。
 
 ---
 
-## Highlights
+## 🔥 本版重点亮点
 
-- ✅ 完整 loam 运行时（store/core/mind/server/CLI）
-- ✅ L0 原始日记永久保留，L1-L4 派生层可重建
-- ✅ 强制流程代理（不依赖 Agent 是否调用工具）
-- ✅ 多上游聚合路由（`provider/model`）
-- ✅ Termux 最终版运维脚本（start/status/stop/log + final 总控）
-- ✅ 单元/集成/冒烟测试链路完成
+1. **非滚雪球人格演化**
+   - 不把“上一版人格总结”当下一版真相
+   - 变化始终锚定 L0 原始对话
+
+2. **强制原文入库（抗工具不调用）**
+   - 代理强制执行：`/context -> 上游模型 -> /ingest`
+   - 每轮 user + assistant 原文都能落库
+
+3. **单入口多上游**
+   - Agent 只填一个 URL：`http://host:8780/v1`
+   - 用 `provider/model` 在多家中转间切换
+
+4. **双模型解耦**
+   - 前台聊天模型与 loam 后台生长模型独立配置
+   - 角色“自我延续”不绑死某个厂商模型
+
+5. **可审计、可重建**
+   - L0 永久保留
+   - L1-L4 可重算，变化来源可追溯
 
 ---
 
-## What’s Included
+## ✅ Included in v0.1.0
 
-- Core runtime: `loam/`
+- Core runtime: `loam/`（store/core/mind/server/CLI）
 - Forced proxy: `bridge/forced_flow_proxy.py`
+- Multi-upstream example: `bridge/upstreams.example.json`
 - Termux ops scripts: `scripts/termux/`
-- Tests: `tests/`
+- Tests: `tests/`（含 integration + smoke）
 - Docs:
   - `FINAL_RELEASE.md`
   - `TERMUX_QUICKSTART.md`
@@ -39,7 +46,7 @@ loam 的原则是：
 
 ---
 
-## Quick Start (Termux)
+## 🚀 Quick Start (Termux)
 
 ```bash
 cd ~/loam && LOAM_API_KEY='你的key' LOAM_MODEL='deepseek-chat-flash' bash scripts/termux/final_start_all.sh
@@ -59,14 +66,14 @@ cd ~/loam && bash scripts/termux/final_stop_all.sh
 
 ---
 
-## Breaking / Behavior Notes
+## ⚠ Behavior Notes
 
-- 启动脚本按最终偏好：**必须 API key + model**。
-- 推荐由代理强制写入每轮原文，规避工具调用不稳定。
+- 启动策略按最终偏好：**必须 API key + model**。
+- 推荐使用强制流程代理，避免“工具调用概率”导致记忆漏写。
 
 ---
 
-## Verification
+## 🧪 Verification
 
 ```bash
 python tests/test_integration.py
@@ -75,6 +82,6 @@ python e2e_smoke.py
 
 ---
 
-## Security
+## 🔐 Security
 
-- 若 token 曾暴露于聊天/日志，请立即 revoke 并更换。
+- 如果 token 曾在聊天/日志中出现，请立即 revoke 并更换。
