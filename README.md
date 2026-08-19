@@ -46,7 +46,7 @@ loam 并不只支持 Termux。你可以用四种主流方式部署：**Android T
 - If you deploy on Linux server / VM / WSL / macOS, compare and choose here: [DEPLOYMENT_MODES.md](DEPLOYMENT_MODES.md)
 - If you need multi-provider routing and `provider/model` naming rules, use: [MULTI_UPSTREAM_QUICKSTART.md](MULTI_UPSTREAM_QUICKSTART.md)
 - If you connect MCP / plugins / script bridge, use: [THIRD_PARTY_INTEGRATION.md](THIRD_PARTY_INTEGRATION.md)
-- If you are about to publish, run this final check: [INTEGRATION_CHECKLIST.md](INTEGRATION_CHECKLIST.md)
+- If you are the maintainer and about to publish, run this final check: [INTEGRATION_CHECKLIST.md](INTEGRATION_CHECKLIST.md)
 
 ### 按你的场景直接跳转（可点击）
 
@@ -55,7 +55,7 @@ loam 并不只支持 Termux。你可以用四种主流方式部署：**Android T
 - 如果你在 Linux 服务器 / VM / WSL / macOS 部署：先看这里 [DEPLOYMENT_MODES.md](DEPLOYMENT_MODES.md)
 - 如果你需要多上游路由和 `provider/model` 命名规则：点这里 [MULTI_UPSTREAM_QUICKSTART.md](MULTI_UPSTREAM_QUICKSTART.md)
 - 如果你要接 MCP / 插件 / 脚本桥：点这里 [THIRD_PARTY_INTEGRATION.md](THIRD_PARTY_INTEGRATION.md)
-- 如果你准备发布上线，先做最终检查：点这里 [INTEGRATION_CHECKLIST.md](INTEGRATION_CHECKLIST.md)
+- 如果你是仓库维护者并准备发布上线，先做最终检查：点这里 [INTEGRATION_CHECKLIST.md](INTEGRATION_CHECKLIST.md)
 
 ---
 

@@ -37,14 +37,14 @@ This release supports multiple deployment paths: Termux for mobile personal alwa
 - If you run on Linux server / VM / WSL / macOS, compare options here: [DEPLOYMENT_MODES.md](https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/blob/main/DEPLOYMENT_MODES.md)
 - If you need multi-provider routing and model naming rules, go here: [MULTI_UPSTREAM_QUICKSTART.md](https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/blob/main/MULTI_UPSTREAM_QUICKSTART.md)
 - If you integrate MCP/plugins/bridges, go here: [THIRD_PARTY_INTEGRATION.md](https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/blob/main/THIRD_PARTY_INTEGRATION.md)
-- If you are ready to go live, run final checks here: [INTEGRATION_CHECKLIST.md](https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/blob/main/INTEGRATION_CHECKLIST.md)
+- If you are the repository maintainer and ready to go live, run final checks here: [INTEGRATION_CHECKLIST.md](https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/blob/main/INTEGRATION_CHECKLIST.md)
 
 - 如果你是第一次部署，想从安装一路到启动：点这里 [FINAL_RELEASE.md](https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/blob/main/FINAL_RELEASE.md)
 - 如果你在 Android/Termux 运行：点这里 [TERMUX_QUICKSTART.md](https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/blob/main/TERMUX_QUICKSTART.md)
 - 如果你在 Linux 服务器 / VM / WSL / macOS 运行：先看这里 [DEPLOYMENT_MODES.md](https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/blob/main/DEPLOYMENT_MODES.md)
 - 如果你需要多上游路由和模型命名规则：点这里 [MULTI_UPSTREAM_QUICKSTART.md](https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/blob/main/MULTI_UPSTREAM_QUICKSTART.md)
 - 如果你要接 MCP / 插件 / 桥接：点这里 [THIRD_PARTY_INTEGRATION.md](https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/blob/main/THIRD_PARTY_INTEGRATION.md)
-- 如果你准备上线，先做最终检查：点这里 [INTEGRATION_CHECKLIST.md](https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/blob/main/INTEGRATION_CHECKLIST.md)
+- 如果你是仓库维护者并准备上线，先做最终检查：点这里 [INTEGRATION_CHECKLIST.md](https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/blob/main/INTEGRATION_CHECKLIST.md)
 
 ---
 
