@@ -1,4 +1,4 @@
-# v0.1.1 — Launch Night Release: Grow a Self from Memory
+# loam Release v0.1.1: Grow a Self from Memory
 
 loam is a memory runtime for long-horizon identity continuity. Instead of repeatedly rewriting persona summaries, it keeps immutable raw turns, digests them into derived memory layers, and applies gated growth dynamics so identity change is evidence-driven, auditable, and reconstructable. This release is focused on turning that philosophy into practical deployment: stronger beginner docs, clearer routing model, clearer security boundary, and a release-ready narrative you can ship externally.
 
