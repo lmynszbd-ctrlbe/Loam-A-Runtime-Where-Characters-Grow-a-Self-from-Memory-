@@ -1,4 +1,4 @@
-# loam — 不是“写人设”，而是“让角色从记忆长出自我”
+# loam — 不是“写人设”，不是“滚雪球”记忆，而是“让角色从记忆长出自我”，不断生长。
 
 loam is a long-term memory runtime that keeps raw dialogue, builds derived memory layers, and drives identity growth over time.
 loam 是一个长期记忆运行时：保存原始对话，构建可重算的派生记忆层，并让身份随时间持续生长。
