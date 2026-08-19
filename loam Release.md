@@ -56,9 +56,37 @@ This release includes expanded deployment playbooks, rewritten beginner quicksta
 
 ## Highlight visual-content module (release page)
 
-For the release page, use a four-card visual sequence: **Card 1: drift problem** (summary recursion vs raw-turn anchoring), **Card 2: enforced pipeline** (`/context -> upstream -> /ingest` flowchart), **Card 3: growth formula panel** (capacity/delta/gate with pending-to-commit transition), and **Card 4: deployment coverage** (Termux, Linux/VM, WSL/macOS, container). Keep each card to one image + one implication paragraph so launch-night readers can quickly map value to execution.
+### Card 1 — Drift problem
 
-在发布页建议使用四卡图文结构：**卡片 1：漂移问题**（总结递归 vs 原始轮次锚定）、**卡片 2：强制流程**（`/context -> upstream -> /ingest` 流程图）、**卡片 3：生长公式面板**（capacity/delta/gate 与 pending->commit 过渡）、**卡片 4：部署覆盖**（Termux、Linux/VM、WSL/macOS、容器）。每张卡保持“一图 + 一段落地含义”，让发布夜读者快速完成“价值-执行”映射。
+Identity drift happens when memory is recursively summarized without raw evidence anchors. This card shows why the release emphasizes immutable turns and rebuildable derived layers.
+
+当记忆只做递归总结而没有原始证据锚点时，身份会发生漂移。这个卡片用于说明本次发布为什么强调“原始轮次不可变、派生层可重建”。
+
+![Card 1 — Drift problem](https://raw.githubusercontent.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/main/docs/assets/v0.1.1/01-problem-framing.svg)
+
+### Card 2 — Enforced pipeline
+
+This card maps the deterministic runtime path: `/context -> upstream -> /ingest`. The message is operational reliability: write-path consistency should come from pipeline control, not from random host tool-calling behavior.
+
+这个卡片展示确定性的运行路径：`/context -> upstream -> /ingest`。核心是运维可靠性：写入一致性应由流程控制保障，而不是依赖宿主工具调用的随机表现。
+
+![Card 2 — Enforced pipeline](https://raw.githubusercontent.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/main/docs/assets/v0.1.1/02-pipeline-architecture.svg)
+
+### Card 3 — Growth formula panel
+
+Here the release visualizes `capacity / delta / gate` and pending-to-commit transition. It explains how small repeated signals accumulate into stable qualitative shifts while suppressing sudden spikes.
+
+这里展示 `capacity / delta / gate` 以及 pending 到 commit 的过渡。它解释了系统如何把重复的小信号积累为稳定质变，同时抑制突发跳变。
+
+![Card 3 — Growth mechanics](https://raw.githubusercontent.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/main/docs/assets/v0.1.1/03-growth-mechanics.svg)
+
+### Card 4 — Deployment coverage
+
+The final card compares Termux, Linux/VM, WSL/macOS, and container deployment, clarifying that environments differ in operations but not in core memory semantics or growth logic.
+
+最后一张卡对比 Termux、Linux/VM、WSL/macOS 与容器部署，说明环境只影响运维方式，不改变核心记忆语义与生长逻辑。
+
+![Card 4 — Deployment matrix](https://raw.githubusercontent.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/main/docs/assets/v0.1.1/04-deployment-matrix.svg)
 
 ---
 

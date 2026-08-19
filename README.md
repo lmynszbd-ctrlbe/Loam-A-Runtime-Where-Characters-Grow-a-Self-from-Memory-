@@ -55,9 +55,37 @@ Use `FINAL_RELEASE.md` for full deployment playbook and mode comparison, `TERMUX
 
 ## Highlight visual-content module (normal page)
 
-Use a four-block visual narrative on the normal project page: **Block A: problem framing** (why summary-recursion drifts), **Block B: pipeline architecture** (`/context -> upstream -> /ingest`), **Block C: growth mechanics** (capacity/delta/gate with pending accumulation), and **Block D: deployment matrix** (Termux/Linux/WSL-Desktop/Container). Each block should include one screenshot or diagram and one paragraph explaining the operational implication, so visitors can understand both concept and execution path within one screen scroll.
+### Card A — Drift problem
 
-建议在常规项目页使用四段式图文结构：**A 段：问题定义**（为什么总结递归会漂移）、**B 段：流程架构**（`/context -> upstream -> /ingest`）、**C 段：生长机制**（capacity/delta/gate 与 pending 累积）、**D 段：部署矩阵**（Termux/Linux/WSL-桌面/容器）。每段配置一张图和一段“运维含义说明”，让访问者在一屏滚动内同时理解理念与落地路径。
+Summary-recursion drifts because each new persona summary conditions on compressed history instead of immutable evidence. This card communicates why loam keeps raw turns as fixed ground truth and rebuilds derived layers from source events.
+
+总结递归会漂移，因为新的“人格总结”继续依赖旧压缩文本，而不是不可变证据。这个卡片用于解释 loam 为什么坚持保留原始轮次作为真值底座，并从源事件重建派生层。
+
+![Card A — Drift problem](docs/assets/v0.1.1/01-problem-framing.svg)
+
+### Card B — Pipeline architecture
+
+This card makes the execution path explicit: `/context -> upstream -> /ingest`. The key message is deterministic memory flow: requests are routed through local proxy, then memory write happens in a controlled pipeline instead of random tool-call side effects.
+
+这个卡片把执行路径直接画出来：`/context -> upstream -> /ingest`。核心信息是“记忆流可确定”：请求先经过本地代理路由，再进入受控写入流程，而不是依赖随机工具调用副作用。
+
+![Card B — Pipeline architecture](docs/assets/v0.1.1/02-pipeline-architecture.svg)
+
+### Card C — Growth mechanics
+
+The third card visualizes `capacity / delta / gate` with pending accumulation before commit. It explains how loam turns repeated small signals into stable shifts while reducing jitter and one-shot overreaction.
+
+第三张卡展示 `capacity / delta / gate` 与 pending 累积再提交。它说明 loam 如何把重复小信号转成稳定变化，同时抑制抖动和一次性过度反应。
+
+![Card C — Growth mechanics](docs/assets/v0.1.1/03-growth-mechanics.svg)
+
+### Card D — Deployment matrix
+
+The final card compares Termux, Linux/VM, WSL/macOS, and container deployment. It communicates that deployment form changes operational style, but runtime semantics and memory growth model stay consistent.
+
+最后一张卡对比 Termux、Linux/VM、WSL/macOS、容器部署。它表达的是：部署形态会影响运维方式，但运行语义和记忆生长模型保持一致。
+
+![Card D — Deployment matrix](docs/assets/v0.1.1/04-deployment-matrix.svg)
 
 ---
 

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <polygon points="0,0 10,4 0,8" fill="#93c5fd"/>
+    </marker>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <text x="70" y="90" fill="#e5e7eb" font-size="48" font-family="Inter,Segoe UI,Arial" font-weight="700">Card 3 · Growth Mechanics</text>
+  <text x="70" y="138" fill="#93c5fd" font-size="28" font-family="Inter,Segoe UI,Arial">capacity / delta / gate with pending accumulation</text>
+
+  <rect x="90" y="220" width="640" height="300" rx="18" fill="#1f2937" stroke="#60a5fa" stroke-width="2"/>
+  <text x="120" y="280" fill="#f9fafb" font-size="34" font-family="Inter,Segoe UI,Arial" font-weight="600">Evidence accumulates in pending state</text>
+
+  <rect x="870" y="220" width="640" height="300" rx="18" fill="#1f2937" stroke="#60a5fa" stroke-width="2"/>
+  <text x="900" y="280" fill="#f9fafb" font-size="34" font-family="Inter,Segoe UI,Arial" font-weight="600">Commit only after gate threshold crossing</text>
+
+  <line x1="730" y1="370" x2="860" y2="370" stroke="#93c5fd" stroke-width="6" marker-end="url(#arrow)"/>
+
+  <rect x="90" y="580" width="1420" height="220" rx="16" fill="#0b1220" stroke="#334155" stroke-width="2"/>
+  <text x="120" y="650" fill="#d1d5db" font-size="30" font-family="Inter,Segoe UI,Arial">Conclusion: progressive adaptation, fewer random spikes, long-term qualitative shifts.</text>
+</svg>
