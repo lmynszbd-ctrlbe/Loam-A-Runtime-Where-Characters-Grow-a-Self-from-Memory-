@@ -39,17 +39,35 @@ loam is not limited to Termux. You can run it in four mainstream ways: **Termux 
 
 loam 并不只支持 Termux。你可以用四种主流方式部署：**Android Termux**（个人常驻）、**Linux 服务器/虚拟机**（长期稳定运行）、**WSL/macOS 本地开发**（桌面调试）、**容器化部署**（团队可复现环境）。这些模式都共享同一套核心流程（`/context -> upstream -> /ingest`）和上游映射策略。详细命令见 `DEPLOYMENT_MODES.md`。
 
-For full deployment guidance, read `FINAL_RELEASE.md` for one-stop playbook, `DEPLOYMENT_MODES.md` for cross-environment comparison, and `TERMUX_QUICKSTART.md` / `MULTI_UPSTREAM_QUICKSTART.md` for concrete startup commands.
+### Start by your situation (click to jump)
 
-如果要完整部署，请优先读 `FINAL_RELEASE.md`（一站式部署手册）、`DEPLOYMENT_MODES.md`（跨环境对比），以及 `TERMUX_QUICKSTART.md` / `MULTI_UPSTREAM_QUICKSTART.md`（可直接执行的启动命令）。
+- If this is your first time and you want one complete path from install to launch, start here: [FINAL_RELEASE.md](FINAL_RELEASE.md)
+- If you deploy on Android/Termux, jump here: [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md)
+- If you deploy on Linux server / VM / WSL / macOS, compare and choose here: [DEPLOYMENT_MODES.md](DEPLOYMENT_MODES.md)
+- If you need multi-provider routing and `provider/model` naming rules, use: [MULTI_UPSTREAM_QUICKSTART.md](MULTI_UPSTREAM_QUICKSTART.md)
+- If you connect MCP / plugins / script bridge, use: [THIRD_PARTY_INTEGRATION.md](THIRD_PARTY_INTEGRATION.md)
+- If you are about to publish, run this final check: [INTEGRATION_CHECKLIST.md](INTEGRATION_CHECKLIST.md)
+
+### 按你的场景直接跳转（可点击）
+
+- 如果你是第一次部署，想要一条从安装到启动的完整路径：点这里 [FINAL_RELEASE.md](FINAL_RELEASE.md)
+- 如果你在 Android / Termux 部署：点这里 [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md)
+- 如果你在 Linux 服务器 / VM / WSL / macOS 部署：先看这里 [DEPLOYMENT_MODES.md](DEPLOYMENT_MODES.md)
+- 如果你需要多上游路由和 `provider/model` 命名规则：点这里 [MULTI_UPSTREAM_QUICKSTART.md](MULTI_UPSTREAM_QUICKSTART.md)
+- 如果你要接 MCP / 插件 / 脚本桥：点这里 [THIRD_PARTY_INTEGRATION.md](THIRD_PARTY_INTEGRATION.md)
+- 如果你准备发布上线，先做最终检查：点这里 [INTEGRATION_CHECKLIST.md](INTEGRATION_CHECKLIST.md)
 
 ---
 
 ## Quick file map
 
-Use `FINAL_RELEASE.md` for full deployment playbook and mode comparison, `TERMUX_QUICKSTART.md` for phone-first setup, `MULTI_UPSTREAM_QUICKSTART.md` for provider routing and model naming rules, `THIRD_PARTY_INTEGRATION.md` for MCP/plugin integration patterns, and `INTEGRATION_CHECKLIST.md` for pre-release verification. If you only read one technical file before launch, read `FINAL_RELEASE.md` first.
+Fast path: [FINAL_RELEASE.md](FINAL_RELEASE.md) → [MULTI_UPSTREAM_QUICKSTART.md](MULTI_UPSTREAM_QUICKSTART.md) → [INTEGRATION_CHECKLIST.md](INTEGRATION_CHECKLIST.md). This three-step sequence is enough for most first-time deployments.
 
-请按以下路径阅读：`FINAL_RELEASE.md`（完整部署与模式对比）、`TERMUX_QUICKSTART.md`（手机优先安装）、`MULTI_UPSTREAM_QUICKSTART.md`（多上游路由与模型命名）、`THIRD_PARTY_INTEGRATION.md`（MCP/插件接入模式）、`INTEGRATION_CHECKLIST.md`（发布前校验）。如果上线前只看一份技术文档，优先看 `FINAL_RELEASE.md`。
+快速路径：[FINAL_RELEASE.md](FINAL_RELEASE.md) → [MULTI_UPSTREAM_QUICKSTART.md](MULTI_UPSTREAM_QUICKSTART.md) → [INTEGRATION_CHECKLIST.md](INTEGRATION_CHECKLIST.md)。多数首次部署按这三步就能完成。
+
+If you only need one file, open [FINAL_RELEASE.md](FINAL_RELEASE.md). If you are Android-first, open [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md). If you are integrating third-party toolchains, open [THIRD_PARTY_INTEGRATION.md](THIRD_PARTY_INTEGRATION.md).
+
+如果你只看一份文件，就看 [FINAL_RELEASE.md](FINAL_RELEASE.md)。如果你是 Android 优先，就看 [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md)。如果你要接第三方工具链，就看 [THIRD_PARTY_INTEGRATION.md](THIRD_PARTY_INTEGRATION.md)。
 
 ---
 
