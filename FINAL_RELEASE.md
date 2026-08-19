@@ -1,70 +1,39 @@
-# loam Final Start Guide (Termux, detailed)
+# loam Final Deployment Playbook (Launch Ready)
 
-This is the full startup and explanation guide for release usage.
-这是面向发布使用场景的完整启动与原理说明文档。
-
-If you are new to command line, follow sections in order and do not skip prerequisites.
-如果你是命令行新手，请按顺序执行，不要跳过前置准备。
+This playbook covers complete deployment from zero to production-like operation, including Termux, Linux server, desktop dev, and containerized scenarios.
+本手册覆盖从零到可上线的完整部署路径，包含 Termux、Linux 服务器、桌面开发与容器化场景。
 
 ---
 
-## A. What this stack contains
-## A. 这套栈包含什么
+## 1) Architecture in one paragraph
 
-`loam` service stores raw dialogue and runs memory digestion/growth logic.
-`loam` 服务负责保存原始对话，并执行记忆消化/生长逻辑。
+The runtime has two cooperating services: `loam` (memory storage + digest + growth + context) and `forced proxy` (OpenAI-compatible gateway that enforces `/context -> upstream -> /ingest` every turn). Your client talks only to local proxy URL, while proxy routes to real upstream providers by provider mapping.
 
-`forced proxy` provides OpenAI-compatible endpoint and enforces memory pipeline per turn.
-`forced proxy` 提供 OpenAI 兼容入口，并在每轮强制执行记忆流水线。
-
-End-to-end per turn flow is: `/context -> upstream model -> /ingest`.
-每轮端到端流程是：`/context -> 上游模型 -> /ingest`。
+整套运行时由两个协同服务组成：`loam`（记忆存储 + 消化 + 生长 + 上下文）与 `forced proxy`（OpenAI 兼容网关，强制每轮执行 `/context -> upstream -> /ingest`）。你的客户端只连接本地代理 URL，代理再按 provider 映射转发到真实上游。
 
 ---
 
-## B. Where commands should run
-## B. 命令应该在哪里运行
+## 2) Deployment mode selection
 
-Run commands in Termux terminal after entering repository directory.
-命令要在 Termux 终端中执行，并先进入仓库目录。
+Choose Termux if you want a phone-based personal always-on setup; choose Linux server/VM for long-running stability and process supervision; choose WSL/macOS for local feature development and debugging; choose containerized deployment for reproducibility across teammates. Functionally they are equivalent: same memory model, same growth logic, same API semantics.
 
-Do not run shell commands in chat input box or GitHub web pages.
-不要在聊天输入框或 GitHub 网页里执行 shell 命令。
+如果你要手机个人常驻，选 Termux；如果你要长期稳定和进程托管，选 Linux 服务器/虚拟机；如果你要本地开发调试，选 WSL/macOS；如果你要团队环境一致性，选容器化。它们在功能上等价：同一记忆模型、同一生长逻辑、同一 API 语义。
 
 ---
 
-## C. Prerequisites (first-time setup)
-## C. 前置条件（首次使用）
+## 3) Universal prerequisites
 
-```bash
-pkg update -y
-pkg install -y python git curl
-cd ~
-git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git loam
-cd ~/loam
-```
+Install Python 3.10+ and curl, clone repository, and ensure your runtime can read/write `~/.loam`. Then prepare upstream provider credentials (base URL + API key + default model). If you do not have upstream credentials, routing cannot complete.
 
-```bash
-pkg update -y
-pkg install -y python git curl
-cd ~
-git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git loam
-cd ~/loam
-```
+先安装 Python 3.10+ 与 curl，克隆仓库，并确保运行环境可读写 `~/.loam`。随后准备上游提供方凭证（base URL + API key + default model）。如果没有上游凭证，路由无法完成。
 
 ---
 
-## D. What “upstream configured” means
-## D. “配好上游”到底是什么意思
+## 4) Upstream mapping (required)
 
-Your Agent only points to local proxy URL, but proxy must know real provider mapping.
-你的 Agent 只指向本地代理 URL，但代理必须知道真实上游映射关系。
+Create upstream mapping file from template and fill real provider values. The `default` field is fallback provider, while each provider block defines request destination and auth. This file is the core of multi-upstream routing.
 
-That mapping is stored in `~/.loam/upstreams.json`.
-这个映射文件就是 `~/.loam/upstreams.json`。
-
-Create from template:
-从模板创建：
+先从模板创建上游映射文件并填入真实 provider 参数。`default` 代表默认回退上游，每个 provider 块定义请求目标与鉴权信息。这份文件是多上游路由的核心。
 
 ```bash
 mkdir -p ~/.loam
@@ -72,13 +41,13 @@ cp ~/loam/bridge/upstreams.example.json ~/.loam/upstreams.json
 nano ~/.loam/upstreams.json
 ```
 
-Fill real values for `base_url`, `api_key`, and `default_model`.
-把 `base_url`、`api_key`、`default_model` 改成真实值。
-
 ---
 
-## E. One-command final startup (multi-upstream)
-## E. 一条命令最终启动（多上游）
+## 5) Termux one-command startup
+
+Use this path for fastest launch on Android. The script boots loam first, then proxy, and finally runs health checks. After startup, configure your client to local proxy URL and choose model in `provider/model` format.
+
+这是 Android 上最快的上线路径。脚本会先启动 loam，再启动代理，并自动做健康检查。启动后在客户端填写本地代理 URL，模型名使用 `provider/model` 格式。
 
 ```bash
 cd ~/loam
@@ -89,135 +58,54 @@ UPSTREAM_DEFAULT='relayA' \
 bash scripts/termux/final_start_all.sh
 ```
 
+---
+
+## 6) Linux/WSL/macOS startup (manual)
+
+For non-Termux environments, start loam and proxy in two terminals or background services. Keep loam on 8765 and proxy on 8780 unless you have custom port policy. For production Linux, use process managers to auto-restart on crash.
+
+在非 Termux 环境中，请分别启动 loam 与 proxy（可用两个终端或后台服务）。默认保持 loam=8765、proxy=8780，除非你有自定义端口策略。生产 Linux 建议使用进程管理器实现异常自动拉起。
+
 ```bash
-cd ~/loam
-LOAM_API_KEY='你的loam生长key' \
-LOAM_MODEL='deepseek-chat-flash' \
-UPSTREAMS_CONFIG="$HOME/.loam/upstreams.json" \
-UPSTREAM_DEFAULT='relayA' \
-bash scripts/termux/final_start_all.sh
+python -m loam init-secrets --secrets-home ~/.loam
+python -m loam run --character default --home ~/.loam/characters --secrets-home ~/.loam --host 127.0.0.1 --port 8765
+UPSTREAMS_CONFIG=$HOME/.loam/upstreams.json UPSTREAM_DEFAULT=relayA python bridge/forced_flow_proxy.py
 ```
 
-This command starts loam, starts proxy, and performs health checks automatically.
-该命令会自动启动 loam、启动代理并完成健康检查。
+---
+
+## 7) Client-side fields (what to fill and why)
+
+Set client Base URL to `http://127.0.0.1:8780/v1` so requests pass through forced pipeline. Client API key can be any non-empty placeholder if UI requires it; real provider credentials are read by local proxy from your upstream config. In multi-upstream mode, model must be `provider/model` (for example `relayA/gpt-4o-mini`).
+
+客户端 Base URL 填 `http://127.0.0.1:8780/v1`，这样请求会经过强制流水线。客户端 API key 若必须非空，可填任意占位值；真实上游凭证由本地代理从配置文件读取。多上游模式下模型名必须是 `provider/model`（如 `relayA/gpt-4o-mini`）。
 
 ---
 
-## F. URL/API explanation (what to fill and why)
-## F. URL/API 解释（填什么、为什么填）
+## 8) Health verification
 
-`LOAM_API_KEY`: credential for loam internal digest/growth model calls.
-`LOAM_API_KEY`：loam 内部消化/生长模型调用凭证。
+A healthy stack should return JSON on both health endpoints and list at least one model from `/v1/models`. If models are empty, upstream URL/key/model is usually misconfigured. If proxy process exits immediately, check `~/.loam/run/forced_proxy.log`.
 
-`LOAM_MODEL`: model id used by loam for reflection/digest stage.
-`LOAM_MODEL`：loam 在反思/消化阶段使用的模型 id。
-
-`UPSTREAM base_url/api_key/model`: routing target used by forced proxy for chat completion.
-`UPSTREAM base_url/api_key/model`：强制代理发起聊天补全时使用的路由目标。
-
-Agent `Base URL` should be local proxy endpoint `http://127.0.0.1:8780/v1`.
-Agent 的 `Base URL` 应填本地代理入口 `http://127.0.0.1:8780/v1`。
-
-Agent `API key` can be any placeholder if client requires non-empty value.
-如果客户端要求 API key 非空，Agent 的 `API key` 可填任意占位值。
-
-Agent `Model` in multi-upstream mode must be `provider/model`.
-多上游模式下 Agent 的 `Model` 必须是 `provider/model` 形式。
-
----
-
-## G. Agent-side final settings
-## G. Agent 侧最终填写示例
-
-Base URL: `http://127.0.0.1:8780/v1`
-Base URL：`http://127.0.0.1:8780/v1`
-
-API key: `local-placeholder` (or any non-empty placeholder)
-API key：`local-placeholder`（或任意非空占位值）
-
-Model example 1: `relayA/gpt-4o-mini`
-Model 示例 1：`relayA/gpt-4o-mini`
-
-Model example 2: `relayB/claude-3-5-sonnet`
-Model 示例 2：`relayB/claude-3-5-sonnet`
-
----
-
-## H. Verification commands
-## H. 验证命令
+健康状态应满足：两个 health 接口都返回 JSON，且 `/v1/models` 至少有一个模型。如果模型列表为空，通常是上游 URL/key/model 配错；若 proxy 启动后立刻退出，请查看 `~/.loam/run/forced_proxy.log`。
 
 ```bash
-cd ~/loam
-bash scripts/termux/final_status_all.sh
 curl -s http://127.0.0.1:8765/health
 curl -s http://127.0.0.1:8780/health
 curl -s http://127.0.0.1:8780/v1/models
 ```
 
-```bash
-cd ~/loam
-bash scripts/termux/final_status_all.sh
-curl -s http://127.0.0.1:8765/health
-curl -s http://127.0.0.1:8780/health
-curl -s http://127.0.0.1:8780/v1/models
-```
+---
 
-If all interfaces return JSON and models list is present, startup is complete.
-如果接口都返回 JSON 且模型列表可见，说明启动完成。
+## 9) Security boundary
+
+Provider keys remain in your local files/environment and are used by your local runtime process to call your chosen upstream providers. The project does not require sending provider keys to maintainers, and normal runtime does not depend on a maintainer-hosted mandatory cloud relay. Your residual risk comes from your own host hardening, plugin chain, and secret management practices.
+
+上游 key 保留在你本地文件/环境变量中，由你本地运行进程发往你选择的上游提供方。项目不要求把 provider key 发送给维护者，常规运行也不依赖维护者托管的强制云端中继。剩余风险主要来自你自己的主机加固、插件链路与密钥管理实践。
 
 ---
 
-## I. Security statement for URL/API concerns
-## I. 面向 URL/API 顾虑的安全说明
+## 10) Daily operations
 
-By default, provider keys are read from your local env/files on your own device.
-默认情况下，上游 key 从你设备本地环境变量/配置文件读取。
+Use status/stop/start scripts in Termux mode, or your process manager in Linux mode. Keep one log source for loam and one for proxy, and treat model-routing failures as configuration incidents first, code incidents second.
 
-Requests are sent from your local process to your selected upstream providers.
-请求由你的本地进程发往你自己选择的上游提供方。
-
-The project does not require sending your upstream keys to maintainers.
-项目不要求把上游 key 发送给维护者。
-
-Normal runtime does not depend on project-owned mandatory cloud endpoints.
-常规运行不依赖项目方托管的强制云端端点。
-
----
-
-## J. Daily operations
-## J. 日常运维
-
-```bash
-cd ~/loam
-bash scripts/termux/final_status_all.sh
-bash scripts/termux/final_stop_all.sh
-bash scripts/termux/final_start_all.sh
-bash scripts/termux/log_loam.sh
-```
-
-```bash
-cd ~/loam
-bash scripts/termux/final_status_all.sh
-bash scripts/termux/final_stop_all.sh
-bash scripts/termux/final_start_all.sh
-bash scripts/termux/log_loam.sh
-```
-
----
-
-## K. Typical failure points
-## K. 常见失败点
-
-`LOAM_API_KEY` or `LOAM_MODEL` missing when startup script runs.
-启动时缺失 `LOAM_API_KEY` 或 `LOAM_MODEL`。
-
-Upstream `base_url` or `api_key` invalid in `~/.loam/upstreams.json`.
-`~/.loam/upstreams.json` 里的上游 `base_url` 或 `api_key` 无效。
-
-Model name not in `provider/model` format under multi-upstream mode.
-多上游模式下模型名未使用 `provider/model` 格式。
-
----
-
-Persistent memory should be reliable before it is elegant.
-记忆系统首先要“可靠可复现”，然后才谈“优雅表达”。
+Termux 模式下使用 status/stop/start 脚本，Linux 模式下使用进程管理器统一管控。建议 loam 与 proxy 分开看日志，并优先将模型路由失败视为配置故障而非代码故障。

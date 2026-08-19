@@ -1,201 +1,49 @@
 # loam — 不是“写人设”，不是“滚雪球”记忆，而是“让角色从记忆长出自我”，不断生长。
 
-loam is a long-term memory runtime that keeps raw dialogue, builds derived memory layers, and drives identity growth over time.
-loam 是一个长期记忆运行时：保存原始对话，构建可重算的派生记忆层，并让身份随时间持续生长。
-
-It is designed for continuity-first character systems, companion agents, and role-based assistants that must remain stable across months.
-它面向“连续性优先”的角色系统、陪伴型智能体和需要跨月稳定运行的身份化助手。
+A memory runtime where identity continuity comes from raw dialogue, growth dynamics, and auditable reconstruction.
+一个记忆运行时：身份连续性来自原始对话、生长动力学与可审计重建，而不是提示词拼装的人设脚本。
 
 ---
 
-## What loam actually does
-## loam 到底在做什么
+## What loam does
 
-loam stores every turn as immutable raw material, then digests it into narrative, traits, and retrievable context.
-loam 会把每轮对话作为不可变原料保存，再逐步消化成叙事、特质与可检索上下文。
+loam stores every conversational turn as immutable raw material, then digests that material into narrative memory, trait structure, and retrieval context. The runtime is designed for long-horizon character continuity: you can trace why a trait changed, inspect which evidence supported that shift, and rebuild derived layers when your model, policy, or prompts evolve. This design avoids recursive summary drift and gives you a stable identity substrate for months of interaction.
 
-This means the system can remember, explain why it changed, and rebuild derived layers when models or rules change.
-这意味着系统不仅能“记住”，还能解释“为什么会变成现在这样”，并在模型/规则变化时重建派生层。
-
-Core capabilities include persistent memory, growth dynamics, auditability, and model decoupling.
-核心能力包括：持久记忆、生长动力学、可审计追溯、模型解耦。
+loam 会把每轮对话保存为不可变原料，再将其消化为叙事记忆、特质结构和检索上下文。它面向长期身份连续性：你可以追踪某个特质为何变化、查看其证据来源，并在模型、规则或提示词变化后重建派生层。这种设计避免“总结套总结”的递归漂移，为数月级交互提供稳定的身份底座。
 
 ---
 
-## Why this is different from persona prompting
-## 这和“提示词写人设”有什么不同
+## Why it is different
 
-Typical persona prompting keeps rewriting a summarized identity and eventually drifts.
-常见提示词人设会反复改写“人格总结”，最后往往发生漂移。
+loam uses a no-snowball invariant: meaningful updates must anchor to raw turns, not to old persona summaries. Trait updates follow gated growth dynamics, where evidence accumulates first and commits later, so change is progressive rather than jittery. The runtime also separates chat-response model from growth/digest model, so you can tune latency and cognition independently instead of binding everything to one vendor and one model profile.
 
-loam uses a no-snowball invariant: meaningful updates must anchor to raw turns, not to the previous summary.
-loam 使用“非滚雪球不变量”：关键更新必须锚定原始轮次，而不是上一版总结。
-
-So identity continuity comes from evidence accumulation, not from recursive self-description.
-因此，身份连续性来自证据累积，而不是自我描述的递归放大。
+loam 采用“非滚雪球不变量”：关键更新必须锚定原始轮次，而不是旧人格总结。特质更新采用门控生长机制，证据先累积后提交，因此变化是渐进的，不会抖动跳变。同时它把聊天回复模型与生长/消化模型解耦，你可以分别优化延迟与认知质量，而不是被单一厂商和单一模型参数绑死。
 
 ---
 
-## Growth mechanism (quantitative accumulation -> qualitative shift)
-## 生长机制（量变累积 -> 质变跃迁）
+## Deployment modes (not only Termux)
 
-Trait change speed is endogenous and phase-sensitive, not globally throttled by an external limiter.
-特质变化速度是内生且分阶段敏感的，不依赖外部“统一限速器”。
+loam is not limited to Termux. You can run it in four mainstream ways: **Termux on Android** for personal always-on usage; **Linux server or VM** for stable long-running instances; **WSL/macOS local dev** for desktop development and debugging; and **containerized deployment** for reproducible team environments. All modes share the same core flow (`/context -> upstream -> /ingest`) and the same upstream mapping strategy. Detailed commands are in `DEPLOYMENT_MODES.md`.
 
-Capacity curve:
-容量曲线：
-
-`capacity = max(strength, seed_floor) * max(ceiling - strength, seed_floor)`
-`capacity = max(strength, seed_floor) * max(ceiling - strength, seed_floor)`
-
-Per-event update:
-单事件更新：
-
-`delta = plasticity * capacity * signal * salience`
-`delta = plasticity * capacity * signal * salience`
-
-Gate threshold:
-门控阈值：
-
-`gate = max(gate_floor, gate_ratio * capacity)`
-`gate = max(gate_floor, gate_ratio * capacity)`
-
-Evidence first accumulates in `pending`; only after crossing gate is the trait committed.
-证据会先累积在 `pending`；只有跨过门槛才会提交到特质强度。
-
-This is why growth is gradual in daily interaction but can still cross phases after long accumulation.
-这就是为什么系统在日常互动里是“渐进变化”，但长期累积后又能发生“阶段跃迁”。
+loam 并不只支持 Termux。你可以用四种主流方式部署：**Android Termux**（个人常驻）、**Linux 服务器/虚拟机**（长期稳定运行）、**WSL/macOS 本地开发**（桌面调试）、**容器化部署**（团队可复现环境）。这些模式都共享同一套核心流程（`/context -> upstream -> /ingest`）和上游映射策略。详细命令见 `DEPLOYMENT_MODES.md`。
 
 ---
 
-## 10-minute beginner path (where to run + what to fill)
-## 小白 10 分钟路径（在哪运行 + 填什么）
+## Quick file map
 
-All commands below are run inside the **Termux terminal**, not in chat input and not in GitHub web UI.
-下面所有命令都在 **Termux 终端** 里执行，不是在聊天输入框里，也不是在 GitHub 网页里执行。
+Use `FINAL_RELEASE.md` for full deployment playbook and mode comparison, `TERMUX_QUICKSTART.md` for phone-first setup, `MULTI_UPSTREAM_QUICKSTART.md` for provider routing and model naming rules, `THIRD_PARTY_INTEGRATION.md` for MCP/plugin integration patterns, and `INTEGRATION_CHECKLIST.md` for pre-release verification. If you only read one technical file before launch, read `FINAL_RELEASE.md` first.
 
-### Step 0: Install runtime prerequisites
-### 第 0 步：安装运行前置项
-
-Install Termux first, then open Termux and run:
-先安装 Termux，然后打开 Termux 执行：
-
-```bash
-pkg update -y
-pkg install -y python git curl
-```
-
-### Step 1: Download project code
-### 第 1 步：下载项目代码
-
-```bash
-cd ~
-git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git loam
-cd ~/loam
-```
-
-### Step 2: Prepare upstream config (multi-upstream recommended)
-### 第 2 步：准备上游配置（推荐多上游）
-
-```bash
-mkdir -p ~/.loam
-cp ~/loam/bridge/upstreams.example.json ~/.loam/upstreams.json
-nano ~/.loam/upstreams.json
-```
-
-In `nano`, replace placeholder values with your real provider info, then press `Ctrl+O`, `Enter`, `Ctrl+X`.
-在 `nano` 里把占位值替换成你的真实上游信息，然后按 `Ctrl+O`、`Enter`、`Ctrl+X` 保存退出。
-
-### Step 3: Start loam + forced proxy in one command
-### 第 3 步：一条命令启动 loam + 强制代理
-
-```bash
-cd ~/loam
-LOAM_API_KEY='your_growth_key' \
-LOAM_MODEL='deepseek-chat-flash' \
-UPSTREAMS_CONFIG="$HOME/.loam/upstreams.json" \
-UPSTREAM_DEFAULT='relayA' \
-bash scripts/termux/final_start_all.sh
-```
-
-`LOAM_API_KEY` is for loam's internal digest/growth model, not for your chat UI directly.
-`LOAM_API_KEY` 是给 loam 内部消化/生长模型使用的，不是给聊天 UI 直接调用的。
-
-### Step 4: Fill your Agent settings
-### 第 4 步：填写你的 Agent 设置
-
-Base URL: `http://127.0.0.1:8780/v1`
-Base URL：`http://127.0.0.1:8780/v1`
-
-API key: any placeholder if your client requires one.
-API key：如果客户端强制要求，可填任意占位值。
-
-Model: `provider/model`, e.g. `relayA/gpt-4o-mini`.
-Model：`provider/model` 格式，例如 `relayA/gpt-4o-mini`。
-
-### Step 5: Verify service health
-### 第 5 步：验证服务状态
-
-```bash
-cd ~/loam
-bash scripts/termux/final_status_all.sh
-curl -s http://127.0.0.1:8780/health
-curl -s http://127.0.0.1:8780/v1/models
-```
-
-If health returns JSON and models list is non-empty, setup is complete.
-如果健康检查返回 JSON，且模型列表非空，就说明配置已完成。
+请按以下路径阅读：`FINAL_RELEASE.md`（完整部署与模式对比）、`TERMUX_QUICKSTART.md`（手机优先安装）、`MULTI_UPSTREAM_QUICKSTART.md`（多上游路由与模型命名）、`THIRD_PARTY_INTEGRATION.md`（MCP/插件接入模式）、`INTEGRATION_CHECKLIST.md`（发布前校验）。如果上线前只看一份技术文档，优先看 `FINAL_RELEASE.md`。
 
 ---
 
-## URL/API fields explained (what they are and why needed)
-## URL/API 字段解释（是什么、为什么要填）
+## Security boundary
 
-`LOAM_API_KEY` authenticates loam's own digest/growth calls to its configured model provider.
-`LOAM_API_KEY` 用于 loam 内部消化/生长调用时的鉴权。
+By default, provider keys are read from your own local files or environment variables and used by your own runtime process to call your selected upstream providers. loam does not require uploading your provider keys to maintainers, and normal operation does not depend on a maintainer-controlled mandatory cloud relay. You still need to protect your host, plugins, and secret files under your own trust model.
 
-`UPSTREAM base_url/api_key/model` tells the forced proxy where to forward chat completion requests.
-`UPSTREAM 的 base_url/api_key/model` 用于告诉强制代理把聊天请求转发到哪里。
-
-Agent `Base URL` points to local proxy so every turn can be forced through `/context -> upstream -> /ingest`.
-Agent 的 `Base URL` 指向本地代理，是为了确保每轮都经过 `/context -> 上游 -> /ingest` 强制流程。
-
-Without URL/API mapping, proxy cannot route, and your client cannot reach usable models.
-如果不填写 URL/API 映射，代理无法路由，你的客户端也无法拿到可用模型。
+默认情况下，上游 key 从你自己的本地文件或环境变量读取，由你本地运行进程发往你选择的上游提供方。loam 不要求把上游 key 上传给维护者，常规运行也不依赖维护者托管的强制云端中继。你仍需在自己的信任模型下保护主机环境、插件和密钥文件。
 
 ---
 
-## Security boundary (important)
-## 安全边界（重要）
-
-Your provider keys are stored in your local env/files by default.
-你的上游 key 默认保存在你自己的本地环境变量/配置文件里。
-
-Requests are sent from your local process directly to your selected upstream endpoints.
-请求由你的本地进程直接发往你选择的上游端点。
-
-The project does not require uploading your provider keys to maintainers.
-项目本身不要求把你的上游 key 上传给维护者。
-
-You still need to protect your own host, plugins, and config files.
-你仍然需要保护自己的主机环境、插件与配置文件。
-
----
-
-## Documentation map
-## 文档导航
-
-Read `TERMUX_QUICKSTART.md` for absolute beginner setup details.
-看 `TERMUX_QUICKSTART.md` 获取面向小白的完整安装与启动步骤。
-
-Read `MULTI_UPSTREAM_QUICKSTART.md` for multi-provider routing and model naming rules.
-看 `MULTI_UPSTREAM_QUICKSTART.md` 获取多上游路由与模型命名规则。
-
-Read `THIRD_PARTY_INTEGRATION.md` for MCP/plugin/script integration patterns.
-看 `THIRD_PARTY_INTEGRATION.md` 获取 MCP/插件/脚本接入模式。
-
-Read `INTEGRATION_CHECKLIST.md` before release rollout.
-上线前请按 `INTEGRATION_CHECKLIST.md` 做完整检查。
-
-Don’t script a persona; build a memory-grounded self.
-不要脚本化“人设”，要让“自我”在记忆中生长出来。
+Don’t script a persona. Grow a self from memory.
+别写人设，让“自我”从记忆中生长。

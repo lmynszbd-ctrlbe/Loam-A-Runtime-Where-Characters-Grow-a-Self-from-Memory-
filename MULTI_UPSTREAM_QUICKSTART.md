@@ -1,43 +1,29 @@
 # Multi-Upstream Quickstart (forced proxy)
 
-This guide explains exactly what “configure upstreams” means and how to do it safely.
-这份指南专门解释“配好上游”到底是什么意思，以及如何安全完成配置。
-
-All commands run in Termux terminal under your local environment.
-所有命令都在你本地 Termux 终端中执行。
+This guide explains what “upstream configured” means, why it matters, and how to verify routing.
+本指南解释“配好上游”的含义、必要性与验证方式。
 
 ---
 
-## 1) Why upstream config exists
-## 1）为什么需要上游配置
+## What upstream mapping does
 
-Your Agent only sees one local endpoint (`127.0.0.1`), but proxy still needs real provider targets.
-你的 Agent 只看到一个本地入口（`127.0.0.1`），但代理仍然需要真实上游目标。
+Your client sees one local OpenAI-compatible URL, but proxy still needs real destinations for each provider. Upstream mapping defines those destinations and credentials, and lets a single local endpoint route to multiple model vendors with explicit `provider/model` naming.
 
-Upstream config tells proxy which provider URL, key, and model to use.
-上游配置就是告诉代理：该用哪个提供方 URL、哪个 key、哪个默认模型。
-
-Without this config, proxy cannot route chat requests to real model services.
-没有这份配置，代理无法把聊天请求路由到真实模型服务。
+客户端只看到一个本地 OpenAI 兼容入口，但代理仍需要知道每个 provider 的真实目标地址与凭证。上游映射就是这份“路由字典”，它让单一本地端点通过 `provider/model` 命名路由到多个模型供应商。
 
 ---
 
-## 2) Create config file from template
-## 2）从模板创建配置文件
+## Create and edit mapping file
+
+Create `~/.loam/upstreams.json` from template, then replace placeholder fields with real values. Keep JSON syntax intact (commas, braces, quotes), because malformed JSON will prevent proxy startup.
+
+从模板创建 `~/.loam/upstreams.json` 后，把占位值替换为真实参数。请保持 JSON 语法完整（逗号、花括号、引号），否则代理无法启动。
 
 ```bash
 mkdir -p ~/.loam
 cp ~/loam/bridge/upstreams.example.json ~/.loam/upstreams.json
 nano ~/.loam/upstreams.json
 ```
-
-If `nano` is unfamiliar, edit line by line and do not remove commas or braces.
-如果你不熟悉 `nano`，请逐行修改，不要删掉逗号和花括号。
-
----
-
-## 3) Fill JSON fields (what each field means)
-## 3）填写 JSON 字段（每个字段是什么）
 
 Example:
 示例：
@@ -60,111 +46,45 @@ Example:
 }
 ```
 
-`default` is fallback provider name when request does not specify provider explicitly.
-`default` 是默认 provider 名称，当请求没显式指定 provider 时使用它。
-
-`providers.<name>.base_url` is your upstream OpenAI-compatible API base URL.
-`providers.<name>.base_url` 是你的上游 OpenAI 兼容 API 基址。
-
-`providers.<name>.api_key` is your upstream provider key.
-`providers.<name>.api_key` 是对应上游提供方的 key。
-
-`providers.<name>.default_model` is fallback model for that provider.
-`providers.<name>.default_model` 是该 provider 的默认模型。
-
 ---
 
-## 4) Start loam first
-## 4）先启动 loam
+## Start services and route traffic
+
+Start loam first, then start forced proxy with your mapping file. The proxy reads requested model, resolves provider prefix, and forwards requests to mapped upstream URL with corresponding key.
+
+先启动 loam，再通过映射文件启动强制代理。代理会读取请求模型名，解析 provider 前缀，并用对应 key 转发到映射中的上游 URL。
 
 ```bash
 cd ~/loam
-LOAM_API_KEY='your_growth_key' \
-LOAM_MODEL='deepseek-chat-flash' \
-bash scripts/termux/start_loam.sh
+LOAM_API_KEY='your_growth_key' LOAM_MODEL='deepseek-chat-flash' bash scripts/termux/start_loam.sh
+UPSTREAMS_CONFIG="$HOME/.loam/upstreams.json" UPSTREAM_DEFAULT='relayA' bash scripts/termux/start_forced_proxy.sh
 ```
 
-`LOAM_API_KEY` and `LOAM_MODEL` are for loam internal growth/digest model.
-`LOAM_API_KEY` 和 `LOAM_MODEL` 用于 loam 内部生长/消化模型。
+---
+
+## Client-side model naming rules
+
+Use Base URL `http://127.0.0.1:8780/v1` and model format `provider/model`. If model has no provider prefix, proxy falls back to `default` provider from upstream config. This makes failover and vendor switching explicit and predictable.
+
+客户端 Base URL 使用 `http://127.0.0.1:8780/v1`，模型名使用 `provider/model`。如果模型名没有 provider 前缀，代理会回退到 upstream 配置中的 `default`。这样切换供应商和故障回退都更明确、可预期。
 
 ---
 
-## 5) Start forced proxy with upstream map
-## 5）再用上游映射启动强制代理
+## Verification and troubleshooting
+
+A valid setup returns provider-prefixed models from `/v1/models` and healthy JSON from `/health`. Empty models usually indicate wrong upstream credentials or an incompatible upstream endpoint. Startup failures should be diagnosed from `~/.loam/run/forced_proxy.log` first.
+
+正确配置后，`/v1/models` 会返回带 provider 前缀的模型，`/health` 返回健康 JSON。模型列表为空通常意味着上游凭证错误或端点不兼容。启动失败优先查看 `~/.loam/run/forced_proxy.log`。
 
 ```bash
-cd ~/loam
-UPSTREAMS_CONFIG="$HOME/.loam/upstreams.json" \
-UPSTREAM_DEFAULT='relayA' \
-bash scripts/termux/start_forced_proxy.sh
-```
-
-Proxy exposes OpenAI-compatible endpoint locally at `http://127.0.0.1:8780/v1`.
-代理会在本地暴露 OpenAI 兼容入口：`http://127.0.0.1:8780/v1`。
-
----
-
-## 6) Agent-side settings
-## 6）Agent 侧填写方式
-
-Base URL: `http://127.0.0.1:8780/v1`
-Base URL：`http://127.0.0.1:8780/v1`
-
-API key: placeholder if your client requires non-empty input.
-API key：如客户端要求非空，可填任意占位值。
-
-Model format: `provider/model`.
-模型格式：`provider/model`。
-
-Examples: `relayA/gpt-4o-mini`, `relayB/claude-3-5-sonnet`.
-示例：`relayA/gpt-4o-mini`、`relayB/claude-3-5-sonnet`。
-
----
-
-## 7) How routing works (principle)
-## 7）路由原理（为什么这样填）
-
-Agent sends request to local proxy instead of remote provider directly.
-Agent 不直接请求远程提供方，而是先请求本地代理。
-
-Proxy reads `model` like `relayA/gpt-4o-mini`, selects `relayA` config, and forwards request.
-代理读取 `relayA/gpt-4o-mini` 这样的模型名，先定位 `relayA` 配置，再转发请求。
-
-During the same turn, proxy enforces `/context -> upstream -> /ingest` pipeline.
-同一轮内，代理会强制执行 `/context -> upstream -> /ingest` 流程。
-
-This is why memory write is reliable even if tool-calling is unstable.
-这就是即使工具调用不稳定，记忆写入仍然可靠的原因。
-
----
-
-## 8) Verify and troubleshoot
-## 8）验证与排错
-
-```bash
-cd ~/loam
-bash scripts/termux/status_loam.sh
-bash scripts/termux/status_forced_proxy.sh
 curl -s http://127.0.0.1:8780/health
 curl -s http://127.0.0.1:8780/v1/models
 ```
 
-If `/v1/models` is empty, your upstream URL/key is likely invalid.
-如果 `/v1/models` 为空，通常是上游 URL/key 不正确。
-
-If proxy fails to start, inspect log file at `~/.loam/run/forced_proxy.log`.
-如果代理启动失败，请查看日志 `~/.loam/run/forced_proxy.log`。
-
 ---
 
-## 9) Security note
-## 9）安全说明
+## Security boundary
 
-Your upstream keys stay in local config files unless you export/share them yourself.
-除非你主动导出或分享，否则上游 key 会保留在本地配置文件中。
+Provider keys remain in local config unless you export or share that file. Proxy forwards requests to providers you selected and does not require sending keys to maintainers.
 
-Proxy forwards to your chosen providers and does not upload keys to project maintainers.
-代理只会转发到你选定的提供方，不会把 key 上传给项目维护者。
-
-Never commit `~/.loam/upstreams.json` or screenshots with visible keys.
-不要把 `~/.loam/upstreams.json` 或含明文 key 的截图提交到仓库。
+除非你主动导出或分享配置文件，上游 key 会保留在本地。代理仅转发到你选定的 provider，不要求把 key 发送给维护者。

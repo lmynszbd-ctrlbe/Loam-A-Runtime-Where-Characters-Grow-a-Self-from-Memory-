@@ -1,120 +1,60 @@
 # loam Pre-Launch Integration Checklist
 
-Use this checklist before public rollout.
-上线前请完成本清单。
+Use this checklist before production rollout to verify runtime, routing, growth behavior, and data safety.
+上线前请按本清单验证运行时、路由、生长行为和数据安全。
 
 ---
 
-## A. Basic runtime
-## A. 基础运行
+## A) Runtime and boot checks
 
-- [ ] `python -m loam --help` prints usage correctly.
-- [ ] `python -m loam --help` 正常输出帮助信息。
+Confirm CLI availability (`python -m loam --help`), ensure service can start with your selected character/home/secrets path, and verify that `/health` endpoints for both loam and proxy return valid JSON. If startup depends on process managers, validate restart-on-failure behavior before launch.
 
-- [ ] `python -m loam stats --character demo --home <dir>` reads empty-store status.
-- [ ] `python -m loam stats --character demo --home <dir>` 能读取空库状态。
-
-- [ ] `python -m loam init-secrets --secrets-home ~/.loam` generates template.
-- [ ] `python -m loam init-secrets --secrets-home ~/.loam` 能生成模板。
+确认 CLI 可用（`python -m loam --help`），确保服务能在你指定的 character/home/secrets 路径启动，并验证 loam 与 proxy 的 `/health` 都返回有效 JSON。如果依赖进程管理器托管，请在上线前验证故障自动拉起。
 
 ---
 
-## B. End-to-end without key
-## B. 无 key 端到端
+## B) Routing and model checks
 
-- [ ] Run `python /home/loam/e2e_smoke.py` and see `✅ smoke ok`.
-- [ ] 运行 `python /home/loam/e2e_smoke.py` 并看到 `✅ smoke ok`。
+Validate `~/.loam/upstreams.json` syntax, ensure default provider exists, and confirm `/v1/models` returns provider-prefixed model ids (for example `relayA/gpt-4o-mini`). Send at least one real chat request through proxy and verify traffic reaches expected upstream provider.
 
-- [ ] After ingest, `pending > 0`.
-- [ ] ingest 后 `pending > 0`。
-
-- [ ] Without key, `digest_once` fails but `pending` is preserved.
-- [ ] 无 key 时 `digest_once` 报错且 `pending` 不减少。
+验证 `~/.loam/upstreams.json` 语法正确、默认 provider 存在，并确认 `/v1/models` 返回带 provider 前缀的模型 id（如 `relayA/gpt-4o-mini`）。至少通过 proxy 发起一次真实聊天请求，确认流量命中预期上游。
 
 ---
 
-## C. End-to-end with key
-## C. 有 key 端到端
+## C) Memory pipeline checks
 
-- [ ] `~/.loam/secrets.json` contains `api_key/base_url/model`.
-- [ ] `~/.loam/secrets.json` 已填 `api_key/base_url/model`。
+Run one full turn and verify forced sequence `/context -> upstream -> /ingest` completes. Check loam stats for memory/event growth and confirm raw turn write happened even when summary-like tools are not called by host platform.
 
-- [ ] `model` is your required flash model id.
-- [ ] `model` 使用你要求的 flash 模型 id。
-
-- [ ] After ingest, `digest_once` reports `new_events > 0`.
-- [ ] ingest 后 `digest_once` 出现 `new_events > 0`。
-
-- [ ] `/context` returns non-empty recalled content.
-- [ ] `/context` 返回非空 recalled 内容。
-
-- [ ] `/stats` memory events grow with ongoing conversation.
-- [ ] `/stats` 中事件数量随对话增长。
+执行至少一轮完整请求并验证强制序列 `/context -> upstream -> /ingest` 完成。检查 loam stats 的记忆/事件增长，确认即使宿主平台未调用摘要类工具，原始轮次也已写入。
 
 ---
 
-## C1. Growth validation (real model)
-## C1. 生长验证（真实模型）
+## D) Growth behavior checks
 
-- [ ] Set `LOAM_API_KEY` and `LOAM_MODEL=<flash_model_id>`.
-- [ ] 设置 `LOAM_API_KEY` 与 `LOAM_MODEL=<flash模型id>`。
+With repeated staged inputs, verify trait movement is progressive (not random spikes), pending accumulation behaves as expected, and qualitative shifts happen only after gate crossing. For important scenarios, run controlled probes and archive baseline outputs.
 
-- [ ] Run `python /home/loam/probe_growth_real_brain.py`.
-- [ ] 运行 `python /home/loam/probe_growth_real_brain.py`。
-
-- [ ] Check that trait strengths move by staged input design.
-- [ ] 检查特质强度是否按阶段输入发生变化。
-
-- [ ] If movement is too small, increase cycles to 20~30.
-- [ ] 若变化过小，把循环提升到 20~30。
+通过分阶段重复输入，验证特质变化是渐进的（而非随机暴冲）、pending 累积符合预期、质变只在跨门槛后发生。关键场景建议跑受控探针并保存基线输出。
 
 ---
 
-## D. Background grower
-## D. 后台生长线程
+## E) Data safety and rebuild checks
 
-- [ ] `auto_start_grower=true` starts autonomous digestion.
-- [ ] `auto_start_grower=true` 时可自动消化。
+Verify raw journal remains readable, derived-layer reset does not destroy immutable raw material, and digestion reset can replay historical raw turns to regenerate derived memory. This ensures long-term maintainability after model or policy upgrades.
 
-- [ ] Grower errors do not crash main service process.
-- [ ] grower 异常不会杀死主服务进程。
-
-- [ ] `/grower/start` and `/grower/stop` work.
-- [ ] `/grower/start` 与 `/grower/stop` 可用。
+验证原始 journal 可读，派生层重置不会破坏不可变原料，digest 重置后可重放历史原始轮次并再生成派生记忆。这是模型或策略升级后保持可维护性的关键保障。
 
 ---
 
-## E. Data safety
-## E. 数据安全
+## F) Security boundary checks
 
-- [ ] Journal raw entries are readable and immutable in intent.
-- [ ] journal 原始条目可读且不应被业务改写。
+Confirm provider keys are sourced from local files/environment and are not hardcoded in repository files. Verify remote origin URL does not include tokens and ensure release text or docs do not accidentally expose credentials.
 
-- [ ] `wipe_derived` clears derived layers while preserving narrative/history.
-- [ ] `wipe_derived` 清空派生层并保留 narrative/history。
-
-- [ ] `reset_digestion` re-queues raw material for reprocessing.
-- [ ] `reset_digestion` 能把生料重新排队重煮。
+确认 provider key 来自本地文件/环境变量，而非硬编码进仓库文件。验证 remote URL 不包含 token，并检查发布文案与文档中没有误泄露凭证。
 
 ---
 
-## F. Regression test suite
-## F. 回归测试
+## G) Regression smoke set (recommended commands)
 
-- [ ] `python tests/test_growth.py`
-- [ ] `python tests/test_growth.py`
-- [ ] `python tests/test_network.py`
-- [ ] `python tests/test_network.py`
-- [ ] `python tests/test_digest.py`
-- [ ] `python tests/test_digest.py`
-- [ ] `python tests/test_store.py`
-- [ ] `python tests/test_store.py`
-- [ ] `python tests/test_context.py`
-- [ ] `python tests/test_context.py`
-- [ ] `python tests/test_server.py`
-- [ ] `python tests/test_server.py`
-- [ ] `python tests/test_integration.py`
-- [ ] `python tests/test_integration.py`
+Use a minimum smoke set before release: `python tests/test_growth.py`, `python tests/test_context.py`, `python tests/test_server.py`, and one end-to-end run with real upstream credentials. Store output logs as release evidence.
 
-Keep one full stdout snapshot as baseline before release.
-建议保留一份全量 stdout 作为上线前基线。
+上线前建议至少执行以下冒烟集合：`python tests/test_growth.py`、`python tests/test_context.py`、`python tests/test_server.py`，以及一次带真实上游凭证的端到端运行。请保存输出日志作为发布证据。
