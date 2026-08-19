@@ -1,4 +1,4 @@
-# loam — 不是“写人设”，不是“滚雪球”记忆，而是“让角色从记忆长出自我”，不断生长。
+# loam — 不是“写人设”，不是“滚雪球”记忆，而是“让角色从记忆长出自我”，不断生长。（测试版）
 
 A memory runtime where identity continuity comes from raw dialogue, growth dynamics, and auditable reconstruction.
 一个记忆运行时：身份连续性来自原始对话、生长动力学与可审计重建，而不是提示词拼装的人设脚本。
