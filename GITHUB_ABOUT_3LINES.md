@@ -18,5 +18,5 @@ Grow a self from memory, not from scripted prompts.
 No-snowball evolution: change anchors to raw turns, not recursive summaries.
 非滚雪球演化：变化锚定原始轮次，而非循环总结。
 
-“Dao gives birth to one, one to two, two to three, three to all things.”
-“道生一，一生二，二生三，三生万物。”
+Quantitative accumulation turns into qualitative shifts through gated growth dynamics.
+通过门控生长动力学，让量变积累逐步转化为质变。
