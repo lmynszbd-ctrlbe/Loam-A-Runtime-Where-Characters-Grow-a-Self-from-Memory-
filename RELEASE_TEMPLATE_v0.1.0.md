@@ -115,6 +115,3 @@ Integration and smoke paths for pre-release verification.
 `bash scripts/termux/final_stop_all.sh`
 
 ---
-
-If any token was exposed, revoke and rotate immediately.
-如有 token 暴露，请立刻吊销并轮换。
