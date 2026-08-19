@@ -1,15 +1,19 @@
-# GitHub About（重点亮点版）
+# GitHub About (Bilingual)
 
-## A) Description（推荐直接粘贴，<=350 字）
+## Description (for repo About field)
+## 仓库描述（用于 GitHub About）
 
-不是“写人设”，而是“让角色从记忆长出自我”。非滚雪球：变化锚定原始对话，不锚定上一版总结。支持强制原文入库、多上游单入口路由与双模型解耦。
+A non-snowball memory runtime where character identity grows from raw dialogue, with forced ingest, dual-model decoupling, and multi-upstream routing.
+一个非滚雪球的记忆运行时：角色身份从原始对话中生长，支持强制原文入库、双模型解耦与多上游路由。
 
-## B) 三行展示文案（README/介绍页）
+## Three-line Hero Copy
+## 三行主文案
 
-1) 不是“写人设”，而是“让角色从记忆长出自我”。
-2) 非滚雪球：变化锚定原始对话，不锚定上一版人格总结。
-3) Model-agnostic memory runtime with forced ingest + multi-upstream routing.
+Grow a self from memory, not from scripted prompts.
+让“我”从记忆中生长，而不是从提示词脚本里拼装。
 
-## C) 英文短描述（可选）
+No-snowball evolution: changes anchor to immutable raw turns, not to recursive summaries.
+非滚雪球演化：变化锚定不可变原始轮次，而不是循环总结。
 
-A non-snowball character-memory runtime: identity grows from raw dialogue, not prompt scripts.
+Quantitative accumulation drives qualitative shifts through gated growth dynamics.
+通过门控生长动力学，让量变持续积累并触发质变。
