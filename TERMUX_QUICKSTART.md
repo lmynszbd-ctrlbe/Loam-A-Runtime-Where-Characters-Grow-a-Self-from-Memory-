@@ -1,57 +1,118 @@
-# loam on Termux（一步启动 + 持续运行）
+# loam on Termux (Quickstart)
 
-## 0) 先装依赖
+This guide gives minimal commands for persistent local runtime.
+这份指南提供最小命令集，用于本地常驻运行。
+
+---
+
+## Install dependencies
+## 安装依赖
 
 ```bash
 pkg update -y
-pkg install -y python curl
+pkg install -y python curl git
 ```
 
-> 如果你要开机自启，再装并安装 **Termux:Boot** App。
+```bash
+pkg update -y
+pkg install -y python curl git
+```
 
-## 1) 一键启动（必须提供 key/model）
+Install Termux:Boot if you want auto-start on device reboot.
+若你希望设备重启后自动启动，请安装 Termux:Boot。
 
-在项目目录执行（假设仓库在 `~/loam`）：
+---
+
+## Bootstrap and start
+## 初始化并启动
+
+Run from repository root (assume `~/loam`).
+在仓库根目录执行（假设在 `~/loam`）。
 
 ```bash
 cd ~/loam
-LOAM_API_KEY='你的DeepSeekKey' \
-LOAM_MODEL='你的flash模型ID' \
+LOAM_API_KEY='your_growth_key' \
+LOAM_MODEL='deepseek-chat-flash' \
 bash scripts/termux/bootstrap_and_start.sh
 ```
 
-- `LOAM_MODEL` 建议填你指定的 flash 模型
-- 会写入 `~/.loam/secrets.json`
-- 服务默认监听 `127.0.0.1:8765`
+```bash
+cd ~/loam
+LOAM_API_KEY='你的生长key' \
+LOAM_MODEL='deepseek-chat-flash' \
+bash scripts/termux/bootstrap_and_start.sh
+```
 
-## 2) 常用管理命令
+`LOAM_MODEL` should be your chosen flash model id.
+`LOAM_MODEL` 建议填写你指定的 flash 模型 id。
+
+Secrets are written to `~/.loam/secrets.json` locally.
+密钥会写入本地 `~/.loam/secrets.json`。
+
+---
+
+## Daily management commands
+## 日常管理命令
 
 ```bash
 cd ~/loam
-bash scripts/termux/status_loam.sh   # 看状态+health
-bash scripts/termux/log_loam.sh      # 看日志
-bash scripts/termux/stop_loam.sh     # 停止
-bash scripts/termux/start_loam.sh    # 启动
+bash scripts/termux/status_loam.sh
+bash scripts/termux/log_loam.sh
+bash scripts/termux/stop_loam.sh
+bash scripts/termux/start_loam.sh
 ```
 
-## 3) 开机自启（可选）
+```bash
+cd ~/loam
+bash scripts/termux/status_loam.sh
+bash scripts/termux/log_loam.sh
+bash scripts/termux/stop_loam.sh
+bash scripts/termux/start_loam.sh
+```
+
+---
+
+## Optional boot auto-start
+## 可选：开机自启
 
 ```bash
 cd ~/loam
 bash scripts/termux/install_boot.sh
 ```
 
-然后重启手机验证：
-
 ```bash
-bash scripts/termux/status_loam.sh
+cd ~/loam
+bash scripts/termux/install_boot.sh
 ```
 
-## 4) 快速接口检查
+Reboot phone then re-check status.
+手机重启后再检查状态。
+
+---
+
+## Quick health check
+## 快速健康检查
 
 ```bash
 curl -s http://127.0.0.1:8765/health
 curl -s http://127.0.0.1:8765/stats
 ```
 
-如果有返回 JSON，说明服务持续运行正常。
+```bash
+curl -s http://127.0.0.1:8765/health
+curl -s http://127.0.0.1:8765/stats
+```
+
+If JSON returns, the service is running.
+如果返回 JSON，说明服务正在运行。
+
+---
+
+## Security note
+## 安全说明
+
+Keys are local to your Termux environment unless you explicitly copy/share them.
+除非你主动复制或分享，否则 key 仅存在于你的 Termux 本地环境。
+
+loam does not require uploading your keys to maintainers.
+loam 不要求你把 key 上传给维护者。

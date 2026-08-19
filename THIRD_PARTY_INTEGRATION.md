@@ -1,122 +1,122 @@
-# loam 第三方接入说明（MCP / 插件 / 自定义脚本）
+# loam Third-Party Integration (MCP / Plugin / Script Bridge)
 
+loam is an independent HTTP memory runtime, not a model-specific plugin.
+loam 是独立的 HTTP 记忆运行时，不是绑定某个模型的插件。
+
+It binds to character identity continuity, not to a single LLM vendor.
+它绑定的是角色身份连续性，而不是某一家 LLM 供应商。
+
+---
+
+## One-line positioning
 ## 一句话定位
 
-**loam 本体是“独立 HTTP 记忆进程”**，不是某个特定聊天模型插件。  
-它绑定的是 `character`（角色），不是绑定某个模型。
-
-- 你换模型：角色记忆还在。
-- 你换客户端：角色记忆还在。
-- 你迁移设备：拷走数据目录即可。
+Keep memory in loam, keep models replaceable.
+把记忆放在 loam，把模型保持可替换。
 
 ---
 
+## Recommended integration options
 ## 推荐接入方式
 
-### 方案 A（优先）：MCP 工具适配层
+### Option A: MCP adapter
+### 方案 A：MCP 适配层
 
-如果三方软件支持 MCP，就做 3 个工具映射到 loam HTTP：
+Map MCP tools to loam HTTP endpoints.
+把 MCP 工具映射到 loam HTTP 端点。
 
-1. `loam_context(query, learn=true)` -> `POST /context`
-2. `loam_ingest(session, turns[])` -> `POST /ingest`
-3. `loam_digest(limit?)` -> `POST /digest`（或后台自己跑）
+`loam_context(query, learn=true)` -> `POST /context`.
+`loam_context(query, learn=true)` -> `POST /context`。
 
-可选：
-- `loam_stats()` -> `GET /stats`
-- `loam_health()` -> `GET /health`
+`loam_ingest(session, turns[])` -> `POST /ingest`.
+`loam_ingest(session, turns[])` -> `POST /ingest`。
 
-> 这样任何 MCP 客户端都能复用 loam，而不被某个平台绑定。
+`loam_digest(limit?)` -> `POST /digest` (optional if background grower runs).
+`loam_digest(limit?)` -> `POST /digest`（若后台 grower 在跑则可选）。
 
----
+### Option B: Platform hooks / plugin callbacks
+### 方案 B：平台钩子 / 插件回调
 
-### 方案 B：平台插件 / Webhook（不支持 MCP）
+Before generation, call `/context` and inject returned text into prompt context.
+生成前调用 `/context`，把返回文本注入提示上下文。
 
-很多平台有“发送前/发送后钩子”：
+After generation, write user+assistant raw turns into `/ingest`.
+生成后把 user+assistant 原文轮次写入 `/ingest`。
 
-- 发送给模型前：调用 `/context`，把 `text` 拼到系统提示词
-- 模型回复后：把 user+assistant 双边落 `/ingest`
-- 空闲时：调用 `/digest`（或依赖 loam 后台 grower）
+### Option C: Forced proxy bridge (recommended)
+### 方案 C：强制代理桥（推荐）
 
----
+Use a local OpenAI-compatible proxy that enforces the full sequence.
+使用本地 OpenAI 兼容代理，强制执行完整流程。
 
-### 方案 C：最小脚本桥（推荐：强制流程代理）
+`/context -> upstream model -> /ingest` on every turn.
+每轮固定执行 `/context -> 上游模型 -> /ingest`。
 
-如果平台连插件都没有，就用一个本地代理接管 OpenAI 兼容入口。
-代理里串上 loam 的 3 步：
-
-1) `context = /context`
-2) 调上游模型 API
-3) `/ingest` +（可选）`/digest`
-
-并且可以做**多上游聚合**（你有多个不同中转时最实用）：
-- 代理的 `/v1/models` 聚合所有上游模型
-- 模型名形如 `provider/model`（例如 `relayA/gpt-4o-mini`、`relayB/claude-3-5-sonnet`）
-- 你在 agent 里直接切换不同家的模型即可
+This avoids memory loss caused by uncertain tool-calling behavior.
+这能避免因工具调用不稳定造成的记忆漏写。
 
 ---
 
-## 你刚问的关键：传原文还是传总结？
+## Raw text vs summary upload
+## 传原文还是传总结
 
-**默认推荐：每一轮都传原文（user + assistant）到 loam。**
+Recommended default is raw-turn upload for every round.
+默认推荐每轮上传原文轮次。
 
-- 传的是原始轮次文本，不是先总结再传。
-- 总结/抽事件发生在 loam 内部 digest 阶段（后台），原文 L0 永久保留。
-- 这样就不会出现“平台没总结到就丢记忆”的问题。
+Summary extraction happens inside loam digest stage, not before ingest.
+总结抽取发生在 loam 的 digest 阶段，而不是 ingest 之前。
 
-## 对话时序（关键）
-
-每轮对话建议这样走：
-
-1. 用户输入到来：
-   - 调 loam `/context`（query=用户本轮文本）
-   - 将返回 `text` 注入系统上下文
-2. 调外部模型生成回复
-3. 立即把本轮 user+assistant 落到 loam `/ingest`
-4. 让 loam 后台 grower 自动消化（或手动 `/digest`）
+So missing summary calls will not drop raw memory.
+所以即使没有总结调用，也不会丢原始记忆。
 
 ---
 
+## Minimal HTTP examples
 ## 最小 HTTP 示例
 
-### 1) 取上下文
+Fetch context:
+获取上下文：
 
 ```bash
 curl -s -X POST http://127.0.0.1:8765/context \
   -H 'Content-Type: application/json' \
-  -d '{"query":"我明天开会有点紧张","learn":true}'
+  -d '{"query":"I am nervous about tomorrow\'s meeting","learn":true}'
 ```
 
-### 2) 记录本轮对话
+```bash
+curl -s -X POST http://127.0.0.1:8765/context \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"我对明天开会有点紧张","learn":true}'
+```
+
+Ingest one round:
+入库一轮对话：
 
 ```bash
 curl -s -X POST http://127.0.0.1:8765/ingest \
   -H 'Content-Type: application/json' \
-  -d '{
-    "session":"chat-001",
-    "turns":[
-      {"turn": 120, "role":"user", "content":"我明天开会有点紧张"},
-      {"turn": 120, "role":"assistant", "content":"我们先把准备步骤拆开"}
-    ]
-  }'
+  -d '{"session":"chat-001","turns":[{"turn":120,"role":"user","content":"I am nervous"},{"turn":120,"role":"assistant","content":"Let us split preparation steps"}]}'
 ```
-
-### 3) 手动消化（可选）
 
 ```bash
-curl -s -X POST http://127.0.0.1:8765/digest -H 'Content-Type: application/json' -d '{}'
+curl -s -X POST http://127.0.0.1:8765/ingest \
+  -H 'Content-Type: application/json' \
+  -d '{"session":"chat-001","turns":[{"turn":120,"role":"user","content":"我有点紧张"},{"turn":120,"role":"assistant","content":"我们把准备步骤拆开"}]}'
 ```
 
 ---
 
-## 什么时候必须 API key
+## Security statement for URL/API concerns
+## 面向 URL/API 顾虑的安全声明
 
-- 你要“持续自生长”（抽事件/判特质/自述/漂移审计）=> **必须 key**
-- 你只想“先当记忆缓存/上下文插件” => 理论可不跑 grower，但你当前配置已切到“必须 key 启动”模式
+Agent points to your local proxy URL, not to a maintainer-owned server.
+Agent 指向的是你的本地代理 URL，而不是维护者托管服务器。
 
----
+Keys are loaded from your local env/files and sent only to your chosen upstream endpoints.
+key 从你的本地环境/文件加载，只会发往你选择的上游端点。
 
-## 结论
+loam does not require transmitting your provider keys to project maintainers.
+loam 不要求把你的上游 key 传给项目维护者。
 
-- **形态上**：loam 是独立进程 + HTTP 能力层。
-- **生态接入上**：优先 MCP；不支持 MCP 就插件/脚本桥。
-- **核心原则上**：永远是“角色记忆中心”，不是“模型私有记忆”。
+Security still depends on your host hardening and provider trust model.
+安全性仍然取决于你的主机防护与上游提供方可信模型。

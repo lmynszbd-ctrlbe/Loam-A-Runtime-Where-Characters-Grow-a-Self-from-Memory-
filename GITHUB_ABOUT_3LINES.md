@@ -1,19 +1,22 @@
 # GitHub About (Bilingual)
 
-## Description (for repo About field)
+## Description (for GitHub About)
 ## 仓库描述（用于 GitHub About）
 
-A non-snowball memory runtime where character identity grows from raw dialogue, with forced ingest, dual-model decoupling, and multi-upstream routing.
-一个非滚雪球的记忆运行时：角色身份从原始对话中生长，支持强制原文入库、双模型解耦与多上游路由。
+A non-snowball memory runtime where identity grows from raw dialogue, with forced ingest, gated growth, dual-model decoupling, and multi-upstream routing.
+一个非滚雪球的记忆运行时：身份从原始对话中生长，具备强制入库、门控生长、双模型解耦与多上游路由。
+
+API keys stay on your local runtime and are sent only to your configured upstream providers.
+API key 保留在你的本地运行环境中，只会发送到你自己配置的上游提供方。
 
 ## Three-line Hero Copy
 ## 三行主文案
 
 Grow a self from memory, not from scripted prompts.
-让“我”从记忆中生长，而不是从提示词脚本里拼装。
+让“我”从记忆中生长，而不是从提示词脚本中拼装。
 
-No-snowball evolution: changes anchor to immutable raw turns, not to recursive summaries.
-非滚雪球演化：变化锚定不可变原始轮次，而不是循环总结。
+No-snowball evolution: change anchors to raw turns, not recursive summaries.
+非滚雪球演化：变化锚定原始轮次，而非循环总结。
 
-Quantitative accumulation drives qualitative shifts through gated growth dynamics.
-通过门控生长动力学，让量变持续积累并触发质变。
+“Dao gives birth to one, one to two, two to three, three to all things.”
+“道生一，一生二，二生三，三生万物。”

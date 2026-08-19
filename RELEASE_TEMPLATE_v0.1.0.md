@@ -1,44 +1,38 @@
 # v0.1.0 — loam Final Runtime Release
 
-Not a persona script engine, but a memory-growth runtime.
-这不是一个人设脚本引擎，而是一个记忆生长运行时。
+Identity growth is engineered, not hand-scripted.
+身份生长是被工程化实现的，而不是手写脚本拼出来的。
 
-Identity grows from lived dialogue, not from static prompt cards.
-身份从真实对话中生长，而不是从静态提示词卡片中生成。
+“Dao gives birth to one, one to two, two to three, three to all things.”
+“道生一，一生二，二生三，三生万物。”
+
+In this release, the quote maps to a concrete growth pipeline from accumulation to phase shift.
+在这个版本里，这句话对应的是“从累积到跃迁”的具体生长流水线。
 
 ---
 
 ## Why this release matters
 ## 为什么这个版本重要
 
-Most persona systems drift because they recursively rewrite summaries.
-多数人格系统会漂移，因为它们在循环改写总结。
+Most persona systems drift because they repeatedly summarize summaries.
+多数人格系统会漂移，因为它们在“总结的总结”里循环自改。
 
-loam avoids that drift by anchoring every meaningful change to immutable raw turns.
-loam 通过把每次关键变化锚定到不可变原始轮次来避免漂移。
+loam anchors change to immutable raw turns and keeps derived layers rebuildable.
+loam 把变化锚定到不可变原始轮次，并让派生层始终可重建。
 
-The result is continuity with accountability.
-结果是：连续性与可追责性同时成立。
+This gives continuity without blind self-reinforcement.
+这让系统在保持连续性的同时避免盲目自我强化。
 
 ---
 
-## Breakthrough ideas in this version
-## 本版本的突破点
+## Breakthrough highlights
+## 突破亮点
 
-### 1) No-snowball growth invariant
-### 1）非滚雪球生长不变量
+No-snowball invariant: yesterday’s persona snapshot is not today’s truth source.
+非滚雪球不变量：昨天的人格快照不是今天的真相来源。
 
-We do not treat yesterday’s persona summary as today’s truth source.
-我们不把昨天的人格总结当作今天的真相源。
-
-Raw dialogue remains the first-class source of evidence.
-原始对话始终是一等证据源。
-
-### 2) Quantitative-to-qualitative growth formula
-### 2）量变到质变的生长公式
-
-Growth speed is endogenous and phase-aware, not externally rate-limited.
-生长速度是内生且分阶段的，而不是外部硬限速。
+Gated growth dynamics: incremental evidence accumulates before committing change.
+门控生长动力学：增量证据先积累，再提交变化。
 
 `capacity = max(strength, seed_floor) * max(ceiling - strength, seed_floor)`
 `capacity = max(strength, seed_floor) * max(ceiling - strength, seed_floor)`
@@ -46,82 +40,60 @@ Growth speed is endogenous and phase-aware, not externally rate-limited.
 `delta = plasticity * capacity * signal * salience`
 `delta = plasticity * capacity * signal * salience`
 
-Evidence accumulates in `pending`; commit occurs only when gate is crossed.
-证据先在 `pending` 累积；只有越过门槛才会提交变化。
-
 `gate = max(gate_floor, gate_ratio * capacity)`
 `gate = max(gate_floor, gate_ratio * capacity)`
 
-This creates progressive accumulation instead of sudden uncontrolled jumps.
-这保证了渐进累积，而不是失控式突增。
+Quantitative accumulation can produce qualitative phase transition over time.
+量变可以在时间尺度上触发质变。
 
-Repeated weak signals can still produce phase transition over long horizons.
-重复弱信号在长时间尺度上依然可以触发阶段跃迁。
+Controlled breakthrough channel allows major events to move consolidated traits safely.
+受控突破通道允许重大事件在安全边界内推动固化特质。
 
-### 3) Controlled breakthrough channel
-### 3）受控突破通道
+Behavior-grounded calibration prevents performative identity inflation.
+行为落地校准可防止“表演型人格”虚高膨胀。
 
-Major events can bypass consolidation resistance without breaking stability.
-重大事件可以突破固化阻力，同时不破坏整体稳定性。
+Forced ingest pipeline guarantees memory write even when tool-calling is unreliable.
+强制入库流水线可在工具调用不稳定时仍保证记忆写入。
 
-`if salience >= BREAKTHROUGH: delta += gain * signal * (salience - BREAKTHROUGH)`
-`if salience >= BREAKTHROUGH: delta += gain * signal * (salience - BREAKTHROUGH)`
+Single endpoint plus multi-upstream routing keeps integration simple and vendor-agnostic.
+单入口加多上游路由让接入保持简单且不锁定供应商。
 
-### 4) Behavior-grounded calibration
-### 4）行为落地校准
+Dual-model decoupling keeps chat response model separate from growth model.
+双模型解耦让聊天回复模型与生长模型彼此独立。
 
-Trait strength is calibrated toward observed behavior frequency.
-特质强度会向真实行为频率校准。
+---
 
-This blocks performative self-description from inflating identity unrealistically.
-这阻止“口头自我描述”脱离行为现实而虚高。
+## Security note for API/URL concerns
+## 面向 API/URL 顾虑的安全说明
 
-### 5) Forced ingest architecture for unreliable tool-calling
-### 5）应对工具不稳定调用的强制入库架构
+Your API keys are configured and stored in your own runtime environment.
+你的 API key 在你自己的运行环境里配置与存储。
 
-Pipeline is enforced in proxy: recall -> generate -> ingest every turn.
-流水线由代理强制执行：每轮都“回忆 -> 生成 -> 入库”。
+Requests are sent from your local process directly to your chosen upstream providers.
+请求由你的本地进程直接发往你选择的上游提供方。
 
-Memory write does not depend on whether an Agent decides to call tools.
-记忆写入不依赖 Agent 是否“恰好调用工具”。
+loam does not require forwarding your keys to project maintainers.
+loam 不要求你把 key 转发给项目维护者。
 
-### 6) Single endpoint, multi-upstream routing
-### 6）单入口多上游路由
-
-Keep one Agent URL and route by `provider/model`.
-Agent 只保留一个 URL，通过 `provider/model` 路由。
-
-This decouples user-facing integration from upstream vendor switching.
-这把用户侧接入与上游厂商切换彻底解耦。
-
-### 7) Dual-model decoupling
-### 7）双模型解耦
-
-Chat model and growth model are independently configurable.
-聊天模型与生长模型可独立配置。
-
-Identity continuity survives provider/model replacement.
-身份连续性不随上游模型替换而丢失。
+No project-owned remote memory endpoint is required for normal operation.
+正常运行不依赖“项目方托管的远程记忆端点”。
 
 ---
 
 ## Included in v0.1.0
 ## v0.1.0 包含内容
 
-Core runtime (`loam/`) with store/core/mind/server/CLI.
-核心运行时（`loam/`），含 store/core/mind/server/CLI。
+Core runtime in `loam/` with store, growth, digest, context, server, and CLI.
+`loam/` 核心运行时，包含 store、growth、digest、context、server 与 CLI。
 
-Forced-flow OpenAI-compatible proxy (`bridge/forced_flow_proxy.py`).
-强制流程 OpenAI 兼容代理（`bridge/forced_flow_proxy.py`）。
+Forced-flow OpenAI-compatible proxy in `bridge/forced_flow_proxy.py`.
+`bridge/forced_flow_proxy.py` 中提供强制流程 OpenAI 兼容代理。
 
-Termux operation scripts for start/status/stop/log/final orchestration.
-Termux 启停/状态/日志/总控脚本全套。
+Termux scripts for one-command start, status, stop, and orchestration.
+Termux 脚本覆盖一键启动、状态查看、停止与总控。
 
-Integration and smoke validation scripts.
-集成与冒烟验证脚本。
-
-Deployment and integration docs.
-部署与接入文档。
+Integration and smoke tests for deployment confidence.
+集成与冒烟测试用于上线可信验证。
 
 ---
 
@@ -139,8 +111,5 @@ Deployment and integration docs.
 
 ---
 
-## Security note
-## 安全说明
-
-If any token was exposed in chat/logs, revoke and rotate immediately.
-若 token 曾出现在聊天或日志中，请立即吊销并轮换。
+If any token was exposed, revoke and rotate immediately.
+如有 token 暴露，请立刻吊销并轮换。

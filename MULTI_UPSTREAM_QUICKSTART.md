@@ -1,16 +1,31 @@
-# 多中转上游快速配置（forced proxy）
+# Multi-Upstream Quickstart (forced proxy)
 
-> 这份文档专门回答：**“什么叫配好上游？”**
-
-## 0) 概念先说清
-
-- 你在 Agent 里只配一个入口：`http://127.0.0.1:8780/v1`
-- 但代理需要知道“背后有哪些中转可用”，这份映射就叫 **上游配置**
-- 上游配置文件路径：`~/.loam/upstreams.json`
+This file answers one question: what does “upstream configured” actually mean?
+本文件专门回答一个问题：到底什么叫“上游配好”。
 
 ---
 
-## 1) 复制模板
+## Concept
+## 概念
+
+Agent uses one local URL: `http://127.0.0.1:8780/v1`.
+Agent 只使用一个本地 URL：`http://127.0.0.1:8780/v1`。
+
+Proxy still needs a map of real upstream providers and keys.
+代理仍需要知道真实上游提供方与对应 key。
+
+That map is `~/.loam/upstreams.json`.
+这个映射文件就是 `~/.loam/upstreams.json`。
+
+---
+
+## Create config from template
+## 从模板创建配置
+
+```bash
+mkdir -p ~/.loam
+cp ~/loam/bridge/upstreams.example.json ~/.loam/upstreams.json
+```
 
 ```bash
 mkdir -p ~/.loam
@@ -19,9 +34,8 @@ cp ~/loam/bridge/upstreams.example.json ~/.loam/upstreams.json
 
 ---
 
-## 2) 编辑上游配置（核心）
-
-`~/.loam/upstreams.json` 示例：
+## Edit `~/.loam/upstreams.json`
+## 编辑 `~/.loam/upstreams.json`
 
 ```json
 {
@@ -36,36 +50,65 @@ cp ~/loam/bridge/upstreams.example.json ~/.loam/upstreams.json
       "base_url": "https://relay-b.example.com",
       "api_key": "sk-yyyy",
       "default_model": "claude-3-5-sonnet"
-    },
-    "relayC": {
-      "base_url": "https://relay-c.example.com",
-      "api_key": "sk-zzzz",
-      "default_model": "deepseek-chat"
     }
   }
 }
 ```
 
-字段说明：
-- `default`：默认 provider 名字（例如 `relayA`）
-- `providers.<name>.base_url`：这家中转的 OpenAI 兼容基址
-- `providers.<name>.api_key`：对应 key
-- `providers.<name>.default_model`：当只写 provider 时默认走的模型
+```json
+{
+  "default": "relayA",
+  "providers": {
+    "relayA": {
+      "base_url": "https://relay-a.example.com",
+      "api_key": "sk-xxxx",
+      "default_model": "gpt-4o-mini"
+    },
+    "relayB": {
+      "base_url": "https://relay-b.example.com",
+      "api_key": "sk-yyyy",
+      "default_model": "claude-3-5-sonnet"
+    }
+  }
+}
+```
+
+`default` is the fallback provider.
+`default` 是默认回退 provider。
+
+`providers.<name>.base_url` must be OpenAI-compatible upstream base URL.
+`providers.<name>.base_url` 必须是 OpenAI 兼容上游基址。
 
 ---
 
-## 3) 启动 loam（后台生长）
+## Start loam service
+## 启动 loam 服务
 
 ```bash
 cd ~/loam
-LOAM_API_KEY='你的loam后台key' \
+LOAM_API_KEY='your_growth_key' \
+LOAM_MODEL='deepseek-chat-flash' \
+bash scripts/termux/start_loam.sh
+```
+
+```bash
+cd ~/loam
+LOAM_API_KEY='你的生长key' \
 LOAM_MODEL='deepseek-chat-flash' \
 bash scripts/termux/start_loam.sh
 ```
 
 ---
 
-## 4) 启动 forced proxy（多上游路由）
+## Start forced proxy
+## 启动强制代理
+
+```bash
+cd ~/loam
+UPSTREAMS_CONFIG="$HOME/.loam/upstreams.json" \
+UPSTREAM_DEFAULT='relayA' \
+bash scripts/termux/start_forced_proxy.sh
+```
 
 ```bash
 cd ~/loam
@@ -76,46 +119,46 @@ bash scripts/termux/start_forced_proxy.sh
 
 ---
 
-## 5) 在 Agent 软件里怎么填
+## Agent settings
+## Agent 设置
 
-- Base URL: `http://127.0.0.1:8780/v1`
-- API Key: 任意占位（如果客户端强制要求）
-- 模型：`provider/model`
+Base URL: `http://127.0.0.1:8780/v1`.
+Base URL：`http://127.0.0.1:8780/v1`。
 
-示例：
-- `relayA/gpt-4o-mini`
-- `relayB/claude-3-5-sonnet`
-- `relayC/deepseek-chat`
+API key: any placeholder if client requires it.
+API key：如果客户端强制要求，可填任意占位值。
 
-这就实现了：**一个 URL，切多家渠道。**
+Model format: `provider/model`.
+模型格式：`provider/model`。
+
+Example: `relayA/gpt-4o-mini`, `relayB/claude-3-5-sonnet`.
+示例：`relayA/gpt-4o-mini`、`relayB/claude-3-5-sonnet`。
 
 ---
 
-## 6) 验证是否“配好上游”
+## Verify
+## 验证
 
 ```bash
 curl -s http://127.0.0.1:8780/health
 curl -s http://127.0.0.1:8780/v1/models
 ```
 
-- `/health` 返回 ok：代理活着
-- `/v1/models` 能看到 `provider/model` 列表：上游映射生效
-
----
-
-## 7) 常见错误
-
-- `~/.loam/upstreams.json` 路径写错
-- `base_url` 不是 OpenAI 兼容接口
-- key 填错或过期
-- 模型名不匹配（比如上游叫 `deepseek-chat`，你却写了别的）
-
----
-
-## 8) 管理命令
-
 ```bash
-cd ~/loam
-bash scripts/termux/status_forced_proxy.sh
-bash scripts/termux/stop_forced_proxy.sh
+curl -s http://127.0.0.1:8780/health
+curl -s http://127.0.0.1:8780/v1/models
 ```
+
+If `/v1/models` shows `provider/model`, mapping works.
+如果 `/v1/models` 能看到 `provider/model`，映射已生效。
+
+---
+
+## Security note
+## 安全说明
+
+Upstream keys remain in your local config file unless you share that file yourself.
+除非你自己分享配置文件，否则上游 key 始终留在本地配置中。
+
+Proxy forwards requests from your runtime to your providers; not to project maintainers.
+代理只把请求从你的运行环境转发到你的上游提供方，不会转发给项目维护者。
