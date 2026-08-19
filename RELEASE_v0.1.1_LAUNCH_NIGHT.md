@@ -30,6 +30,14 @@ This release supports multiple deployment paths: Termux for mobile personal alwa
 
 ---
 
+## Deployment guide index
+
+For practical deployment, use `FINAL_RELEASE.md` as the one-stop playbook, `DEPLOYMENT_MODES.md` for environment comparison, `TERMUX_QUICKSTART.md` for Android path, and `MULTI_UPSTREAM_QUICKSTART.md` for provider routing setup. This release explicitly supports more than Termux and keeps the same runtime semantics across all deployment modes.
+
+实际部署请按以下索引：`FINAL_RELEASE.md`（总手册）、`DEPLOYMENT_MODES.md`（环境对比）、`TERMUX_QUICKSTART.md`（Android 路径）、`MULTI_UPSTREAM_QUICKSTART.md`（多上游路由配置）。本次发布明确不止支持 Termux，且在不同部署模式下保持一致运行语义。
+
+---
+
 ## URL/API security boundary
 
 Provider credentials are sourced from local runtime files or environment variables and used by local processes to call user-selected upstream providers. The project does not require uploading provider keys to maintainers, and normal operation does not depend on a maintainer-hosted mandatory cloud relay. Residual risk mainly comes from user-side host security, plugin chain trust, and secret handling discipline.
@@ -46,5 +54,13 @@ This release includes expanded deployment playbooks, rewritten beginner quicksta
 
 ---
 
-Do not script a persona. Build a self that can be traced to experience.
-不要脚本化人设，要构建一个可追溯到真实经历的“自我”。
+## Highlight visual-content module (release page)
+
+For the release page, use a four-card visual sequence: **Card 1: drift problem** (summary recursion vs raw-turn anchoring), **Card 2: enforced pipeline** (`/context -> upstream -> /ingest` flowchart), **Card 3: growth formula panel** (capacity/delta/gate with pending-to-commit transition), and **Card 4: deployment coverage** (Termux, Linux/VM, WSL/macOS, container). Keep each card to one image + one implication paragraph so launch-night readers can quickly map value to execution.
+
+在发布页建议使用四卡图文结构：**卡片 1：漂移问题**（总结递归 vs 原始轮次锚定）、**卡片 2：强制流程**（`/context -> upstream -> /ingest` 流程图）、**卡片 3：生长公式面板**（capacity/delta/gate 与 pending->commit 过渡）、**卡片 4：部署覆盖**（Termux、Linux/VM、WSL/macOS、容器）。每张卡保持“一图 + 一段落地含义”，让发布夜读者快速完成“价值-执行”映射。
+
+---
+
+Do not hard-freeze a persona. Build a self that can be traced to experience.
+不要写太固化的人设，要构建一个可追溯到真实经历的“自我”。

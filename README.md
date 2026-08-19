@@ -21,11 +21,27 @@ loam 采用“非滚雪球不变量”：关键更新必须锚定原始轮次，
 
 ---
 
+## Growth formula and design logic
+
+The growth system is driven by three linked terms: `capacity = max(strength, seed_floor) * max(ceiling - strength, seed_floor)`, `delta = plasticity * capacity * signal * salience`, and `gate = max(gate_floor, gate_ratio * capacity)`. In plain words, a trait does not jump immediately after one event; evidence is first accumulated in pending state and only committed after crossing the gate threshold. This is how loam keeps growth progressive, reduces random spikes, and still allows long-term qualitative shifts.
+
+生长系统由三项联动公式驱动：`capacity = max(strength, seed_floor) * max(ceiling - strength, seed_floor)`、`delta = plasticity * capacity * signal * salience`、`gate = max(gate_floor, gate_ratio * capacity)`。直白来说，特质不会因为一次事件立刻大跳，而是先在 pending 中累积证据，跨过门槛再提交变化。这就是 loam 能同时做到“渐进变化、抑制乱跳、长期可质变”的原因。
+
+The design thought process is: preserve immutable raw turns as ground truth, let derived layers remain rebuildable, then use gated dynamics to convert repeated evidence into stable identity structure. This is not a one-shot personality injection; it is a controlled emergence process with audit trails.
+
+设计思路是：先把不可变原始轮次作为真值底座，再让派生层保持可重建，最后用门控动力学把重复证据转化为稳定身份结构。这不是“一次性注入人设”，而是带审计轨迹的可控涌现过程。
+
+---
+
 ## Deployment modes (not only Termux)
 
 loam is not limited to Termux. You can run it in four mainstream ways: **Termux on Android** for personal always-on usage; **Linux server or VM** for stable long-running instances; **WSL/macOS local dev** for desktop development and debugging; and **containerized deployment** for reproducible team environments. All modes share the same core flow (`/context -> upstream -> /ingest`) and the same upstream mapping strategy. Detailed commands are in `DEPLOYMENT_MODES.md`.
 
 loam 并不只支持 Termux。你可以用四种主流方式部署：**Android Termux**（个人常驻）、**Linux 服务器/虚拟机**（长期稳定运行）、**WSL/macOS 本地开发**（桌面调试）、**容器化部署**（团队可复现环境）。这些模式都共享同一套核心流程（`/context -> upstream -> /ingest`）和上游映射策略。详细命令见 `DEPLOYMENT_MODES.md`。
+
+For full deployment guidance, read `FINAL_RELEASE.md` for one-stop playbook, `DEPLOYMENT_MODES.md` for cross-environment comparison, and `TERMUX_QUICKSTART.md` / `MULTI_UPSTREAM_QUICKSTART.md` for concrete startup commands.
+
+如果要完整部署，请优先读 `FINAL_RELEASE.md`（一站式部署手册）、`DEPLOYMENT_MODES.md`（跨环境对比），以及 `TERMUX_QUICKSTART.md` / `MULTI_UPSTREAM_QUICKSTART.md`（可直接执行的启动命令）。
 
 ---
 
@@ -37,6 +53,14 @@ Use `FINAL_RELEASE.md` for full deployment playbook and mode comparison, `TERMUX
 
 ---
 
+## Highlight visual-content module (normal page)
+
+Use a four-block visual narrative on the normal project page: **Block A: problem framing** (why summary-recursion drifts), **Block B: pipeline architecture** (`/context -> upstream -> /ingest`), **Block C: growth mechanics** (capacity/delta/gate with pending accumulation), and **Block D: deployment matrix** (Termux/Linux/WSL-Desktop/Container). Each block should include one screenshot or diagram and one paragraph explaining the operational implication, so visitors can understand both concept and execution path within one screen scroll.
+
+建议在常规项目页使用四段式图文结构：**A 段：问题定义**（为什么总结递归会漂移）、**B 段：流程架构**（`/context -> upstream -> /ingest`）、**C 段：生长机制**（capacity/delta/gate 与 pending 累积）、**D 段：部署矩阵**（Termux/Linux/WSL-桌面/容器）。每段配置一张图和一段“运维含义说明”，让访问者在一屏滚动内同时理解理念与落地路径。
+
+---
+
 ## Security boundary
 
 By default, provider keys are read from your own local files or environment variables and used by your own runtime process to call your selected upstream providers. loam does not require uploading your provider keys to maintainers, and normal operation does not depend on a maintainer-controlled mandatory cloud relay. You still need to protect your host, plugins, and secret files under your own trust model.
@@ -45,5 +69,5 @@ By default, provider keys are read from your own local files or environment vari
 
 ---
 
-Don’t script a persona. Grow a self from memory.
-别写人设，让“自我”从记忆中生长。
+Don’t hard-freeze a persona. Grow a self from memory.
+别写太固化的人设，让“自我”从记忆中生长。
