@@ -2,6 +2,18 @@
 
 > **不是“写人设”，而是“让角色从记忆长出自我”。**
 
+## Why this matters
+
+大多数“人格系统”会滚雪球：
+把上一版总结继续喂给下一版，长期会自我漂移。
+
+loam 的原则是：
+- **原文锚定**：变化依据始终回到 L0 原始对话
+- **非滚雪球**：不把“上一版人格总结”当唯一真相
+- **可审计**：任何变化都能追溯到经历来源
+
+---
+
 ## Highlights
 
 - ✅ 完整 loam 运行时（store/core/mind/server/CLI）
@@ -10,6 +22,8 @@
 - ✅ 多上游聚合路由（`provider/model`）
 - ✅ Termux 最终版运维脚本（start/status/stop/log + final 总控）
 - ✅ 单元/集成/冒烟测试链路完成
+
+---
 
 ## What’s Included
 
@@ -22,6 +36,8 @@
   - `TERMUX_QUICKSTART.md`
   - `THIRD_PARTY_INTEGRATION.md`
   - `MULTI_UPSTREAM_QUICKSTART.md`
+
+---
 
 ## Quick Start (Termux)
 
@@ -41,10 +57,14 @@ Stop:
 cd ~/loam && bash scripts/termux/final_stop_all.sh
 ```
 
+---
+
 ## Breaking / Behavior Notes
 
-- 启动脚本已按最终偏好切回：**必须提供 API key + model**。
-- 推荐通过代理写入每轮原文，避免工具调用不稳定导致漏记忆。
+- 启动脚本按最终偏好：**必须 API key + model**。
+- 推荐由代理强制写入每轮原文，规避工具调用不稳定。
+
+---
 
 ## Verification
 
@@ -53,11 +73,8 @@ python tests/test_integration.py
 python e2e_smoke.py
 ```
 
-## Known TODO
-
-- GitHub Release 页面可继续补充截图与演示视频
-- 可追加日志轮转/守护重启等运维增强
+---
 
 ## Security
 
-- 若曾在聊天或日志中暴露 token，请立即 revoke 并更换。
+- 若 token 曾暴露于聊天/日志，请立即 revoke 并更换。
