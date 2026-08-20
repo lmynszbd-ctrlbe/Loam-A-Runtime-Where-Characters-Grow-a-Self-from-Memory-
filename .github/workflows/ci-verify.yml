@@ -112,6 +112,11 @@ jobs:
         run: |
           python scripts/migration/verify_migration_consistency.py --manifest "$MANIFEST"
 
+      - name: Enable MySQL local_infile
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -u root -proot -e "SET GLOBAL local_infile = 1;"
+          mysql -h 127.0.0.1 -P 3306 -u root -proot -e "SHOW GLOBAL VARIABLES LIKE 'local_infile';"
+
       - name: Load into Postgres + MySQL(TiKV protocol sim)
         run: |
           python scripts/migration/load_to_postgres_tikv.py \
