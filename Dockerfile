@@ -12,17 +12,4 @@ RUN python -m compileall -q loam
 EXPOSE 8765
 VOLUME ["/data"]
 
-CMD [
-  "python",
-  "-m",
-  "loam",
-  "run",
-  "--host",
-  "0.0.0.0",
-  "--port",
-  "8765",
-  "--character",
-  "demo",
-  "--home",
-  "/data/characters"
-]
+CMD ["python", "-m", "loam", "run", "--host", "0.0.0.0", "--port", "8765", "--character", "demo", "--home", "/data/characters"]
