@@ -27,6 +27,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import threading
 import time
@@ -229,7 +230,8 @@ class Digester:
         session = batch[0].session
 
         out: List[Event] = []
-        for i, item in enumerate(raw):
+        id_seen: Dict[str, int] = {}
+        for item in raw:
             if not isinstance(item, dict):
                 continue
             summary = str(item.get("summary", "")).strip()
@@ -247,11 +249,17 @@ class Digester:
                     continue
             if not source_ids:
                 source_ids = list(all_ids)
+            source_ids = sorted(set(source_ids))
+
+            base_id = _stable_event_id(session=session, source_ids=source_ids, summary=summary)
+            dup_idx = id_seen.get(base_id, 0)
+            id_seen[base_id] = dup_idx + 1
+            event_id = base_id if dup_idx == 0 else f"{base_id}_{dup_idx}"
 
             event = Event(
-                id=f"ev_{cycle}_{i}_{int(time.time())}",
+                id=event_id,
                 summary=summary,
-                source_ids=sorted(set(source_ids)),
+                source_ids=source_ids,
                 session=session,
                 salience=_num(item.get("salience"), 0.3, 0.0, 1.0),
                 valence=_num(item.get("valence"), 0.0, -1.0, 1.0),
@@ -716,9 +724,16 @@ def _strings(v: object) -> List[str]:
     return [str(x).strip() for x in v if str(x).strip()][:12]
 
 
-def _trait_id(text: str, cycle: int, n: int) -> str:
-    import hashlib
+def _stable_event_id(session: str, source_ids: Sequence[int], summary: str) -> str:
+    """稳定事件 ID：同会话 + 同来历 + 同摘要，重算后保持不变。"""
+    sid = ",".join(str(int(x)) for x in sorted(set(source_ids)))
+    normalized = " ".join(summary.strip().split())
+    raw = f"{session}\x00{sid}\x00{normalized}"
+    h = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+    return f"ev_{int(h, 16)}"
 
+
+def _trait_id(text: str, cycle: int, n: int) -> str:
     h = hashlib.sha256(text.encode("utf-8")).hexdigest()[:8]
     return f"tr_{h}"
 

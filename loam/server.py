@@ -58,6 +58,17 @@ _RUNTIME_CONFIG_DEFAULTS: Dict[str, object] = {
     "digest.max_limit": 80,
     "drain.max_rounds": 100,
     "queue.max_retry_attempts": MAX_INGEST_JOB_ATTEMPTS,
+    # 时间窗口聚合（dashboard）
+    "dashboard.window_seconds": 86400,
+    "dashboard.bucket_seconds": 3600,
+    # 事件衰减（仅派生权重层）
+    "decay.enabled": True,
+    "decay.half_life_hours": 72.0,
+    "decay.min_weight": 0.25,
+    "decay.stood_firm_floor": 0.55,
+    "decay.apply_interval_seconds": 300,
+    # 重算
+    "recompute.max_rounds": 400,
 }
 
 
@@ -131,6 +142,17 @@ class LoamService:
         cfg["digest.max_limit"] = _clamp_int(raw.get("digest.max_limit"), int(cfg["digest.max_limit"]), 1, 500)
         cfg["drain.max_rounds"] = _clamp_int(raw.get("drain.max_rounds"), int(cfg["drain.max_rounds"]), 1, 1000)
         cfg["queue.max_retry_attempts"] = MAX_INGEST_JOB_ATTEMPTS
+
+        cfg["dashboard.window_seconds"] = _clamp_int(raw.get("dashboard.window_seconds"), int(cfg["dashboard.window_seconds"]), 3600, 3600 * 24 * 30)
+        cfg["dashboard.bucket_seconds"] = _clamp_int(raw.get("dashboard.bucket_seconds"), int(cfg["dashboard.bucket_seconds"]), 60, int(cfg["dashboard.window_seconds"]))
+
+        cfg["decay.enabled"] = _coerce_bool(raw.get("decay.enabled"), default=bool(cfg["decay.enabled"]))
+        cfg["decay.half_life_hours"] = _clamp_float(raw.get("decay.half_life_hours"), float(cfg["decay.half_life_hours"]), 0.1, 24.0 * 365.0)
+        cfg["decay.min_weight"] = _clamp_float(raw.get("decay.min_weight"), float(cfg["decay.min_weight"]), 0.0, 1.0)
+        cfg["decay.stood_firm_floor"] = _clamp_float(raw.get("decay.stood_firm_floor"), float(cfg["decay.stood_firm_floor"]), float(cfg["decay.min_weight"]), 1.0)
+        cfg["decay.apply_interval_seconds"] = _clamp_int(raw.get("decay.apply_interval_seconds"), int(cfg["decay.apply_interval_seconds"]), 0, 3600 * 24)
+
+        cfg["recompute.max_rounds"] = _clamp_int(raw.get("recompute.max_rounds"), int(cfg["recompute.max_rounds"]), 1, 5000)
         return cfg
 
     def _build_context_builder(self, cfg: Dict[str, object]) -> ContextBuilder:
@@ -163,11 +185,13 @@ class LoamService:
             merged = dict(self._runtime_config)
             merged.update(updates)
             normalized = self._coerce_runtime_config(merged)
+            note_text = note.strip() or "manual update"
             version_id = self.memory.set_runtime_config(
                 normalized,
-                note=(note.strip() or "manual update"),
+                note=note_text,
                 actor="api",
             )
+            self.memory.log_experiment_flags(updates, note=note_text, actor="api")
             self._runtime_config = normalized
             self.context = self._build_context_builder(self._runtime_config)
             return {
@@ -178,9 +202,15 @@ class LoamService:
 
     def rollback_runtime_config(self, version_id: int, note: str = "") -> Dict[str, Any]:
         with self._lock:
+            note_text = note.strip() or "manual rollback"
             cfg = self.memory.rollback_runtime_config(
                 int(version_id),
-                note=(note.strip() or "manual rollback"),
+                note=note_text,
+                actor="api",
+            )
+            self.memory.log_experiment_flags(
+                {"rollback_to_version": int(version_id)},
+                note=note_text,
                 actor="api",
             )
             self._runtime_config = self._coerce_runtime_config(cfg)
@@ -218,6 +248,110 @@ class LoamService:
             },
         }
 
+    def _maybe_apply_decay_unlocked(self, force: bool = False) -> Dict[str, Any]:
+        enabled = bool(self._runtime_config.get("decay.enabled", True))
+        if not enabled:
+            return {"enabled": False, "applied": False, "reason": "disabled"}
+
+        now = time.time()
+        interval = int(self._runtime_config.get("decay.apply_interval_seconds", 300) or 0)
+        last = 0.0
+        try:
+            last = float(self.memory.get_state("decay:last_applied_at", "0") or 0.0)
+        except ValueError:
+            last = 0.0
+
+        if not force and interval > 0 and (now - last) < interval:
+            return {
+                "enabled": True,
+                "applied": False,
+                "last_applied_at": last,
+                "next_after_seconds": max(0, int(interval - (now - last))),
+            }
+
+        info = self.memory.apply_event_decay(
+            half_life_hours=float(self._runtime_config.get("decay.half_life_hours", 72.0) or 72.0),
+            min_weight=float(self._runtime_config.get("decay.min_weight", 0.25) or 0.25),
+            stood_firm_floor=float(self._runtime_config.get("decay.stood_firm_floor", 0.55) or 0.55),
+            now=now,
+        )
+        self.memory.set_state("decay:last_applied_at", str(now))
+        return {
+            "enabled": True,
+            "applied": True,
+            "last_applied_at": now,
+            **info,
+        }
+
+    def recompute(self, mode: str = "incremental", max_rounds: Optional[int] = None, note: str = "") -> Dict[str, Any]:
+        with self._lock:
+            picked = str(mode or "incremental").strip().lower()
+            if picked not in {"incremental", "full"}:
+                raise ValueError("mode 仅支持 incremental/full")
+
+            from_cycle = int(self.memory.get_state("cycle", "0") or 0)
+            run_id = self.memory.begin_recompute_run(
+                mode=picked,
+                trigger="api",
+                from_cycle=from_cycle,
+                details={"note": note.strip()},
+            )
+
+            details: Dict[str, Any] = {}
+            was_alive = self.grower.alive
+            try:
+                if picked == "incremental":
+                    details["reindexed"] = int(self.memory.reindex())
+                    details["decay"] = self._maybe_apply_decay_unlocked(force=True)
+                else:
+                    if was_alive:
+                        self.grower.stop()
+
+                    self.memory.wipe_derived()
+                    reset_entries = self.journal.reset_digestion(self.character)
+                    limit = int(max_rounds) if max_rounds is not None else int(self._runtime_config["recompute.max_rounds"])
+                    safe_rounds = max(1, min(limit, int(self._runtime_config["recompute.max_rounds"])))
+                    reports = self.grower.drain(max_rounds=safe_rounds)
+                    details = {
+                        "reset_entries": int(reset_entries),
+                        "rounds": len(reports),
+                        "events": sum(r.events for r in reports),
+                        "errors": [err for r in reports for err in r.errors][:20],
+                        "pending_after": self.digester.pending_count(),
+                    }
+                    details["decay"] = self._maybe_apply_decay_unlocked(force=True)
+
+                to_cycle = int(self.memory.get_state("cycle", "0") or 0)
+                self.memory.finish_recompute_run(run_id, status="ok", details=details, to_cycle=to_cycle)
+                return {
+                    "ok": True,
+                    "run_id": run_id,
+                    "mode": picked,
+                    "from_cycle": from_cycle,
+                    "to_cycle": to_cycle,
+                    "details": details,
+                }
+            except Exception as exc:  # noqa: BLE001
+                details["error"] = str(exc)
+                to_cycle = int(self.memory.get_state("cycle", "0") or 0)
+                self.memory.finish_recompute_run(run_id, status="failed", details=details, to_cycle=to_cycle)
+                raise
+            finally:
+                if picked == "full" and was_alive and self.config.auto_start_grower:
+                    self.grower.start()
+
+    def recompute_history(self, limit: int = 20) -> Dict[str, Any]:
+        with self._lock:
+            return {
+                "items": self.memory.recompute_history(limit=max(1, min(int(limit), 200)))
+            }
+
+    def experiment_history(self, limit: int = 20) -> Dict[str, Any]:
+        with self._lock:
+            return {
+                "items": self.memory.experiment_history(limit=max(1, min(int(limit), 200)))
+            }
+
     def _build_alerts(self, queue: Dict[str, int], pending: int, open_gaps: int) -> Dict[str, Any]:
         alerts: List[Dict[str, Any]] = []
 
@@ -251,6 +385,21 @@ class LoamService:
         queue = self.journal.queue_stats(self.character)
         pending = self.digester.pending_count()
         open_gaps = len(self.journal.open_gaps(self.character))
+        decay = self._maybe_apply_decay_unlocked(force=False)
+
+        window_seconds = int(self._runtime_config.get("dashboard.window_seconds", 86400) or 86400)
+        bucket_seconds = int(self._runtime_config.get("dashboard.bucket_seconds", 3600) or 3600)
+        events_window = self.memory.event_window_stats(
+            window_seconds=window_seconds,
+            bucket_seconds=bucket_seconds,
+            limit=64,
+        )
+        changes_window = self.memory.changelog_window_stats(
+            window_seconds=window_seconds,
+            bucket_seconds=bucket_seconds,
+            limit=64,
+        )
+
         return {
             "backlog": {
                 "pending": pending,
@@ -263,6 +412,15 @@ class LoamService:
                 "version": int(self.memory.get_state("runtime_config_version", "0") or 0),
                 "current": dict(self._runtime_config),
             },
+            "windows": {
+                "events": events_window,
+                "changes": changes_window,
+            },
+            "decay": decay,
+            "recent": {
+                "recompute": self.memory.recompute_history(limit=5),
+                "experiments": self.memory.experiment_history(limit=5),
+            },
         }
 
     def dashboard(self) -> Dict[str, Any]:
@@ -271,6 +429,7 @@ class LoamService:
 
     def explain(self, kind: str = "", limit: int = 20) -> Dict[str, Any]:
         with self._lock:
+            self._maybe_apply_decay_unlocked(force=False)
             rows = self.memory.history(limit=max(1, min(200, int(limit))), kind=(kind or None))
             for row in rows:
                 evidence_ids = [x for x in row.get("evidence", []) if isinstance(x, str) and x.startswith("ev_")]
@@ -390,6 +549,7 @@ class LoamService:
             out["queue_now"] = queue_now
             out["alerts"] = self._build_alerts(qstats, pending, open_gaps)
             out["limit"] = safe_limit
+            out["decay"] = self._maybe_apply_decay_unlocked(force=False)
             return out
 
     def drain(self, max_rounds: int = 50) -> Dict[str, Any]:
@@ -414,12 +574,14 @@ class LoamService:
                 "queue": qstats,
                 "queue_now": queue_now,
                 "alerts": self._build_alerts(qstats, pending, open_gaps),
+                "decay": self._maybe_apply_decay_unlocked(force=False),
             }
 
     # ------------------------------------------------------------ 输出
 
     def build_context(self, query: str, learn: bool = False) -> Dict[str, Any]:
         with self._lock:
+            self._maybe_apply_decay_unlocked(force=False)
             # 对话链路指标与成长链路拆分统计。
             self._metric_inc("dialog.context_requests", 1)
             if learn:
@@ -513,6 +675,16 @@ class LoamHandler(BaseHTTPRequestHandler):
                 self._send_json(200, self.server.service.runtime_config())
                 return
 
+            if path == "/recompute/history":
+                limit_text = (qs.get("limit") or ["20"])[0]
+                self._send_json(200, self.server.service.recompute_history(limit=int(limit_text or 20)))
+                return
+
+            if path == "/experiments":
+                limit_text = (qs.get("limit") or ["20"])[0]
+                self._send_json(200, self.server.service.experiment_history(limit=int(limit_text or 20)))
+                return
+
             if path == "/explain":
                 kind = (qs.get("kind") or [""])[0]
                 limit_text = (qs.get("limit") or ["20"])[0]
@@ -583,6 +755,20 @@ class LoamHandler(BaseHTTPRequestHandler):
                     raise ValueError("rollback 需要 version")
                 note = str(payload.get("note") or "")
                 self._send_json(200, self.server.service.rollback_runtime_config(int(version), note=note))
+                return
+
+            if path == "/recompute":
+                mode = str(payload.get("mode") or "incremental")
+                rounds = payload.get("max_rounds")
+                note = str(payload.get("note") or "")
+                self._send_json(
+                    200,
+                    self.server.service.recompute(
+                        mode=mode,
+                        max_rounds=int(rounds) if rounds is not None else None,
+                        note=note,
+                    ),
+                )
                 return
 
             self._send_json(404, {"error": f"unknown route: {path}"})

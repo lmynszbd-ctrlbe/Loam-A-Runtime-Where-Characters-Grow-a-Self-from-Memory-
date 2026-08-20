@@ -174,6 +174,31 @@ def test_digest_produces_events_with_provenance():
         j.close(); m.close(); shutil.rmtree(tmp)
 
 
+def test_event_ids_are_stable_after_recompute():
+    """同一批原始料重算后，事件 ID 应稳定不变。"""
+    tmp = tempfile.mkdtemp()
+    try:
+        c, j, m = fresh(tmp)
+        feed_turns(j, c, 4)
+
+        d1 = Digester(c, j, m, PhasedBrain(), batch_turns=20)
+        r1 = d1.digest_once()
+        assert r1.events == 2
+        first_ids = sorted(e.id for e in m.recent_events(limit=10))
+
+        m.wipe_derived()
+        j.reset_digestion(c)
+
+        d2 = Digester(c, j, m, PhasedBrain(), batch_turns=20)
+        r2 = d2.digest_once()
+        assert r2.events == 2
+        second_ids = sorted(e.id for e in m.recent_events(limit=10))
+
+        assert first_ids == second_ids, (first_ids, second_ids)
+    finally:
+        j.close(); m.close(); shutil.rmtree(tmp)
+
+
 def test_stood_firm_gets_high_salience():
     """顶住压力的时刻，权重被抬到高档，但不到能绕过固化阻力那一档。"""
     tmp = tempfile.mkdtemp()

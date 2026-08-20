@@ -178,6 +178,8 @@ def test_runtime_config_dashboard_and_explain_endpoints():
         assert s0 == 200
         assert dashboard0["alerts"]["level"] in {"info", "warn", "error"}
         assert "metrics" in dashboard0 and "dialog" in dashboard0["metrics"]
+        assert "windows" in dashboard0 and "events" in dashboard0["windows"]
+        assert "decay" in dashboard0
 
         s1, cfg1 = _req(base, "GET", "/config")
         assert s1 == 200
@@ -258,6 +260,42 @@ def test_ingest_prefilter_drops_smalltalk_and_duplicates():
         assert s == 200
         assert data["added"] == 1, data
         assert data["dropped_lightweight"] >= 4, data
+    finally:
+        _stop_service(tmp, svc, httpd)
+
+
+def test_recompute_and_experiment_endpoints():
+    tmp, svc, httpd, _ = _start_service()
+    try:
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+
+        s0, _ = _req(
+            base,
+            "POST",
+            "/config/update",
+            {
+                "updates": {
+                    "decay.enabled": True,
+                    "decay.half_life_hours": 12,
+                    "dashboard.window_seconds": 7200,
+                },
+                "note": "experiment tweak",
+            },
+        )
+        assert s0 == 200
+
+        s1, exps = _req(base, "GET", "/experiments?limit=5")
+        assert s1 == 200
+        assert exps["items"], exps
+
+        s2, rec = _req(base, "POST", "/recompute", {"mode": "incremental", "note": "test"})
+        assert s2 == 200
+        assert rec["ok"] is True
+
+        s3, hist = _req(base, "GET", "/recompute/history?limit=3")
+        assert s3 == 200
+        assert hist["items"], hist
+        assert hist["items"][0]["mode"] == "incremental"
     finally:
         _stop_service(tmp, svc, httpd)
 

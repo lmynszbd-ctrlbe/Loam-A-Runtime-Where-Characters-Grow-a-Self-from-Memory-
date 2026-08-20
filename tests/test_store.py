@@ -5,6 +5,7 @@ from __future__ import annotations
 import shutil
 import sys
 import tempfile
+import time
 
 from pathlib import Path
 
@@ -265,6 +266,74 @@ def test_runtime_config_version_and_rollback():
         hist = m.runtime_config_history(limit=5)
         assert len(hist) >= 3
         assert hist[0]["config"].get("context.max_matches") == 8
+    finally:
+        m.close()
+        shutil.rmtree(tmp)
+
+
+def test_event_decay_and_effective_salience():
+    tmp = tempfile.mkdtemp()
+    try:
+        m = Memory(Path(tmp) / "memory.db")
+        now = time.time()
+        m.add_event(
+            Event(
+                id="e_old",
+                summary="很久以前的普通事件",
+                source_ids=[1],
+                salience=1.0,
+                happened_at=now - 8 * 3600,
+            )
+        )
+        m.add_event(
+            Event(
+                id="e_firm",
+                summary="很久以前但顶住压力的事件",
+                source_ids=[2],
+                salience=1.0,
+                stood_firm=True,
+                happened_at=now - 8 * 3600,
+            )
+        )
+
+        m.apply_event_decay(half_life_hours=1.0, min_weight=0.2, stood_firm_floor=0.6, now=now)
+        e_old = m.get_event("e_old")
+        e_firm = m.get_event("e_firm")
+        assert e_old and e_firm
+        assert 0.19 <= e_old.salience <= 0.21, e_old.salience
+        assert e_firm.salience >= 0.6, e_firm.salience
+    finally:
+        m.close()
+        shutil.rmtree(tmp)
+
+
+def test_time_window_aggregation_and_audit_tables():
+    tmp = tempfile.mkdtemp()
+    try:
+        m = Memory(Path(tmp) / "memory.db")
+        now = time.time()
+        m.add_event(Event(id="e1", summary="最近1", source_ids=[1], salience=0.4, happened_at=now - 120))
+        m.add_event(Event(id="e2", summary="最近2", source_ids=[2], salience=0.6, happened_at=now - 600))
+        m.add_event(Event(id="e3", summary="很早", source_ids=[3], salience=0.8, happened_at=now - 4 * 3600))
+
+        ws = m.event_window_stats(window_seconds=1800, bucket_seconds=300, now=now)
+        assert sum(int(p["events"]) for p in ws["points"]) == 2
+
+        m.log_change(cycle=1, kind="trait_moved", reason="x", evidence=["e1"])
+        m.log_change(cycle=1, kind="trait_moved", reason="y", evidence=["e2"])
+        cs = m.changelog_window_stats(window_seconds=3600, bucket_seconds=300, now=now)
+        assert sum(int(p["changes"]) for p in cs["points"]) >= 2
+
+        eid = m.log_experiment_flags({"decay.enabled": True}, note="test", actor="tester")
+        assert eid > 0
+        exp = m.experiment_history(limit=1)
+        assert exp and exp[0]["flags"].get("decay.enabled") is True
+
+        rid = m.begin_recompute_run("incremental", trigger="test", from_cycle=1)
+        m.finish_recompute_run(rid, status="ok", details={"reindexed": 3}, to_cycle=2)
+        rh = m.recompute_history(limit=1)
+        assert rh and rh[0]["status"] == "ok"
+        assert rh[0]["details"].get("reindexed") == 3
     finally:
         m.close()
         shutil.rmtree(tmp)

@@ -167,6 +167,45 @@ CREATE TABLE IF NOT EXISTS config_versions (
 
 CREATE INDEX IF NOT EXISTS idx_config_versions_created
     ON config_versions(created_at DESC);
+
+-- 派生权重衰减：不删原始真值，只衰减可回放层的权重。
+CREATE TABLE IF NOT EXISTS event_decay (
+    event_id      TEXT PRIMARY KEY,
+    base_salience REAL NOT NULL,
+    decay_weight  REAL NOT NULL DEFAULT 1.0,
+    updated_at    REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_decay_weight
+    ON event_decay(decay_weight);
+
+-- 参数实验开关与审计。
+CREATE TABLE IF NOT EXISTS experiment_audit (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    actor       TEXT    NOT NULL DEFAULT 'system',
+    note        TEXT    NOT NULL DEFAULT '',
+    flags_json  TEXT    NOT NULL,
+    created_at  REAL    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_experiment_audit_created
+    ON experiment_audit(created_at DESC);
+
+-- 重算任务审计（增量 / 全量）。
+CREATE TABLE IF NOT EXISTS recompute_runs (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    mode         TEXT    NOT NULL,
+    trigger      TEXT    NOT NULL DEFAULT 'api',
+    status       TEXT    NOT NULL,
+    from_cycle   INTEGER NOT NULL DEFAULT 0,
+    to_cycle     INTEGER NOT NULL DEFAULT 0,
+    details_json TEXT    NOT NULL DEFAULT '{}',
+    created_at   REAL    NOT NULL,
+    finished_at  REAL
+);
+
+CREATE INDEX IF NOT EXISTS idx_recompute_runs_created
+    ON recompute_runs(created_at DESC);
 """
 #: FTS 索引由 add_event 显式维护，不用触发器 —— 入索引前要先在
 #: Python 里分词，SQL 里做不到。
@@ -211,33 +250,46 @@ class Memory:
         self._db.commit()
 
     # ------------------------------------------------------------ 事件
-
     def add_event(self, event: Event) -> None:
         """写入一条情景记忆。必须有来历。"""
         if not event.source_ids:
             raise ValueError("事件必须指回原始日记（source_ids 不可为空）")
         now = time.time()
-        self._db.execute(
-            "INSERT OR REPLACE INTO events"
-            " (id, summary, source_ids, session, salience, valence,"
-            "  questions, entities, stood_firm, happened_at, created_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                event.id,
-                event.summary,
-                json.dumps(event.source_ids),
-                event.session,
-                event.salience,
-                event.valence,
-                json.dumps(event.questions, ensure_ascii=False),
-                json.dumps(event.entities, ensure_ascii=False),
-                int(event.stood_firm),
-                event.happened_at or now,
-                event.created_at or now,
-            ),
-        )
-        self._db.commit()
+        with self._db:
+            self._db.execute(
+                "INSERT OR REPLACE INTO events"
+                " (id, summary, source_ids, session, salience, valence,"
+                "  questions, entities, stood_firm, happened_at, created_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    event.id,
+                    event.summary,
+                    json.dumps(event.source_ids),
+                    event.session,
+                    event.salience,
+                    event.valence,
+                    json.dumps(event.questions, ensure_ascii=False),
+                    json.dumps(event.entities, ensure_ascii=False),
+                    int(event.stood_firm),
+                    event.happened_at or now,
+                    event.created_at or now,
+                ),
+            )
+            # 派生权重层：保留 base_salience，后续只衰减 decay_weight。
+            self._db.execute(
+                "INSERT INTO event_decay (event_id, base_salience, decay_weight, updated_at)"
+                " VALUES (?,?,?,?)"
+                " ON CONFLICT(event_id) DO UPDATE SET"
+                "   base_salience=excluded.base_salience,"
+                "   decay_weight=CASE"
+                "       WHEN event_decay.decay_weight <= 0 THEN 1.0"
+                "       ELSE event_decay.decay_weight"
+                "   END,"
+                "   updated_at=excluded.updated_at",
+                (event.id, float(event.salience), 1.0, now),
+            )
         self._index_event(event)
+
 
     def _index_event(self, event: Event) -> None:
         """把一条事件切好词塞进 FTS。已有的先删掉，避免重煮后留下旧词。"""
@@ -252,7 +304,13 @@ class Memory:
             )
 
     def get_event(self, event_id: str) -> Optional[Event]:
-        row = self._db.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
+        row = self._db.execute(
+            "SELECT e.*,"
+            " COALESCE(d.base_salience * d.decay_weight, e.salience) AS effective_salience"
+            " FROM events e LEFT JOIN event_decay d ON d.event_id=e.id"
+            " WHERE e.id=?",
+            (event_id,),
+        ).fetchone()
         return _to_event(row) if row else None
 
     def get_events(self, ids: Sequence[str]) -> List[Event]:
@@ -260,10 +318,15 @@ class Memory:
             return []
         marks = ",".join("?" * len(ids))
         rows = self._db.execute(
-            f"SELECT * FROM events WHERE id IN ({marks})", list(ids)
+            "SELECT e.*,"
+            " COALESCE(d.base_salience * d.decay_weight, e.salience) AS effective_salience"
+            " FROM events e LEFT JOIN event_decay d ON d.event_id=e.id"
+            f" WHERE e.id IN ({marks})",
+            list(ids),
         ).fetchall()
         by_id = {r["id"]: _to_event(r) for r in rows}
         return [by_id[i] for i in ids if i in by_id]
+
     def search(self, query: str, limit: int = 10) -> List[Tuple[str, float]]:
         """关键词检索。只负责找门口在哪 —— 进门之后走网络自己的路。
 
@@ -299,12 +362,16 @@ class Memory:
 
 
     def recent_events(self, limit: int = 50, session: Optional[str] = None) -> List[Event]:
-        sql = "SELECT * FROM events"
+        sql = (
+            "SELECT e.*,"
+            " COALESCE(d.base_salience * d.decay_weight, e.salience) AS effective_salience"
+            " FROM events e LEFT JOIN event_decay d ON d.event_id=e.id"
+        )
         args: List[object] = []
         if session:
-            sql += " WHERE session=?"
+            sql += " WHERE e.session=?"
             args.append(session)
-        sql += " ORDER BY happened_at DESC LIMIT ?"
+        sql += " ORDER BY e.happened_at DESC LIMIT ?"
         args.append(limit)
         return [_to_event(r) for r in self._db.execute(sql, args).fetchall()]
 
@@ -315,21 +382,129 @@ class Memory:
         时候确立的，是在压力下没让步的时候。所以单独开一个查询。
         """
         rows = self._db.execute(
-            "SELECT * FROM events WHERE stood_firm=1"
-            " ORDER BY salience DESC, happened_at DESC LIMIT ?",
+            "SELECT e.*,"
+            " COALESCE(d.base_salience * d.decay_weight, e.salience) AS effective_salience"
+            " FROM events e LEFT JOIN event_decay d ON d.event_id=e.id"
+            " WHERE e.stood_firm=1"
+            " ORDER BY effective_salience DESC, e.happened_at DESC LIMIT ?",
             (limit,),
         ).fetchall()
         return [_to_event(r) for r in rows]
-
     def update_salience(self, event_id: str, salience: float) -> None:
         """重估重要性。睡眠时做 —— 有些事当时不觉得，后来才知道重要。"""
-        self._db.execute(
-            "UPDATE events SET salience=? WHERE id=?",
-            (max(0.0, min(1.0, salience)), event_id),
+        value = max(0.0, min(1.0, salience))
+        with self._db:
+            self._db.execute(
+                "UPDATE events SET salience=? WHERE id=?",
+                (value, event_id),
+            )
+            self._db.execute(
+                "INSERT INTO event_decay (event_id, base_salience, decay_weight, updated_at)"
+                " VALUES (?,?,?,?)"
+                " ON CONFLICT(event_id) DO UPDATE SET"
+                "   base_salience=excluded.base_salience,"
+                "   updated_at=excluded.updated_at",
+                (event_id, value, 1.0, time.time()),
+            )
+
+    def apply_event_decay(
+        self,
+        half_life_hours: float = 72.0,
+        min_weight: float = 0.25,
+        stood_firm_floor: float = 0.55,
+        now: Optional[float] = None,
+    ) -> Dict[str, float]:
+        """按时间衰减事件权重。
+
+        只改 event_decay 层，不改 events 里的原始 salience 真值。
+        """
+        ts = float(now if now is not None else time.time())
+        half_life_hours = max(0.1, float(half_life_hours))
+        min_weight = max(0.0, min(1.0, float(min_weight)))
+        stood_firm_floor = max(min_weight, min(1.0, float(stood_firm_floor)))
+        half_life_seconds = max(60.0, half_life_hours * 3600.0)
+
+        rows = self._db.execute(
+            "SELECT id, salience, happened_at, stood_firm FROM events"
+        ).fetchall()
+
+        updated = 0
+        with self._db:
+            for r in rows:
+                age = max(0.0, ts - float(r["happened_at"] or ts))
+                decay = pow(0.5, age / half_life_seconds)
+                floor = stood_firm_floor if int(r["stood_firm"] or 0) else min_weight
+                weight = max(floor, min(1.0, decay))
+                self._db.execute(
+                    "INSERT INTO event_decay (event_id, base_salience, decay_weight, updated_at)"
+                    " VALUES (?,?,?,?)"
+                    " ON CONFLICT(event_id) DO UPDATE SET"
+                    "   base_salience=excluded.base_salience,"
+                    "   decay_weight=excluded.decay_weight,"
+                    "   updated_at=excluded.updated_at",
+                    (r["id"], float(r["salience"]), float(weight), ts),
+                )
+                updated += 1
+
+        return {
+            "updated": float(updated),
+            "half_life_hours": float(half_life_hours),
+            "min_weight": float(min_weight),
+            "stood_firm_floor": float(stood_firm_floor),
+        }
+
+    def event_window_stats(
+        self,
+        window_seconds: int = 86400,
+        bucket_seconds: int = 3600,
+        limit: int = 48,
+        session: Optional[str] = None,
+        now: Optional[float] = None,
+    ) -> Dict[str, object]:
+        """按时间窗聚合事件，给 dashboard 用。"""
+        bucket = max(60, int(bucket_seconds))
+        window = max(bucket, int(window_seconds))
+        cap = max(1, min(int(limit), 512))
+        ts = float(now if now is not None else time.time())
+        since = ts - float(window)
+
+        sql = (
+            "SELECT CAST(e.happened_at / ? AS INTEGER) * ? AS bucket_start,"
+            " COUNT(*) AS events,"
+            " AVG(COALESCE(d.base_salience * d.decay_weight, e.salience)) AS avg_salience,"
+            " SUM(e.stood_firm) AS stood_firm"
+            " FROM events e LEFT JOIN event_decay d ON d.event_id=e.id"
+            " WHERE e.happened_at>=?"
         )
-        self._db.commit()
+        args: List[object] = [bucket, bucket, since]
+        if session:
+            sql += " AND e.session=?"
+            args.append(session)
+        sql += " GROUP BY bucket_start ORDER BY bucket_start DESC LIMIT ?"
+        args.append(cap)
+
+        rows = self._db.execute(sql, args).fetchall()
+        buckets: List[Dict[str, object]] = []
+        for r in reversed(rows):
+            start = float(r["bucket_start"])
+            buckets.append(
+                {
+                    "start": start,
+                    "end": start + float(bucket),
+                    "events": int(r["events"] or 0),
+                    "stood_firm": int(r["stood_firm"] or 0),
+                    "avg_salience": round(float(r["avg_salience"] or 0.0), 4),
+                }
+            )
+
+        return {
+            "window_seconds": window,
+            "bucket_seconds": bucket,
+            "points": buckets,
+        }
 
     # ------------------------------------------------------------ 网络
+
 
     def load_network(self) -> Network:
         nodes = [dict(r) for r in self._db.execute("SELECT * FROM nodes").fetchall()]
@@ -693,11 +868,161 @@ class Memory:
         )
         return cfg
 
+    def changelog_window_stats(
+        self,
+        window_seconds: int = 86400,
+        bucket_seconds: int = 3600,
+        limit: int = 48,
+        kind: Optional[str] = None,
+        now: Optional[float] = None,
+    ) -> Dict[str, object]:
+        """按时间窗聚合 changelog。"""
+        bucket = max(60, int(bucket_seconds))
+        window = max(bucket, int(window_seconds))
+        cap = max(1, min(int(limit), 512))
+        ts = float(now if now is not None else time.time())
+        since = ts - float(window)
+
+        sql = (
+            "SELECT CAST(created_at / ? AS INTEGER) * ? AS bucket_start,"
+            " COUNT(*) AS changes"
+            " FROM changelog"
+            " WHERE created_at>=?"
+        )
+        args: List[object] = [bucket, bucket, since]
+        if kind:
+            sql += " AND kind=?"
+            args.append(kind)
+        sql += " GROUP BY bucket_start ORDER BY bucket_start DESC LIMIT ?"
+        args.append(cap)
+
+        rows = self._db.execute(sql, args).fetchall()
+        points: List[Dict[str, object]] = []
+        for r in reversed(rows):
+            start = float(r["bucket_start"])
+            points.append(
+                {
+                    "start": start,
+                    "end": start + float(bucket),
+                    "changes": int(r["changes"] or 0),
+                }
+            )
+
+        return {
+            "window_seconds": window,
+            "bucket_seconds": bucket,
+            "kind": kind or "all",
+            "points": points,
+        }
+
+    def log_experiment_flags(
+        self,
+        flags: Dict[str, object],
+        note: str = "",
+        actor: str = "system",
+    ) -> int:
+        """记录一次实验参数或开关变更。"""
+        blob = json.dumps(flags, ensure_ascii=False, sort_keys=True)
+        cur = self._db.execute(
+            "INSERT INTO experiment_audit (actor, note, flags_json, created_at)"
+            " VALUES (?,?,?,?)",
+            (actor, note.strip(), blob, time.time()),
+        )
+        self._db.commit()
+        return int(cur.lastrowid or 0)
+
+    def experiment_history(self, limit: int = 20) -> List[Dict[str, object]]:
+        rows = self._db.execute(
+            "SELECT id, actor, note, flags_json, created_at"
+            " FROM experiment_audit ORDER BY id DESC LIMIT ?",
+            (max(1, int(limit)),),
+        ).fetchall()
+        out: List[Dict[str, object]] = []
+        for r in rows:
+            item = dict(r)
+            try:
+                item["flags"] = json.loads(item.pop("flags_json"))
+            except json.JSONDecodeError:
+                item["flags"] = {}
+                item.pop("flags_json", None)
+            item["when"] = time.strftime("%Y-%m-%d %H:%M", time.localtime(float(item["created_at"])))
+            out.append(item)
+        return out
+
+    def begin_recompute_run(
+        self,
+        mode: str,
+        trigger: str = "api",
+        from_cycle: int = 0,
+        to_cycle: int = 0,
+        details: Optional[Dict[str, object]] = None,
+    ) -> int:
+        """记一笔重算开始。"""
+        cur = self._db.execute(
+            "INSERT INTO recompute_runs"
+            " (mode, trigger, status, from_cycle, to_cycle, details_json, created_at)"
+            " VALUES (?,?,?,?,?,?,?)",
+            (
+                str(mode),
+                str(trigger),
+                "running",
+                int(from_cycle),
+                int(to_cycle),
+                json.dumps(details or {}, ensure_ascii=False, sort_keys=True),
+                time.time(),
+            ),
+        )
+        self._db.commit()
+        return int(cur.lastrowid or 0)
+
+    def finish_recompute_run(
+        self,
+        run_id: int,
+        status: str,
+        details: Optional[Dict[str, object]] = None,
+        to_cycle: Optional[int] = None,
+    ) -> None:
+        payload = json.dumps(details or {}, ensure_ascii=False, sort_keys=True)
+        if to_cycle is None:
+            self._db.execute(
+                "UPDATE recompute_runs SET status=?, details_json=?, finished_at=? WHERE id=?",
+                (str(status), payload, time.time(), int(run_id)),
+            )
+        else:
+            self._db.execute(
+                "UPDATE recompute_runs"
+                " SET status=?, to_cycle=?, details_json=?, finished_at=?"
+                " WHERE id=?",
+                (str(status), int(to_cycle), payload, time.time(), int(run_id)),
+            )
+        self._db.commit()
+
+    def recompute_history(self, limit: int = 20) -> List[Dict[str, object]]:
+        rows = self._db.execute(
+            "SELECT id, mode, trigger, status, from_cycle, to_cycle, details_json, created_at, finished_at"
+            " FROM recompute_runs ORDER BY id DESC LIMIT ?",
+            (max(1, int(limit)),),
+        ).fetchall()
+        out: List[Dict[str, object]] = []
+        for r in rows:
+            item = dict(r)
+            try:
+                item["details"] = json.loads(item.pop("details_json"))
+            except json.JSONDecodeError:
+                item["details"] = {}
+                item.pop("details_json", None)
+            item["when"] = time.strftime("%Y-%m-%d %H:%M", time.localtime(float(item["created_at"])))
+            out.append(item)
+        return out
+
     # ------------------------------------------------------------ 概况
 
     def stats(self) -> Dict[str, object]:
         e = self._db.execute(
-            "SELECT COUNT(*) n, AVG(salience) sal, SUM(stood_firm) firm FROM events"
+            "SELECT COUNT(*) AS n,"
+            " AVG(COALESCE(d.base_salience * d.decay_weight, e.salience)) AS sal,"
+            " SUM(e.stood_firm) AS firm"
+            " FROM events e LEFT JOIN event_decay d ON d.event_id=e.id"
         ).fetchone()
         t = self._db.execute(
             "SELECT COUNT(*) n, MAX(strength) top FROM traits WHERE retired=0"
@@ -728,10 +1053,12 @@ class Memory:
         这也正是"生熟分离"的意义：熟的坏了就重煮，料还在。
         """
         with self._db:
-            for table in ("events", "nodes", "edges", "traits"):
+            for table in ("events", "event_decay", "nodes", "edges", "traits"):
                 self._db.execute(f"DELETE FROM {table}")
             self._db.execute("DELETE FROM events_fts")
-            self._db.execute("DELETE FROM state WHERE key='cycle'")
+            self._db.execute(
+                "DELETE FROM state WHERE key IN ('cycle', 'decay:last_applied_at')"
+            )
 
     # ------------------------------------------------------------ 生命周期
 
@@ -747,14 +1074,14 @@ class Memory:
 
 # ---------------------------------------------------------------- 工具
 
-
 def _to_event(row: sqlite3.Row) -> Event:
+    salience_key = "effective_salience" if "effective_salience" in row.keys() else "salience"
     return Event(
         id=row["id"],
         summary=row["summary"],
         source_ids=json.loads(row["source_ids"]),
         session=row["session"],
-        salience=float(row["salience"]),
+        salience=float(row[salience_key]),
         valence=float(row["valence"]),
         questions=json.loads(row["questions"]),
         entities=json.loads(row["entities"]),
@@ -762,6 +1089,7 @@ def _to_event(row: sqlite3.Row) -> Event:
         happened_at=float(row["happened_at"]),
         created_at=float(row["created_at"]),
     )
+
 
 
 #: 停用词。中文里这些字组出来的二元词满天飞，留着只会让 bm25 失灵。
