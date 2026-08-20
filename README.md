@@ -54,6 +54,7 @@ python -m loam run --character demo --home ~/.loam/characters
 - **备份恢复与运维 SOP**：`docs/BACKUP_RESTORE_RUNBOOK.md`、`docs/OPS_SOP.md`
 - **合规与 License**：`docs/COMPLIANCE_AND_LICENSE.md`
 - **发布前检查**：`INTEGRATION_CHECKLIST.md`
+- **最新发布说明**：`docs/RELEASE_v0.2.0_CHECKLIST_CLOSURE.md`
 
 ## 技术栈
 - Python 3（标准库优先）
@@ -71,7 +72,7 @@ python -m loam run --character demo --home ~/.loam/characters
 
 ## 项目归属
 - **@lmynszbd-ctrlbe** — Project initiated, designed, and directed by @lmynszbd-ctrlbe.
-- **all** — AI co-author (implementation assistance).
+- **all（崽崽）** — AI co-author (implementation assistance, checklist closure, release-note drafting).
 
 ---
 Don’t hard-freeze a persona. Grow a self from memory.

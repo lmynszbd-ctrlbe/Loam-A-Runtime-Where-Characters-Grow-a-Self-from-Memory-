@@ -1,8 +1,11 @@
-# loam Release v0.1.1: Grow a Self from Memory
+# loam Release Notes Index
 
-loam is a memory runtime for long-horizon identity continuity. Instead of repeatedly rewriting persona summaries, it keeps immutable raw turns, digests them into derived memory layers, and applies gated growth dynamics so identity change is evidence-driven, auditable, and reconstructable. This release is focused on turning that philosophy into practical deployment: stronger beginner docs, clearer routing model, clearer security boundary, and a release-ready narrative you can ship externally.
+## Latest
+- **v0.2.0 — Checklist Closure (P0/P1/P2 All ✅)**
+  - `docs/RELEASE_v0.2.0_CHECKLIST_CLOSURE.md`
 
-loam 是一个面向长期身份连续性的记忆运行时。它不依赖“总结套总结”来维持人格，而是保留不可变原始轮次，消化为可重建的派生记忆层，并通过门控生长动力学让身份变化由证据驱动、可审计、可复现。本次发布重点是把这套理念落到可部署层面：补强小白文档、明确路由机制、明确安全边界，并提供可直接对外发布的叙事版本。
+## Archive
+- v0.1.1 release narrative (kept below)
 
 ---
 
