@@ -123,4 +123,4 @@ Don’t hard-freeze a persona. Grow a self from memory.
 ## Authors
 
 - Project author: **lmynszbd-ctrlbe**
-- AI co-author: **ChatGPT**
+- AI co-author: **all**
