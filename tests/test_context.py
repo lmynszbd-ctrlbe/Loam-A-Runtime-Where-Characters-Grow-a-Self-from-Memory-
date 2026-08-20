@@ -11,7 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from loam.core.growth import Trait
 from loam.core.network import Network
-from loam.mind.context import ContextBuilder
+from loam.mind.context import ContextBuilder, _estimate_tokens
+
 from loam.store.memory import Event, Memory
 
 
@@ -106,6 +107,54 @@ def test_context_learn_strengthens_recalled_path():
         ContextBuilder(m).build("阿萤", "明天汇报", learn=True)
         after = m.load_network().weight("e1", "e2")
         assert after > before, "回忆本身应强化路径"
+    finally:
+        m.close()
+        shutil.rmtree(tmp)
+
+
+def test_context_budget_respects_hard_limit():
+    tmp = tempfile.mkdtemp()
+    try:
+        m = Memory(Path(tmp) / "memory.db")
+
+        # 造一批长文本事件，确保会触发预算器裁剪。
+        for i in range(1, 25):
+            m.add_event(
+                _event(
+                    f"e{i}",
+                    f"第{i}次关于明天开会和复盘的细节：" + ("要点很多，需要拆分计划。" * 8),
+                    0.9,
+                )
+            )
+
+        net = Network()
+        for i in range(1, 25):
+            net.add(f"e{i}", salience=0.8, anchor=(i <= 8))
+        m.save_network(net)
+
+        for i in range(1, 14):
+            t = Trait(id=f"tr_{i}", text=(f"稳定倾向{i}：" + "先想清楚再回应。" * 6), strength=0.8)
+            t.evidence = ["e1"]
+            m.save_trait(t)
+
+        for i in range(1, 13):
+            m.set_dossier(f"字段{i}", "说明" + ("很长很长。" * 16), source_ids=["e1"])
+
+        m.add_narrative("我最近一直在反复复盘。" * 120, basis=["tr_1", "e1"], cycle=1)
+
+        pack = ContextBuilder(
+            m,
+            max_matches=16,
+            max_recall=20,
+            max_traits=12,
+            soft_token_budget=220,
+            hard_token_budget=260,
+        ).build("阿萤", "明天开会", learn=False)
+
+        assert pack.budget["estimated_tokens_after"] <= 260
+        assert _estimate_tokens(pack.render()) <= 260
+        assert pack.budget["estimated_tokens_before"] >= pack.budget["estimated_tokens_after"]
+        assert pack.budget["trimmed"] is True
     finally:
         m.close()
         shutil.rmtree(tmp)

@@ -208,6 +208,47 @@ def test_recover_processing_jobs_to_pending():
         shutil.rmtree(tmp)
 
 
+def test_ingest_job_retries_then_failed():
+    tmp = tempfile.mkdtemp()
+    try:
+        j = Journal(Path(tmp) / "journal.db")
+        c = "阿萤"
+        j.enqueue_pending_evidence(
+            c,
+            "s1",
+            [{"turn": 1, "role": "user", "content": "会触发失败重试"}],
+        )
+
+        original = j.append_batch
+
+        def boom(*_args, **_kwargs):
+            raise RuntimeError("forced error")
+
+        j.append_batch = boom  # type: ignore[assignment]
+
+        r1 = j.process_one_ingest_job(c)
+        assert r1 and r1["done"] is False and r1["retryable"] is True
+        assert j.queue_stats(c)["jobs_pending"] == 1
+
+        r2 = j.process_one_ingest_job(c)
+        assert r2 and r2["done"] is False and r2["retryable"] is True
+        assert j.queue_stats(c)["jobs_pending"] == 1
+
+        r3 = j.process_one_ingest_job(c)
+        assert r3 and r3["done"] is False and r3["retryable"] is False
+
+        stats = j.queue_stats(c)
+        assert stats["jobs_failed"] == 1
+        assert stats["jobs_pending"] == 0
+        assert stats["jobs_processing"] == 0
+        assert j.pending_evidence_count(c) == 1
+
+        j.append_batch = original  # type: ignore[assignment]
+    finally:
+        j.close()
+        shutil.rmtree(tmp)
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

@@ -25,6 +25,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Sequence
 
+MAX_INGEST_JOB_ATTEMPTS = 3
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS entries (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -237,12 +239,14 @@ class Journal:
         turns: Sequence[Dict[str, object]],
         client: Optional[str] = None,
         model: Optional[str] = None,
+        commit: bool = True,
     ) -> int:
         """批量落盘。用于握手时补交、或从客户端聊天记录里补录。
 
         Args:
             turns: 每项形如 {"turn": 5, "role": "user", "content": "...",
                    可选 "wrote_at": 时间戳, "meta": {...}}
+            commit: True 表示本方法内提交；False 表示由外层事务统一提交。
 
         Returns:
             实际新增的条数（重复的不计）。
@@ -279,7 +283,8 @@ class Journal:
                 added += 1
             except sqlite3.IntegrityError:
                 continue
-        self._db.commit()
+        if commit:
+            self._db.commit()
         return added
 
     # ------------------------------------------------------------ pending 证据与 ingest 队列
@@ -409,7 +414,7 @@ class Journal:
         now = time.time()
         self._db.execute("BEGIN IMMEDIATE")
         row = self._db.execute(
-            "SELECT j.id, j.session FROM ingest_jobs j"
+            "SELECT j.id, j.session, j.attempts FROM ingest_jobs j"
             " WHERE j.character=? AND j.status='pending'"
             "   AND j.session NOT IN ("
             "       SELECT session FROM ingest_jobs"
@@ -453,50 +458,51 @@ class Journal:
                 (character, session),
             ).fetchall()
 
-            if not rows:
-                self._db.execute(
-                    "UPDATE ingest_jobs SET status='done', finished_at=?, updated_at=?, error=NULL"
-                    " WHERE id=?",
-                    (now, now, job_id),
-                )
-                self._db.commit()
-                return {
-                    "job_id": job_id,
-                    "session": session,
-                    "evidence": 0,
-                    "entries_added": 0,
-                    "done": True,
-                }
-
-            turns: List[Dict[str, object]] = []
-            evidence_ids: List[int] = []
-            client = None
-            model = None
-            for r in rows:
-                evidence_ids.append(int(r["id"]))
-                turns.append(
-                    {
-                        "turn": int(r["turn"]),
-                        "role": str(r["role"]),
-                        "content": str(r["content"]),
-                        "wrote_at": float(r["wrote_at"]),
-                        "meta": json.loads(r["meta"] or "{}"),
-                    }
-                )
-                if client is None:
-                    client = r["client"]
-                if model is None:
-                    model = r["model"]
-
-            added = self.append_batch(
-                character,
-                session,
-                turns,
-                client=(str(client) if client else None),
-                model=(str(model) if model else None),
-            )
-
+            # 端到端原子：entries 写入 + pending 标记 + job 状态，在同一事务里完成。
             with self._db:
+                if not rows:
+                    self._db.execute(
+                        "UPDATE ingest_jobs SET status='done', finished_at=?, updated_at=?, error=NULL"
+                        " WHERE id=?",
+                        (now, now, job_id),
+                    )
+                    return {
+                        "job_id": job_id,
+                        "session": session,
+                        "evidence": 0,
+                        "entries_added": 0,
+                        "done": True,
+                    }
+
+                turns: List[Dict[str, object]] = []
+                evidence_ids: List[int] = []
+                client = None
+                model = None
+                for r in rows:
+                    evidence_ids.append(int(r["id"]))
+                    turns.append(
+                        {
+                            "turn": int(r["turn"]),
+                            "role": str(r["role"]),
+                            "content": str(r["content"]),
+                            "wrote_at": float(r["wrote_at"]),
+                            "meta": json.loads(r["meta"] or "{}"),
+                        }
+                    )
+                    if client is None:
+                        client = r["client"]
+                    if model is None:
+                        model = r["model"]
+
+                added = self.append_batch(
+                    character,
+                    session,
+                    turns,
+                    client=(str(client) if client else None),
+                    model=(str(model) if model else None),
+                    commit=False,
+                )
+
                 self._db.executemany(
                     "UPDATE pending_evidence"
                     " SET status='processed', processed_at=?, job_id=?"
@@ -529,25 +535,37 @@ class Journal:
                         (character, session, "pending", 0, now, now),
                     )
 
-            return {
-                "job_id": job_id,
-                "session": session,
-                "evidence": len(evidence_ids),
-                "entries_added": added,
-                "done": True,
-            }
+                return {
+                    "job_id": job_id,
+                    "session": session,
+                    "evidence": len(evidence_ids),
+                    "entries_added": added,
+                    "done": True,
+                }
         except Exception as exc:  # noqa: BLE001
-            self._db.execute(
-                "UPDATE ingest_jobs"
-                " SET status='failed', error=?, updated_at=?, finished_at=?"
-                " WHERE id=?",
-                (f"{type(exc).__name__}: {exc}", now, now, job_id),
-            )
-            self._db.commit()
+            retryable = False
+            try:
+                attempt_row = self._db.execute(
+                    "SELECT attempts FROM ingest_jobs WHERE id=?",
+                    (job_id,),
+                ).fetchone()
+                attempts = int(attempt_row["attempts"] if attempt_row else 1)
+                retryable = attempts < MAX_INGEST_JOB_ATTEMPTS
+                status = "pending" if retryable else "failed"
+                self._db.execute(
+                    "UPDATE ingest_jobs"
+                    " SET status=?, error=?, updated_at=?, finished_at=?"
+                    " WHERE id=?",
+                    (status, f"{type(exc).__name__}: {exc}", now, now, job_id),
+                )
+                self._db.commit()
+            except Exception:
+                pass
             return {
                 "job_id": job_id,
                 "session": session,
                 "done": False,
+                "retryable": retryable,
                 "error": f"{type(exc).__name__}: {exc}",
             }
 

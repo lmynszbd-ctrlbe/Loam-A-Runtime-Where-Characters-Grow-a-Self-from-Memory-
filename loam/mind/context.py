@@ -30,6 +30,7 @@ class ContextPack:
     traits: List[Dict[str, object]] = field(default_factory=list)
     recalled: List[Dict[str, object]] = field(default_factory=list)
     matches: List[Dict[str, object]] = field(default_factory=list)
+    budget: Dict[str, object] = field(default_factory=dict)
 
     def as_dict(self) -> Dict[str, object]:
         return {
@@ -42,6 +43,7 @@ class ContextPack:
             "traits": self.traits,
             "recalled": self.recalled,
             "matches": self.matches,
+            "budget": self.budget,
         }
 
     def render(self) -> str:
@@ -104,12 +106,16 @@ class ContextBuilder:
         max_recall: int = 16,
         max_traits: int = 12,
         trait_floor: float = 0.2,
+        soft_token_budget: int = 2200,
+        hard_token_budget: int = 2600,
     ) -> None:
         self.memory = memory
         self.max_matches = max_matches
         self.max_recall = max_recall
         self.max_traits = max_traits
         self.trait_floor = trait_floor
+        self.soft_token_budget = max(200, int(soft_token_budget))
+        self.hard_token_budget = max(self.soft_token_budget, int(hard_token_budget))
 
     def build(self, character: str, query: str, learn: bool = True) -> ContextPack:
         net = self.memory.load_network()
@@ -165,7 +171,108 @@ class ContextBuilder:
             recalled=recalled,
             matches=match_view,
         )
+        pack.budget = self._apply_budget(pack)
         return pack
+
+    def _apply_budget(self, pack: ContextPack) -> Dict[str, object]:
+        """上下文预算器：先尽量贴近软预算，再用硬上限兜底。"""
+        before = _estimate_tokens(pack.render())
+
+        # 软预算：优先裁剪最可替代部分（字面命中 / 召回尾部 / 低强度倾向）
+        while _estimate_tokens(pack.render()) > self.soft_token_budget:
+            changed = False
+            if len(pack.matches) > 3:
+                pack.matches = pack.matches[: max(3, len(pack.matches) - 2)]
+                changed = True
+            elif len(pack.recalled) > 8:
+                pack.recalled = pack.recalled[: max(8, len(pack.recalled) - 2)]
+                changed = True
+            elif len(pack.traits) > 8:
+                pack.traits = pack.traits[: max(8, len(pack.traits) - 1)]
+                changed = True
+            elif pack.narrative and len(pack.narrative) > 380:
+                pack.narrative = pack.narrative[:360].rstrip() + "…"
+                changed = True
+
+            if not changed:
+                break
+
+        # 硬上限：再不够就继续强裁，保证绝不无限膨胀。
+        while _estimate_tokens(pack.render()) > self.hard_token_budget:
+            changed = False
+            if len(pack.recalled) > 4:
+                pack.recalled = pack.recalled[: max(4, len(pack.recalled) - 1)]
+                changed = True
+            elif len(pack.traits) > 4:
+                pack.traits = pack.traits[: max(4, len(pack.traits) - 1)]
+                changed = True
+            elif len(pack.matches) > 1:
+                pack.matches = pack.matches[: max(1, len(pack.matches) - 1)]
+                changed = True
+            elif pack.narrative and len(pack.narrative) > 160:
+                pack.narrative = pack.narrative[:150].rstrip() + "…"
+                changed = True
+            elif pack.dossier:
+                items = list(sorted(pack.dossier.items()))
+                if len(items) > 6:
+                    pack.dossier = {k: v for k, v in items[:6]}
+                    changed = True
+                else:
+                    shrunk: Dict[str, str] = {}
+                    shortened = False
+                    for k, v in items:
+                        text = str(v)
+                        if len(text) > 40:
+                            text = text[:36].rstrip() + "…"
+                            shortened = True
+                        shrunk[k] = text
+                    if shortened and shrunk != pack.dossier:
+                        pack.dossier = shrunk
+                        changed = True
+            if not changed and _truncate_pack_text(pack):
+                changed = True
+
+            if not changed:
+                break
+
+        after = _estimate_tokens(pack.render())
+        return {
+            "soft_budget": self.soft_token_budget,
+            "hard_budget": self.hard_token_budget,
+            "estimated_tokens_before": before,
+            "estimated_tokens_after": after,
+            "trimmed": after < before,
+        }
+
+
+def _estimate_tokens(text: str) -> int:
+    # 粗估：中英混排下按 4 字符 ≈ 1 token。
+    return max(1, (len(text) + 3) // 4)
+
+
+def _truncate_pack_text(pack: ContextPack) -> bool:
+    """最后兜底：当项数已压到下限时，再压缩单条文本长度。"""
+    changed = False
+
+    for item in pack.recalled:
+        summary = str(item.get("summary") or "")
+        if len(summary) > 36:
+            item["summary"] = summary[:32].rstrip() + "…"
+            changed = True
+
+    for item in pack.matches:
+        summary = str(item.get("summary") or "")
+        if len(summary) > 36:
+            item["summary"] = summary[:32].rstrip() + "…"
+            changed = True
+
+    for item in pack.traits:
+        text = str(item.get("text") or "")
+        if len(text) > 28:
+            item["text"] = text[:24].rstrip() + "…"
+            changed = True
+
+    return changed
 
 
 def _trait_view(t: Trait) -> Dict[str, object]:
