@@ -221,7 +221,7 @@ def _export_one_db(db_path: Path, out_root: Path) -> Dict[str, object]:
                 + Path(e.csv_path).as_posix()
                 + "' INTO TABLE "
                 + _mysql_ident(e.name)
-                + " FIELDS TERMINATED BY ',' ENCLOSED BY '\"' ESCAPED BY '\"'"
+                + " FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '\"' ESCAPED BY '\"'"
                 + " LINES TERMINATED BY '\\n' IGNORE 1 LINES ("
                 + ", ".join(_mysql_ident(c) for c in e.columns)
                 + ");"
