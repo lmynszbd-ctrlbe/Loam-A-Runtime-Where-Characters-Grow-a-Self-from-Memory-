@@ -83,11 +83,23 @@ def _list_tables(conn: sqlite3.Connection) -> List[sqlite3.Row]:
         "SELECT name, sql FROM sqlite_master "
         "WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
     ).fetchall()
+
+    # FTS/虚拟表迁移由应用层重建，不在基础数据迁移里直接复制。
+    # SQLite FTS5 还会生成一组 shadow tables（如 <fts>_data/_idx/_docsize/_config/_content），
+    # 这些表同样属于可重建的派生索引，不应纳入基础迁移清单。
+    virtual_tables = {
+        str(r["name"])
+        for r in rows
+        if "VIRTUAL TABLE" in str(r["sql"] or "").upper()
+    }
+
     out: List[sqlite3.Row] = []
     for r in rows:
+        name = str(r["name"])
         sql = str(r["sql"] or "")
-        # FTS/虚拟表迁移由应用层重建，不在基础数据迁移里直接复制。
         if "VIRTUAL TABLE" in sql.upper():
+            continue
+        if any(name.startswith(vt + "_") for vt in virtual_tables):
             continue
         out.append(r)
     return out
