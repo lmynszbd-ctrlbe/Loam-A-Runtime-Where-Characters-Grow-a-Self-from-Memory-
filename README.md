@@ -38,11 +38,21 @@ python -m loam run --character demo --home ~/.loam/characters
 
 启动后可通过 `/ingest`、`/digest`、`/context` 完成最小闭环。
 
+可观测/审计接口：
+- `/dashboard`（任务态、告警分级、时间窗聚合）
+- `/explain`（变化触发证据链，可选原始 entry 展开）
+- `/experiments` 与 `/experiments/flags`（实验开关+审计）
+- `/recompute` 与 `/recompute/history`（增量/全量重算）
+
 ## 部署方式
 - **Android / Termux**：`TERMUX_QUICKSTART.md`
 - **Linux / VM / WSL / macOS**：`DEPLOYMENT_MODES.md`
+- **容器化部署**：`Dockerfile` + `docker-compose.yml`
 - **多上游路由**：`MULTI_UPSTREAM_QUICKSTART.md`
 - **第三方集成**：`THIRD_PARTY_INTEGRATION.md`
+- **迁移与回滚**：`docs/MIGRATION_RUNBOOK.md`
+- **备份恢复与运维 SOP**：`docs/BACKUP_RESTORE_RUNBOOK.md`、`docs/OPS_SOP.md`
+- **合规与 License**：`docs/COMPLIANCE_AND_LICENSE.md`
 - **发布前检查**：`INTEGRATION_CHECKLIST.md`
 
 ## 技术栈

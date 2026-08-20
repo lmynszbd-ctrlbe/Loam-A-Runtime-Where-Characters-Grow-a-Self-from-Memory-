@@ -300,6 +300,49 @@ def test_recompute_and_experiment_endpoints():
         _stop_service(tmp, svc, httpd)
 
 
+def test_experiment_flag_endpoints_and_explain_with_entries():
+    tmp, svc, httpd, _ = _start_service()
+    try:
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+
+        _req(
+            base,
+            "POST",
+            "/ingest",
+            {
+                "session": "s1",
+                "turns": [
+                    {"turn": 1, "role": "user", "content": "我明天要开会，有点紧张"},
+                    {"turn": 1, "role": "assistant", "content": "我们来准备一下"},
+                ],
+            },
+        )
+        _req(base, "POST", "/digest", {})
+
+        s1, ex = _req(base, "GET", "/explain?limit=5&include_entries=1")
+        assert s1 == 200
+        assert ex.get("include_entries") is True
+        if ex.get("items"):
+            evs = ex["items"][0].get("evidence_events") or []
+            if evs:
+                assert "source_entries" in evs[0]
+
+        s2, upd = _req(
+            base,
+            "POST",
+            "/experiments/flags/update",
+            {"flags": {"brain.low_cost_enabled": True}, "note": "enable"},
+        )
+        assert s2 == 200
+        assert upd["current"].get("brain.low_cost_enabled") is True
+
+        s3, flags = _req(base, "GET", "/experiments/flags")
+        assert s3 == 200
+        assert flags["current"].get("brain.low_cost_enabled") is True
+    finally:
+        _stop_service(tmp, svc, httpd)
+
+
 def test_unknown_route_returns_404_json():
     tmp, svc, httpd, _ = _start_service()
     try:

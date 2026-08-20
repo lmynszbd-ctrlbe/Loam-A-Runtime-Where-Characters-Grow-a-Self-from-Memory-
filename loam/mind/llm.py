@@ -20,7 +20,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 
 class BrainError(RuntimeError):
@@ -37,7 +37,6 @@ RETRIES = 3
 #: 重试的基础间隔（秒），每次翻倍。
 BACKOFF = 2.0
 
-
 @dataclass
 class Usage:
     """花了多少 token。后台会跑很多次，这个得记着。"""
@@ -45,23 +44,28 @@ class Usage:
     calls: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    route_calls: Dict[str, int] = field(default_factory=dict)
 
-    def add(self, prompt: int, completion: int) -> None:
+    def add(self, prompt: int, completion: int, route: str = "primary") -> None:
         self.calls += 1
         self.prompt_tokens += prompt
         self.completion_tokens += completion
+        key = route.strip() or "primary"
+        self.route_calls[key] = int(self.route_calls.get(key, 0)) + 1
 
     @property
     def total(self) -> int:
         return self.prompt_tokens + self.completion_tokens
 
-    def as_dict(self) -> Dict[str, int]:
+    def as_dict(self) -> Dict[str, object]:
         return {
             "调用次数": self.calls,
             "输入token": self.prompt_tokens,
             "输出token": self.completion_tokens,
             "合计": self.total,
+            "路由调用": dict(sorted(self.route_calls.items())),
         }
+
 
 
 Transport = Callable[[str, Dict[str, Any], float], Dict[str, Any]]
@@ -98,6 +102,16 @@ class Brain:
     api_key: str = ""
     base_url: str = "https://api.deepseek.com"
     model: str = "deepseek-chat"
+
+    # 低成本路由：用于把抽取/核对等子任务切到更便宜模型。
+    low_cost_api_key: str = ""
+    low_cost_base_url: str = ""
+    low_cost_model: str = ""
+    low_cost_enabled: bool = False
+    low_cost_phases: Sequence[str] = field(
+        default_factory=lambda: ("extract", "observe", "dossier", "drift")
+    )
+
     timeout: float = 120.0
     retries: int = RETRIES
     transport: Transport = http_transport
@@ -108,7 +122,48 @@ class Brain:
 
     @property
     def available(self) -> bool:
-        return bool(self.api_key) or self.transport is not http_transport
+        if self.transport is not http_transport:
+            return True
+        if bool((self.api_key or "").strip()):
+            return True
+        if (
+            self.low_cost_enabled
+            and bool((self.low_cost_api_key or "").strip())
+            and bool((self.low_cost_model or "").strip())
+        ):
+            return True
+        return False
+
+    def set_low_cost_enabled(self, enabled: bool) -> None:
+        self.low_cost_enabled = bool(enabled)
+
+    def _pick_route(self, phase: str = "") -> Dict[str, str]:
+        phase_key = str(phase or "").strip().lower()
+        low_phases = {
+            str(p).strip().lower()
+            for p in (self.low_cost_phases or [])
+            if str(p).strip()
+        }
+        use_low = (
+            self.low_cost_enabled
+            and bool((self.low_cost_model or "").strip())
+            and phase_key in low_phases
+        )
+
+        if use_low:
+            return {
+                "route": f"low_cost:{phase_key}",
+                "api_key": (self.low_cost_api_key or self.api_key).strip(),
+                "base_url": (self.low_cost_base_url or self.base_url).strip(),
+                "model": (self.low_cost_model or self.model).strip(),
+            }
+
+        return {
+            "route": "primary",
+            "api_key": (self.api_key or "").strip(),
+            "base_url": (self.base_url or "").strip(),
+            "model": (self.model or "").strip(),
+        }
 
     # ------------------------------------------------------------ 基本问答
 
@@ -118,21 +173,23 @@ class Brain:
         user: str,
         temperature: float = 0.2,
         max_tokens: int = 2048,
+        phase: str = "",
     ) -> str:
         """问一句，拿回文本。
 
         温度默认压得很低 —— 这不是创作，是审阅。同一批经历应该
         得出大致相同的结论，随机性在这里只会变成漂移。
         """
-        if not self.available:
+        route = self._pick_route(phase=phase)
+        if self.transport is http_transport and not route["api_key"]:
             raise BrainUnavailable(
                 "还没配后台反思用的模型。把 key 写进 ~/.loam/secrets.json 的 api_key。"
             )
 
-        url = self.base_url.rstrip("/") + "/v1/chat/completions"
+        url = route["base_url"].rstrip("/") + "/v1/chat/completions"
         payload: Dict[str, Any] = {
-            "_api_key": self.api_key,
-            "model": self.model,
+            "_api_key": route["api_key"],
+            "model": route["model"],
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -149,10 +206,12 @@ class Brain:
                 text = _extract_text(data)
                 u = data.get("usage") or {}
                 self.usage.add(
-                    int(u.get("prompt_tokens", 0)), int(u.get("completion_tokens", 0))
+                    int(u.get("prompt_tokens", 0)),
+                    int(u.get("completion_tokens", 0)),
+                    route=route["route"],
                 )
                 if self.on_call:
-                    self.on_call(user[:200], text[:200])
+                    self.on_call(f"[{route['route']}] {user[:200]}", text[:200])
                 return text
             except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError) as exc:
                 last = exc
@@ -173,6 +232,7 @@ class Brain:
         temperature: float = 0.2,
         max_tokens: int = 2048,
         retries: int = 2,
+        phase: str = "",
     ) -> Any:
         """问一句，要一段 JSON 回来。
 
@@ -182,7 +242,13 @@ class Brain:
         prompt = user
         last: Optional[Exception] = None
         for _ in range(max(1, retries)):
-            raw = self.ask(system, prompt, temperature=temperature, max_tokens=max_tokens)
+            raw = self.ask(
+                system,
+                prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                phase=phase,
+            )
             try:
                 return parse_json(raw)
             except ValueError as exc:
@@ -259,18 +325,64 @@ def load_brain(home: str | Path = "~/.loam", **overrides: Any) -> Brain:
             cfg = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             cfg = {}
-
     key = os.environ.get("LOAM_API_KEY") or cfg.get("api_key", "")
     base = os.environ.get("LOAM_BASE_URL") or cfg.get("base_url") or "https://api.deepseek.com"
     model = os.environ.get("LOAM_MODEL") or cfg.get("model") or "deepseek-chat"
 
-    brain = Brain(api_key=key, base_url=base, model=model)
+    low_key = os.environ.get("LOAM_LOW_COST_API_KEY") or cfg.get("low_cost_api_key", "")
+    low_base = os.environ.get("LOAM_LOW_COST_BASE_URL") or cfg.get("low_cost_base_url", "")
+    low_model = os.environ.get("LOAM_LOW_COST_MODEL") or cfg.get("low_cost_model", "")
+    low_enabled = _coerce_bool_env(
+        os.environ.get("LOAM_LOW_COST_ENABLED"),
+        default=bool(cfg.get("low_cost_enabled", False)),
+    )
+    low_phases = _coerce_phase_list(
+        os.environ.get("LOAM_LOW_COST_PHASES"),
+        cfg.get("low_cost_phases"),
+    )
+
+    brain = Brain(
+        api_key=key,
+        base_url=base,
+        model=model,
+        low_cost_api_key=low_key,
+        low_cost_base_url=low_base,
+        low_cost_model=low_model,
+        low_cost_enabled=low_enabled,
+        low_cost_phases=low_phases,
+    )
     for k, v in overrides.items():
         setattr(brain, k, v)
     return brain
 
 
+def _coerce_bool_env(value: Optional[str], default: bool = False) -> bool:
+    if value is None:
+        return bool(default)
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off", ""}:
+        return False
+    return bool(default)
+
+
+def _coerce_phase_list(env_value: Optional[str], cfg_value: Any) -> Sequence[str]:
+    if env_value and str(env_value).strip():
+        return tuple(
+            x.strip().lower()
+            for x in str(env_value).split(",")
+            if x.strip()
+        )
+    if isinstance(cfg_value, list):
+        out = [str(x).strip().lower() for x in cfg_value if str(x).strip()]
+        if out:
+            return tuple(out)
+    return ("extract", "observe", "dossier", "drift")
+
+
 def write_secrets_template(home: str | Path = "~/.loam") -> Path:
+
     """生成一份填 key 的模板，已存在则不覆盖。"""
     d = Path(home).expanduser()
     d.mkdir(parents=True, exist_ok=True)
@@ -282,6 +394,11 @@ def write_secrets_template(home: str | Path = "~/.loam") -> Path:
                     "api_key": "",
                     "base_url": "https://api.deepseek.com",
                     "model": "deepseek-chat",
+                    "low_cost_enabled": False,
+                    "low_cost_api_key": "",
+                    "low_cost_base_url": "",
+                    "low_cost_model": "",
+                    "low_cost_phases": ["extract", "observe", "dossier", "drift"],
                 },
                 ensure_ascii=False,
                 indent=2,

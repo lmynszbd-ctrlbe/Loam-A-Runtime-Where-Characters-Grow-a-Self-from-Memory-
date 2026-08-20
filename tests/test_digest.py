@@ -199,6 +199,44 @@ def test_event_ids_are_stable_after_recompute():
         j.close(); m.close(); shutil.rmtree(tmp)
 
 
+def test_long_session_is_sharded_and_merged_before_commit():
+    """长会话会分片抽取，并在入库前做分段归并。"""
+    tmp = tempfile.mkdtemp()
+    try:
+        c, j, m = fresh(tmp)
+        feed_turns(j, c, 20)  # 40 条，强制跨多段
+
+        def one_topic(_prompt: str):
+            return [
+                {
+                    "summary": "对方持续在谈同一个发布准备话题",
+                    "questions": ["对方最近在准备什么"],
+                    "entities": ["发布"],
+                    "salience": 0.55,
+                    "valence": 0.1,
+                    "stood_firm": False,
+                    "source_turns": [1],
+                }
+            ]
+
+        d = Digester(
+            c,
+            j,
+            m,
+            PhasedBrain(extract=one_topic, appraise=APPRAISE_EMPTY),
+            segment_max_entries=8,
+            segment_max_turn_span=4,
+        )
+        r = d.digest_once()
+
+        assert int(m.get_state("extract:last_segments", "0")) >= 2
+        assert int(m.get_state("extract:last_events_raw", "0")) >= 2
+        assert int(m.get_state("extract:last_events_merged", "0")) == 1
+        assert r.events == 1, r.as_dict()
+    finally:
+        j.close(); m.close(); shutil.rmtree(tmp)
+
+
 def test_stood_firm_gets_high_salience():
     """顶住压力的时刻，权重被抬到高档，但不到能绕过固化阻力那一档。"""
     tmp = tempfile.mkdtemp()

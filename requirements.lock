@@ -1,0 +1,6 @@
+# loam runtime dependency lock
+# This project is intentionally stdlib-only at runtime.
+# Keep this file for reproducible builds and CI assertions.
+#
+# Python: 3.12.x
+# Third-party runtime dependencies: (none)

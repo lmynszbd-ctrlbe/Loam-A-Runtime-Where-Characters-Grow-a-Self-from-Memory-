@@ -25,6 +25,7 @@ from urllib.parse import parse_qs, urlparse
 from .mind.context import ContextBuilder
 from .mind.digest import Digester, Grower
 from .mind.llm import Brain, load_brain
+from .store.adapters import SQLiteStorageAdapters
 from .store.journal import MAX_INGEST_JOB_ATTEMPTS, Journal
 from .store.memory import Memory
 
@@ -58,6 +59,9 @@ _RUNTIME_CONFIG_DEFAULTS: Dict[str, object] = {
     "digest.max_limit": 80,
     "drain.max_rounds": 100,
     "queue.max_retry_attempts": MAX_INGEST_JOB_ATTEMPTS,
+    # 长会话分片抽取（减少超长 transcript 碎片）
+    "digest.segment.max_entries": 24,
+    "digest.segment.max_turn_span": 12,
     # 时间窗口聚合（dashboard）
     "dashboard.window_seconds": 86400,
     "dashboard.bucket_seconds": 3600,
@@ -67,6 +71,9 @@ _RUNTIME_CONFIG_DEFAULTS: Dict[str, object] = {
     "decay.min_weight": 0.25,
     "decay.stood_firm_floor": 0.55,
     "decay.apply_interval_seconds": 300,
+    # 低成本记忆模型路由与 explainability 开关
+    "brain.low_cost_enabled": False,
+    "experiment.explain.include_raw_entries": True,
     # 重算
     "recompute.max_rounds": 400,
 }
@@ -83,6 +90,7 @@ class LoamService:
 
         self.journal = Journal(self.root / "journal.db")
         self.memory = Memory(self.root / "memory.db")
+        self.adapters = SQLiteStorageAdapters.from_instances(self.journal, self.memory)
         self.brain = brain or load_brain()
         self.api_key = (config.api_key or os.environ.get("LOAM_API_KEY", "")).strip()
 
@@ -99,6 +107,7 @@ class LoamService:
         # 运行参数：支持版本化与配置回滚（只影响行为参数，不改历史真值）。
         self._runtime_config = self._bootstrap_runtime_config()
         self.context = self._build_context_builder(self._runtime_config)
+        self._apply_runtime_switches(self._runtime_config)
 
         # 所有 journal/memory 操作都走同一把锁，避免 HTTP 请求与后台 grower 竞态。
         self._lock = threading.RLock()
@@ -142,6 +151,8 @@ class LoamService:
         cfg["digest.max_limit"] = _clamp_int(raw.get("digest.max_limit"), int(cfg["digest.max_limit"]), 1, 500)
         cfg["drain.max_rounds"] = _clamp_int(raw.get("drain.max_rounds"), int(cfg["drain.max_rounds"]), 1, 1000)
         cfg["queue.max_retry_attempts"] = MAX_INGEST_JOB_ATTEMPTS
+        cfg["digest.segment.max_entries"] = _clamp_int(raw.get("digest.segment.max_entries"), int(cfg["digest.segment.max_entries"]), 8, 240)
+        cfg["digest.segment.max_turn_span"] = _clamp_int(raw.get("digest.segment.max_turn_span"), int(cfg["digest.segment.max_turn_span"]), 2, 240)
 
         cfg["dashboard.window_seconds"] = _clamp_int(raw.get("dashboard.window_seconds"), int(cfg["dashboard.window_seconds"]), 3600, 3600 * 24 * 30)
         cfg["dashboard.bucket_seconds"] = _clamp_int(raw.get("dashboard.bucket_seconds"), int(cfg["dashboard.bucket_seconds"]), 60, int(cfg["dashboard.window_seconds"]))
@@ -151,6 +162,12 @@ class LoamService:
         cfg["decay.min_weight"] = _clamp_float(raw.get("decay.min_weight"), float(cfg["decay.min_weight"]), 0.0, 1.0)
         cfg["decay.stood_firm_floor"] = _clamp_float(raw.get("decay.stood_firm_floor"), float(cfg["decay.stood_firm_floor"]), float(cfg["decay.min_weight"]), 1.0)
         cfg["decay.apply_interval_seconds"] = _clamp_int(raw.get("decay.apply_interval_seconds"), int(cfg["decay.apply_interval_seconds"]), 0, 3600 * 24)
+
+        cfg["brain.low_cost_enabled"] = _coerce_bool(raw.get("brain.low_cost_enabled"), default=bool(cfg["brain.low_cost_enabled"]))
+        cfg["experiment.explain.include_raw_entries"] = _coerce_bool(
+            raw.get("experiment.explain.include_raw_entries"),
+            default=bool(cfg["experiment.explain.include_raw_entries"]),
+        )
 
         cfg["recompute.max_rounds"] = _clamp_int(raw.get("recompute.max_rounds"), int(cfg["recompute.max_rounds"]), 1, 5000)
         return cfg
@@ -165,6 +182,20 @@ class LoamService:
             soft_token_budget=int(cfg["context.soft_token_budget"]),
             hard_token_budget=int(cfg["context.hard_token_budget"]),
         )
+
+    def _apply_runtime_switches(self, cfg: Dict[str, object]) -> None:
+        """把运行参数中的开关同步到运行中组件。"""
+        # Digester 分片参数
+        self.digester.segment_max_entries = int(cfg.get("digest.segment.max_entries", 24) or 24)
+        self.digester.segment_max_turn_span = int(cfg.get("digest.segment.max_turn_span", 12) or 12)
+
+        # 低成本记忆模型路由开关
+        enabled = _coerce_bool(cfg.get("brain.low_cost_enabled"), default=False)
+        if hasattr(self.brain, "set_low_cost_enabled"):
+            try:
+                self.brain.set_low_cost_enabled(enabled)
+            except Exception:  # noqa: BLE001
+                pass
 
     def runtime_config(self) -> Dict[str, Any]:
         with self._lock:
@@ -194,6 +225,7 @@ class LoamService:
             self.memory.log_experiment_flags(updates, note=note_text, actor="api")
             self._runtime_config = normalized
             self.context = self._build_context_builder(self._runtime_config)
+            self._apply_runtime_switches(self._runtime_config)
             return {
                 "ok": True,
                 "version": version_id,
@@ -215,6 +247,7 @@ class LoamService:
             )
             self._runtime_config = self._coerce_runtime_config(cfg)
             self.context = self._build_context_builder(self._runtime_config)
+            self._apply_runtime_switches(self._runtime_config)
             return {
                 "ok": True,
                 "source_version": int(version_id),
@@ -349,7 +382,36 @@ class LoamService:
     def experiment_history(self, limit: int = 20) -> Dict[str, Any]:
         with self._lock:
             return {
-                "items": self.memory.experiment_history(limit=max(1, min(int(limit), 200)))
+                "current": self.memory.experiment_flags(),
+                "items": self.memory.experiment_history(limit=max(1, min(int(limit), 200))),
+            }
+
+    def experiment_flags(self) -> Dict[str, Any]:
+        with self._lock:
+            return {
+                "current": self.memory.experiment_flags(),
+                "items": self.memory.experiment_history(limit=20),
+            }
+
+    def update_experiment_flags(self, flags: Dict[str, Any], note: str = "", merge: bool = True) -> Dict[str, Any]:
+        with self._lock:
+            if not isinstance(flags, dict) or not flags:
+                raise ValueError("flags 必须是非空对象")
+            note_text = note.strip() or "experiment update"
+            current = self.memory.set_experiment_flags(flags, note=note_text, actor="api", merge=merge)
+
+            # 允许实验开关直连低成本模型路由。
+            if "brain.low_cost_enabled" in current:
+                self._runtime_config["brain.low_cost_enabled"] = _coerce_bool(
+                    current.get("brain.low_cost_enabled"),
+                    default=bool(self._runtime_config.get("brain.low_cost_enabled", False)),
+                )
+                self._apply_runtime_switches(self._runtime_config)
+
+            return {
+                "ok": True,
+                "current": current,
+                "items": self.memory.experiment_history(limit=20),
             }
 
     def _build_alerts(self, queue: Dict[str, int], pending: int, open_gaps: int) -> Dict[str, Any]:
@@ -400,6 +462,11 @@ class LoamService:
             limit=64,
         )
 
+        extract_segments = _safe_int(self.memory.get_state("extract:last_segments", "0"), 0)
+        extract_raw = _safe_int(self.memory.get_state("extract:last_events_raw", "0"), 0)
+        extract_merged = _safe_int(self.memory.get_state("extract:last_events_merged", "0"), 0)
+        last_digest_at = float(self.memory.get_state("last_digest_at", "0") or 0.0)
+
         return {
             "backlog": {
                 "pending": pending,
@@ -412,9 +479,34 @@ class LoamService:
                 "version": int(self.memory.get_state("runtime_config_version", "0") or 0),
                 "current": dict(self._runtime_config),
             },
+            "experiments": self.memory.experiment_flags(),
             "windows": {
                 "events": events_window,
                 "changes": changes_window,
+            },
+            "tasks": {
+                "grower": {
+                    "alive": self.grower.alive,
+                    "last_error": self.grower.last_error,
+                    "last_step_at": float(getattr(self.grower, "last_step_at", 0.0) or 0.0),
+                    "reports_cached": len(self.grower.reports),
+                },
+                "ingest_queue": {
+                    "sessions": self.adapters.jobs.queue_sessions(self.character, limit=12),
+                    "recent_jobs": self.adapters.jobs.recent_ingest_jobs(self.character, limit=12),
+                },
+                "digest": {
+                    "cycle": int(self.memory.get_state("cycle", "0") or 0),
+                    "last_digest_at": last_digest_at,
+                    "idle_seconds": float(self.config.idle_seconds),
+                    "ready_now": self.digester.ready(idle_seconds=float(self.config.idle_seconds)),
+                },
+                "extract": {
+                    "last_segments": extract_segments,
+                    "last_events_raw": extract_raw,
+                    "last_events_merged": extract_merged,
+                    "merge_saved": max(0, extract_raw - extract_merged),
+                },
             },
             "decay": decay,
             "recent": {
@@ -427,20 +519,76 @@ class LoamService:
         with self._lock:
             return self._dashboard_unlocked()
 
-    def explain(self, kind: str = "", limit: int = 20) -> Dict[str, Any]:
+    def explain(self, kind: str = "", limit: int = 20, include_entries: Optional[bool] = None) -> Dict[str, Any]:
         with self._lock:
             self._maybe_apply_decay_unlocked(force=False)
             rows = self.memory.history(limit=max(1, min(200, int(limit))), kind=(kind or None))
+
+            with_entries = (
+                bool(self._runtime_config.get("experiment.explain.include_raw_entries", True))
+                if include_entries is None
+                else bool(include_entries)
+            )
+
+            all_source_ids: set[int] = set()
             for row in rows:
                 evidence_ids = [x for x in row.get("evidence", []) if isinstance(x, str) and x.startswith("ev_")]
                 if not evidence_ids:
                     row["evidence_events"] = []
+                    row["trigger_summary"] = {"events": 0, "source_entries": 0}
                     continue
-                events = self.memory.get_events(evidence_ids[:20])
-                row["evidence_events"] = [{"id": e.id, "summary": e.summary, "salience": e.salience} for e in events]
+
+                events = self.memory.get_events(evidence_ids[:24])
+                event_items: List[Dict[str, Any]] = []
+                for e in events:
+                    item = {
+                        "id": e.id,
+                        "summary": e.summary,
+                        "salience": e.salience,
+                        "stood_firm": e.stood_firm,
+                        "source_ids": list(e.source_ids),
+                        "questions": list(e.questions[:6]),
+                        "entities": list(e.entities[:6]),
+                    }
+                    event_items.append(item)
+                    if with_entries:
+                        all_source_ids.update(int(i) for i in e.source_ids)
+
+                row["evidence_events"] = event_items
+                row["trigger_summary"] = {
+                    "events": len(event_items),
+                    "source_entries": 0,
+                }
+
+            entry_map: Dict[int, Dict[str, Any]] = {}
+            if with_entries and all_source_ids:
+                for ent in self.journal.entries_by_ids(sorted(all_source_ids)):
+                    entry_map[int(ent.id)] = {
+                        "id": int(ent.id),
+                        "session": ent.session,
+                        "turn": int(ent.turn),
+                        "role": ent.role,
+                        "content": ent.content,
+                        "wrote_at": float(ent.wrote_at),
+                    }
+
+            if with_entries and entry_map:
+                for row in rows:
+                    total_entries = 0
+                    for item in row.get("evidence_events", []):
+                        if not isinstance(item, dict):
+                            continue
+                        src_ids = [int(x) for x in item.get("source_ids", []) if int(x) in entry_map]
+                        src_entries = [entry_map[i] for i in src_ids]
+                        item["source_entries"] = src_entries
+                        total_entries += len(src_entries)
+                    if isinstance(row.get("trigger_summary"), dict):
+                        row["trigger_summary"]["source_entries"] = total_entries
+
             return {
                 "character": self.character,
                 "kind": kind or "all",
+                "include_entries": with_entries,
                 "items": rows,
             }
 
@@ -685,10 +833,23 @@ class LoamHandler(BaseHTTPRequestHandler):
                 self._send_json(200, self.server.service.experiment_history(limit=int(limit_text or 20)))
                 return
 
+            if path == "/experiments/flags":
+                self._send_json(200, self.server.service.experiment_flags())
+                return
+
             if path == "/explain":
                 kind = (qs.get("kind") or [""])[0]
                 limit_text = (qs.get("limit") or ["20"])[0]
-                self._send_json(200, self.server.service.explain(kind=kind, limit=int(limit_text or 20)))
+                include_raw = (qs.get("include_entries") or [None])[0]
+                include_entries = None if include_raw is None else _coerce_bool(include_raw, default=False)
+                self._send_json(
+                    200,
+                    self.server.service.explain(
+                        kind=kind,
+                        limit=int(limit_text or 20),
+                        include_entries=include_entries,
+                    ),
+                )
                 return
 
             if path == "/context":
@@ -755,6 +916,15 @@ class LoamHandler(BaseHTTPRequestHandler):
                     raise ValueError("rollback 需要 version")
                 note = str(payload.get("note") or "")
                 self._send_json(200, self.server.service.rollback_runtime_config(int(version), note=note))
+                return
+
+            if path in ("/experiments/update", "/experiments/flags/update"):
+                flags = payload.get("flags")
+                if not isinstance(flags, dict):
+                    raise ValueError("flags 必须是对象")
+                note = str(payload.get("note") or "")
+                merge = _coerce_bool(payload.get("merge"), default=True)
+                self._send_json(200, self.server.service.update_experiment_flags(flags, note=note, merge=merge))
                 return
 
             if path == "/recompute":

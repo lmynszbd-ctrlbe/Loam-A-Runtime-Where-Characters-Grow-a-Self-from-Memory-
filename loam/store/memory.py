@@ -484,10 +484,10 @@ class Memory:
         args.append(cap)
 
         rows = self._db.execute(sql, args).fetchall()
-        buckets: List[Dict[str, object]] = []
+        points: List[Dict[str, object]] = []
         for r in reversed(rows):
             start = float(r["bucket_start"])
-            buckets.append(
+            points.append(
                 {
                     "start": start,
                     "end": start + float(bucket),
@@ -497,10 +497,13 @@ class Memory:
                 }
             )
 
+        merged_points = _merge_sparse_points(points, bucket_seconds=bucket)
         return {
             "window_seconds": window,
             "bucket_seconds": bucket,
-            "points": buckets,
+            "points": points,
+            "merged_points": merged_points,
+            "fragment_ratio": round((len(points) / max(1, len(merged_points))), 4),
         }
 
     # ------------------------------------------------------------ 网络
@@ -949,6 +952,37 @@ class Memory:
             out.append(item)
         return out
 
+    def experiment_flags(self) -> Dict[str, object]:
+        raw = self.get_state("experiment_flags", "")
+        if not raw.strip():
+            return {}
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def set_experiment_flags(
+        self,
+        flags: Dict[str, object],
+        note: str = "",
+        actor: str = "system",
+        merge: bool = True,
+    ) -> Dict[str, object]:
+        base = self.experiment_flags() if merge else {}
+        merged = dict(base)
+        for k, v in (flags or {}).items():
+            merged[str(k)] = v
+
+        blob = json.dumps(merged, ensure_ascii=False, sort_keys=True)
+        with self._db:
+            self._db.execute(
+                "INSERT OR REPLACE INTO state (key, value) VALUES ('experiment_flags', ?)",
+                (blob,),
+            )
+        self.log_experiment_flags(merged, note=note, actor=actor)
+        return merged
+
     def begin_recompute_run(
         self,
         mode: str,
@@ -1159,3 +1193,59 @@ def _fts_terms(query: str) -> str:
     if not uniq:
         return ""
     return " OR ".join(f'"{t}"' for t in uniq[:48])
+
+
+def _merge_sparse_points(
+    points: Sequence[Dict[str, object]],
+    bucket_seconds: int,
+    min_events: int = 2,
+    max_span_buckets: int = 3,
+) -> List[Dict[str, object]]:
+    """把稀疏小桶做轻量归并，减少 dashboard 时间窗碎片。"""
+    if not points:
+        return []
+
+    merged: List[Dict[str, object]] = []
+    cur: Optional[Dict[str, object]] = None
+    span = 0
+    step = float(max(60, int(bucket_seconds)))
+
+    for p in points:
+        item = {
+            "start": float(p.get("start") or 0.0),
+            "end": float(p.get("end") or 0.0),
+            "events": int(p.get("events") or 0),
+            "stood_firm": int(p.get("stood_firm") or 0),
+            "avg_salience": float(p.get("avg_salience") or 0.0),
+        }
+        if cur is None:
+            cur = dict(item)
+            span = 1
+            continue
+
+        contiguous = abs(float(item["start"]) - float(cur["end"])) <= step
+        sparse = int(cur["events"]) < int(min_events) or int(item["events"]) < int(min_events)
+        if contiguous and sparse and span < max_span_buckets:
+            total = int(cur["events"]) + int(item["events"])
+            if total > 0:
+                cur["avg_salience"] = round(
+                    (
+                        float(cur["avg_salience"]) * int(cur["events"])
+                        + float(item["avg_salience"]) * int(item["events"])
+                    )
+                    / total,
+                    4,
+                )
+            cur["events"] = total
+            cur["stood_firm"] = int(cur["stood_firm"]) + int(item["stood_firm"])
+            cur["end"] = float(item["end"])
+            span += 1
+        else:
+            merged.append(cur)
+            cur = dict(item)
+            span = 1
+
+    if cur is not None:
+        merged.append(cur)
+
+    return merged

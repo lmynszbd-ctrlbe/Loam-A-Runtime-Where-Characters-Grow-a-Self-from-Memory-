@@ -184,6 +184,29 @@ def test_pending_ingest_queue_dedup_and_process():
         shutil.rmtree(tmp)
 
 
+def test_queue_session_view_and_entries_lookup():
+    tmp = tempfile.mkdtemp()
+    try:
+        j = Journal(Path(tmp) / "journal.db")
+        c = "阿萤"
+        j.enqueue_pending_evidence(c, "s1", [{"turn": 1, "role": "user", "content": "a"}])
+        j.enqueue_pending_evidence(c, "s2", [{"turn": 1, "role": "user", "content": "b"}])
+
+        sessions = j.queue_sessions(c, limit=10)
+        assert len(sessions) >= 2
+        assert {x["session"] for x in sessions} >= {"s1", "s2"}
+
+        # 搬运一条后验证 entries_by_ids
+        out = j.process_one_ingest_job(c)
+        assert out and out["done"] is True
+        rows = j.read(c, session=out["session"])  # type: ignore[index]
+        looked = j.entries_by_ids([r.id for r in rows])
+        assert len(looked) == len(rows)
+    finally:
+        j.close()
+        shutil.rmtree(tmp)
+
+
 def test_recover_processing_jobs_to_pending():
     tmp = tempfile.mkdtemp()
     try:
@@ -318,6 +341,8 @@ def test_time_window_aggregation_and_audit_tables():
 
         ws = m.event_window_stats(window_seconds=1800, bucket_seconds=300, now=now)
         assert sum(int(p["events"]) for p in ws["points"]) == 2
+        assert "merged_points" in ws
+        assert len(ws["merged_points"]) <= len(ws["points"])
 
         m.log_change(cycle=1, kind="trait_moved", reason="x", evidence=["e1"])
         m.log_change(cycle=1, kind="trait_moved", reason="y", evidence=["e2"])

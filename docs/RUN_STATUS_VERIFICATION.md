@@ -51,3 +51,22 @@ $ for f in tests/test_*.py; do python "$f"; done
 ```
 
 Result: passed.
+
+## 4) This round (P1 all + P2 partial) verification snapshot
+
+```bash
+$ python -m compileall -q loam tests scripts
+$ for f in tests/test_*.py; do python "$f"; done
+$ python scripts/verify_three_dialogues_trait_shift.py
+$ python scripts/migration/sqlite_to_postgres_tikv.py --journal-db <...> --memory-db <...> --out-dir <...>
+$ python scripts/migration/verify_migration_consistency.py --manifest <...>
+$ python scripts/migration/rehearse_migration_load.py --journal-db <...> --memory-db <...> --rounds 2
+$ bash scripts/ops/check_reproducible_build.sh
+```
+
+Observed:
+- Compile passed for `loam/`, `tests/`, `scripts/`.
+- Full test suite passed (all `tests/test_*.py`).
+- 3-dialogue gate test still `verdict=PASS`.
+- Migration export / consistency / rehearsal scripts completed successfully.
+- Reproducible-build check passed (`python=3.12.x`).

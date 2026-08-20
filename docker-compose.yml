@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  loam:
+    build: .
+    container_name: loam
+    ports:
+      - "8765:8765"
+    environment:
+      # 可选：启用 API Key 鉴权
+      LOAM_API_KEY: ""
+      # 可选：低成本记忆模型路由
+      LOAM_LOW_COST_ENABLED: "false"
+      LOAM_LOW_COST_MODEL: ""
+      LOAM_LOW_COST_BASE_URL: ""
+      LOAM_LOW_COST_API_KEY: ""
+    volumes:
+      - ./data:/data
+    restart: unless-stopped

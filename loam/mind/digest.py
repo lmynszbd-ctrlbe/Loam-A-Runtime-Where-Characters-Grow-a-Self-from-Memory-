@@ -112,12 +112,16 @@ class Digester:
         memory: Memory,
         brain: Brain,
         batch_turns: int = BATCH_TURNS,
+        segment_max_entries: int = 24,
+        segment_max_turn_span: int = 12,
     ) -> None:
         self.character = character
         self.journal = journal
         self.memory = memory
         self.brain = brain
         self.batch_turns = batch_turns
+        self.segment_max_entries = max(8, int(segment_max_entries))
+        self.segment_max_turn_span = max(2, int(segment_max_turn_span))
 
     # ------------------------------------------------------------ 入口
 
@@ -211,6 +215,29 @@ class Digester:
     # ------------------------------------------------------------ 一、抽事件
 
     def _extract(self, batch: Sequence[Entry], cycle: int) -> List[Event]:
+        """支持长会话分片抽取，并在入库前做分段归并。"""
+        segments = _shard_entries(
+            batch,
+            max_entries=self.segment_max_entries,
+            max_turn_span=self.segment_max_turn_span,
+        )
+        id_seen: Dict[str, int] = {}
+        extracted: List[Event] = []
+
+        for seg in segments:
+            extracted.extend(self._extract_segment(seg, id_seen))
+
+        merged = _merge_segment_events(extracted)
+        for event in merged:
+            self.memory.add_event(event)
+
+        # 观测分片效果（dashboard 用）
+        self.memory.set_state("extract:last_segments", str(len(segments)))
+        self.memory.set_state("extract:last_events_raw", str(len(extracted)))
+        self.memory.set_state("extract:last_events_merged", str(len(merged)))
+        return merged
+
+    def _extract_segment(self, batch: Sequence[Entry], id_seen: Dict[str, int]) -> List[Event]:
         transcript = prompts.format_transcript(
             [
                 {"turn": e.turn, "role": e.role, "content": e.content}
@@ -218,7 +245,12 @@ class Digester:
             ]
         )
         p = prompts.extract_prompt(transcript)
-        raw = self.brain.ask_json(p["system"], p["user"], max_tokens=3072)
+        raw = self.brain.ask_json(
+            p["system"],
+            p["user"],
+            max_tokens=3072,
+            phase="extract",
+        )
 
         if not isinstance(raw, list):
             raise ValueError(f"抽事件应该返回数组，拿到 {type(raw).__name__}")
@@ -230,7 +262,6 @@ class Digester:
         session = batch[0].session
 
         out: List[Event] = []
-        id_seen: Dict[str, int] = {}
         for item in raw:
             if not isinstance(item, dict):
                 continue
@@ -238,7 +269,7 @@ class Digester:
             if not summary:
                 continue
 
-            # 来历：模型给的轮次映射回日记 id。给不出来就整批兜底 ——
+            # 来历：模型给的轮次映射回日记 id。给不出来就整段兜底 ——
             # 宁可指得粗，也不能没有来历。
             turns = item.get("source_turns") or []
             source_ids: List[int] = []
@@ -276,7 +307,6 @@ class Digester:
             if event.stood_firm:
                 event.salience = max(event.salience, 0.8)
 
-            self.memory.add_event(event)
             out.append(event)
         return out
 
@@ -347,7 +377,7 @@ class Digester:
 
         # --- 判定
         p = prompts.appraise_prompt([_trait_view(t) for t in traits], ev_view)
-        verdict = self.brain.ask_json(p["system"], p["user"], max_tokens=2048)
+        verdict = self.brain.ask_json(p["system"], p["user"], max_tokens=2048, phase="appraise")
         if not isinstance(verdict, dict):
             raise ValueError("判特质应该返回对象")
 
@@ -403,7 +433,7 @@ class Digester:
         if traits:
             try:
                 op = prompts.observe_prompt([_trait_view(t) for t in traits], ev_view)
-                obs = self.brain.ask_json(op["system"], op["user"], max_tokens=1536)
+                obs = self.brain.ask_json(op["system"], op["user"], max_tokens=1536, phase="observe")
                 for item in obs if isinstance(obs, list) else []:
                     if not isinstance(item, dict):
                         continue
@@ -458,7 +488,7 @@ class Digester:
         p = prompts.dossier_prompt(
             self.memory.dossier(), [_event_view(e) for e in events[:APPRAISE_WINDOW]]
         )
-        raw = self.brain.ask_json(p["system"], p["user"], max_tokens=1024)
+        raw = self.brain.ask_json(p["system"], p["user"], max_tokens=1024, phase="dossier")
         if not isinstance(raw, list):
             return 0
 
@@ -513,7 +543,13 @@ class Digester:
             [_event_view(e) for e in top_events[:10]],
             [_event_view(e) for e in firm],
         )
-        text = self.brain.ask(p["system"], p["user"], temperature=0.3, max_tokens=800).strip()
+        text = self.brain.ask(
+            p["system"],
+            p["user"],
+            temperature=0.3,
+            max_tokens=800,
+            phase="narrate",
+        ).strip()
         if not text:
             return False
 
@@ -555,7 +591,7 @@ class Digester:
 
         p = prompts.drift_prompt(str(current["text"]), str(rebuilt["text"]))
         try:
-            verdict = self.brain.ask_json(p["system"], p["user"], max_tokens=1024)
+            verdict = self.brain.ask_json(p["system"], p["user"], max_tokens=1024, phase="drift")
         except (BrainError, ValueError) as exc:
             return {"结论": f"比对失败：{exc}"}
 
@@ -605,6 +641,8 @@ class Grower:
         self._thread: Optional[threading.Thread] = None
         self.reports: List[DigestReport] = []
         self.last_error: Optional[str] = None
+        self.last_step_at: float = 0.0
+        self.last_report_at: float = 0.0
         self._step_lock = step_lock
 
 
@@ -642,6 +680,7 @@ class Grower:
 
     def step(self) -> Optional[DigestReport]:
         """醒来一次做的全部事情。也可以手动调，用于测试和 CLI。"""
+        self.last_step_at = time.time()
         d = self.digester
 
         # 0) 先把 pending_evidence 搬运进 entries（同 session 串行）
@@ -665,6 +704,7 @@ class Grower:
             report.errors.append(f"ingest queue 失败 {int(q.get('jobs_failed_now') or 0)} 次")
 
         self.reports.append(report)
+        self.last_report_at = time.time()
         if len(self.reports) > 200:
             del self.reports[:-200]
         if self.on_report:
@@ -703,6 +743,165 @@ class Grower:
             if r.errors and not r.events:
                 break
         return out
+
+
+# ---------------------------------------------------------------- 分片与归并
+
+
+def _shard_entries(
+    batch: Sequence[Entry],
+    max_entries: int = 24,
+    max_turn_span: int = 12,
+) -> List[List[Entry]]:
+    """长会话分片：避免超长 transcript 拉低抽取稳定性。"""
+    if not batch:
+        return []
+
+    out: List[List[Entry]] = []
+    cur: List[Entry] = []
+    cur_session = ""
+    min_turn = 0
+
+    for e in batch:
+        if not cur:
+            cur = [e]
+            cur_session = e.session
+            min_turn = int(e.turn)
+            continue
+
+        need_split = (
+            e.session != cur_session
+            or len(cur) >= max_entries
+            or (int(e.turn) - min_turn) >= max_turn_span
+        )
+        if need_split:
+            out.append(cur)
+            cur = [e]
+            cur_session = e.session
+            min_turn = int(e.turn)
+        else:
+            cur.append(e)
+
+    if cur:
+        out.append(cur)
+    return out
+
+
+def _merge_segment_events(events: Sequence[Event]) -> List[Event]:
+    """分段归并：把同会话里被切碎的同类事件合并后再入库。"""
+    if not events:
+        return []
+    if len(events) == 1:
+        return [events[0]]
+
+    grouped: Dict[tuple[str, str], List[Event]] = {}
+    for ev in events:
+        key = (str(ev.session or ""), _normalize_summary(ev.summary))
+        grouped.setdefault(key, []).append(ev)
+
+    merged: List[Event] = []
+    for _k, items in grouped.items():
+        items = sorted(
+            items,
+            key=lambda x: (
+                float(x.happened_at),
+                min(x.source_ids) if x.source_ids else 0,
+                x.id,
+            ),
+        )
+        cur = items[0]
+        for nxt in items[1:]:
+            if _should_merge_segment_event(cur, nxt):
+                cur = _merge_event_pair(cur, nxt)
+            else:
+                merged.append(cur)
+                cur = nxt
+        merged.append(cur)
+
+    # 归并后重新计算稳定 ID，保证重算可复现。
+    merged.sort(
+        key=lambda x: (
+            str(x.session or ""),
+            float(x.happened_at),
+            min(x.source_ids) if x.source_ids else 0,
+            x.id,
+        )
+    )
+    out: List[Event] = []
+    seen: Dict[str, int] = {}
+    for ev in merged:
+        base_id = _stable_event_id(
+            session=str(ev.session or ""),
+            source_ids=ev.source_ids,
+            summary=ev.summary,
+        )
+        idx = seen.get(base_id, 0)
+        seen[base_id] = idx + 1
+        ev.id = base_id if idx == 0 else f"{base_id}_{idx}"
+        out.append(ev)
+    return out
+
+
+def _normalize_summary(text: str) -> str:
+    return " ".join((text or "").strip().split()).lower()
+
+
+def _should_merge_segment_event(a: Event, b: Event) -> bool:
+    if str(a.session or "") != str(b.session or ""):
+        return False
+
+    sa, sb = set(a.source_ids), set(b.source_ids)
+    if sa and sb and sa.intersection(sb):
+        return True
+
+    if a.source_ids and b.source_ids:
+        gap = min(b.source_ids) - max(a.source_ids)
+        if 0 < gap <= 6:
+            return True
+
+    # 同摘要且时间接近，视为被分片切开的同一团记忆。
+    if abs(float(a.happened_at) - float(b.happened_at)) <= 20 * 60:
+        return True
+    return False
+
+
+def _merge_event_pair(a: Event, b: Event) -> Event:
+    merged_ids = sorted(set(a.source_ids + b.source_ids))
+    questions = _unique_keep_order(a.questions + b.questions, cap=12)
+    entities = _unique_keep_order(a.entities + b.entities, cap=12)
+    weight_a = max(1, len(a.source_ids))
+    weight_b = max(1, len(b.source_ids))
+    val = ((a.valence * weight_a) + (b.valence * weight_b)) / (weight_a + weight_b)
+    return Event(
+        id=a.id,
+        summary=a.summary,
+        source_ids=merged_ids,
+        session=a.session or b.session,
+        salience=max(float(a.salience), float(b.salience)),
+        valence=_num(val, 0.0, -1.0, 1.0),
+        questions=questions,
+        entities=entities,
+        stood_firm=bool(a.stood_firm or b.stood_firm),
+        happened_at=min(float(a.happened_at), float(b.happened_at)),
+        created_at=min(float(a.created_at or 0.0), float(b.created_at or 0.0)),
+    )
+
+
+def _unique_keep_order(items: Sequence[str], cap: int = 12) -> List[str]:
+    out: List[str] = []
+    seen: set[str] = set()
+    for item in items:
+        text = str(item or "").strip()
+        if not text:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(text)
+        if len(out) >= cap:
+            break
+    return out
 
 
 # ---------------------------------------------------------------- 小工具

@@ -400,6 +400,57 @@ class Journal:
             "jobs_failed": int(failed or 0),
             "pending_evidence": int(pending_ev or 0),
         }
+    def queue_sessions(self, character: str, limit: int = 20) -> List[Dict[str, object]]:
+        """按 session 维度看 ingest 队列状态（dashboard 任务态可视化）。"""
+        rows = self._db.execute(
+            "SELECT"
+            " j.session AS session,"
+            " SUM(CASE WHEN j.status='pending' THEN 1 ELSE 0 END) AS jobs_pending,"
+            " SUM(CASE WHEN j.status='processing' THEN 1 ELSE 0 END) AS jobs_processing,"
+            " SUM(CASE WHEN j.status='failed' THEN 1 ELSE 0 END) AS jobs_failed,"
+            " MAX(j.attempts) AS max_attempts,"
+            " MIN(CASE WHEN j.status IN ('pending','processing') THEN j.created_at END) AS oldest_open_at,"
+            " ("
+            "   SELECT COUNT(*) FROM pending_evidence pe"
+            "   WHERE pe.character=j.character AND pe.session=j.session AND pe.status='pending'"
+            " ) AS pending_evidence"
+            " FROM ingest_jobs j"
+            " WHERE j.character=?"
+            " GROUP BY j.session"
+            " ORDER BY jobs_processing DESC, jobs_pending DESC, pending_evidence DESC, j.session"
+            " LIMIT ?",
+            (character, max(1, int(limit))),
+        ).fetchall()
+
+        now = time.time()
+        out: List[Dict[str, object]] = []
+        for r in rows:
+            oldest = float(r["oldest_open_at"] or 0.0)
+            out.append(
+                {
+                    "session": r["session"],
+                    "jobs_pending": int(r["jobs_pending"] or 0),
+                    "jobs_processing": int(r["jobs_processing"] or 0),
+                    "jobs_failed": int(r["jobs_failed"] or 0),
+                    "pending_evidence": int(r["pending_evidence"] or 0),
+                    "max_attempts": int(r["max_attempts"] or 0),
+                    "oldest_open_seconds": int(max(0.0, now - oldest)) if oldest else 0,
+                }
+            )
+        return out
+
+    def recent_ingest_jobs(self, character: str, limit: int = 20) -> List[Dict[str, object]]:
+        rows = self._db.execute(
+            "SELECT id, session, status, attempts, error, created_at, updated_at, started_at, finished_at"
+            " FROM ingest_jobs WHERE character=? ORDER BY id DESC LIMIT ?",
+            (character, max(1, int(limit))),
+        ).fetchall()
+        out: List[Dict[str, object]] = []
+        for r in rows:
+            item = dict(r)
+            item["age_seconds"] = int(max(0.0, time.time() - float(item["created_at"] or 0.0)))
+            out.append(item)
+        return out
 
     def pending_evidence_count(self, character: str) -> int:
         """只统计未处理完毕证据。"""
@@ -409,6 +460,7 @@ class Journal:
             (character,),
         ).fetchone()
         return int(row["n"] or 0)
+
 
     def _claim_next_job(self, character: str) -> Optional[sqlite3.Row]:
         now = time.time()
@@ -718,6 +770,18 @@ class Journal:
             "SELECT * FROM entries WHERE character=? AND session=?"
             " AND turn BETWEEN ? AND ? ORDER BY turn, id",
             (character, session, from_turn, to_turn),
+        ).fetchall()
+        return [_to_entry(r) for r in rows]
+
+    def entries_by_ids(self, ids: Sequence[int]) -> List[Entry]:
+        """按 id 批量读取原始证据，用于 explainability。"""
+        picked = sorted({int(i) for i in ids if int(i) > 0})
+        if not picked:
+            return []
+        marks = ",".join("?" * len(picked))
+        rows = self._db.execute(
+            f"SELECT * FROM entries WHERE id IN ({marks}) ORDER BY id",
+            picked,
         ).fetchall()
         return [_to_entry(r) for r in rows]
 
