@@ -24,7 +24,7 @@ import sqlite3
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from loam.core.growth import Trait
 from loam.core.network import Network
@@ -155,6 +155,18 @@ CREATE TABLE IF NOT EXISTS state (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+-- 运行时参数版本。只回滚配置，不改历史真值。
+CREATE TABLE IF NOT EXISTS config_versions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    actor       TEXT    NOT NULL DEFAULT 'system',
+    note        TEXT    NOT NULL DEFAULT '',
+    config_json TEXT    NOT NULL,
+    created_at  REAL    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_config_versions_created
+    ON config_versions(created_at DESC);
 """
 #: FTS 索引由 add_event 显式维护，不用触发器 —— 入索引前要先在
 #: Python 里分词，SQL 里做不到。
@@ -599,6 +611,87 @@ class Memory:
             "INSERT OR REPLACE INTO state (key, value) VALUES (?,?)", (key, str(value))
         )
         self._db.commit()
+
+    def runtime_config(self) -> Dict[str, object]:
+        raw = self.get_state("runtime_config", "")
+        if not raw.strip():
+            return {}
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def set_runtime_config(
+        self,
+        config: Dict[str, object],
+        note: str = "",
+        actor: str = "system",
+    ) -> int:
+        """保存一版运行参数并设为当前生效。"""
+        blob = json.dumps(config, ensure_ascii=False, sort_keys=True)
+        now = time.time()
+        with self._db:
+            cur = self._db.execute(
+                "INSERT INTO config_versions (actor, note, config_json, created_at)"
+                " VALUES (?,?,?,?)",
+                (actor, note.strip(), blob, now),
+            )
+            version_id = int(cur.lastrowid or 0)
+            self._db.execute(
+                "INSERT OR REPLACE INTO state (key, value) VALUES ('runtime_config', ?)",
+                (blob,),
+            )
+            self._db.execute(
+                "INSERT OR REPLACE INTO state (key, value) VALUES ('runtime_config_version', ?)",
+                (str(version_id),),
+            )
+        return version_id
+
+    def runtime_config_history(self, limit: int = 20) -> List[Dict[str, object]]:
+        rows = self._db.execute(
+            "SELECT id, actor, note, config_json, created_at"
+            " FROM config_versions ORDER BY id DESC LIMIT ?",
+            (max(1, int(limit)),),
+        ).fetchall()
+        out: List[Dict[str, object]] = []
+        for r in rows:
+            item = dict(r)
+            try:
+                item["config"] = json.loads(item.pop("config_json"))
+            except json.JSONDecodeError:
+                item["config"] = {}
+                item.pop("config_json", None)
+            item["when"] = time.strftime("%Y-%m-%d %H:%M", time.localtime(float(item["created_at"])))
+            out.append(item)
+        return out
+
+    def rollback_runtime_config(
+        self,
+        version_id: int,
+        note: str = "",
+        actor: str = "rollback",
+    ) -> Dict[str, object]:
+        row = self._db.execute(
+            "SELECT config_json FROM config_versions WHERE id=?",
+            (int(version_id),),
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"配置版本不存在: {version_id}")
+
+        try:
+            cfg = json.loads(str(row["config_json"]))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"配置版本损坏: {version_id}") from exc
+        if not isinstance(cfg, dict):
+            raise ValueError(f"配置版本格式错误: {version_id}")
+
+        self.set_runtime_config(
+            cfg,
+            note=(note.strip() or f"rollback to version {version_id}"),
+            actor=actor,
+        )
+        return cfg
 
     # ------------------------------------------------------------ 概况
 

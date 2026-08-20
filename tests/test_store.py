@@ -249,6 +249,27 @@ def test_ingest_job_retries_then_failed():
         shutil.rmtree(tmp)
 
 
+def test_runtime_config_version_and_rollback():
+    tmp = tempfile.mkdtemp()
+    try:
+        m = Memory(Path(tmp) / "memory.db")
+        v1 = m.set_runtime_config({"context.max_matches": 8}, note="init", actor="test")
+        v2 = m.set_runtime_config({"context.max_matches": 5}, note="tune", actor="test")
+        assert v2 > v1
+        assert m.runtime_config().get("context.max_matches") == 5
+
+        cfg = m.rollback_runtime_config(v1, note="rollback", actor="test")
+        assert cfg.get("context.max_matches") == 8
+        assert m.runtime_config().get("context.max_matches") == 8
+
+        hist = m.runtime_config_history(limit=5)
+        assert len(hist) >= 3
+        assert hist[0]["config"].get("context.max_matches") == 8
+    finally:
+        m.close()
+        shutil.rmtree(tmp)
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

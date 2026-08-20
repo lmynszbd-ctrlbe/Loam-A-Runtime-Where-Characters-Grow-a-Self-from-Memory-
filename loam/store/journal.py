@@ -544,6 +544,7 @@ class Journal:
                 }
         except Exception as exc:  # noqa: BLE001
             retryable = False
+            update_error: Optional[str] = None
             try:
                 attempt_row = self._db.execute(
                     "SELECT attempts FROM ingest_jobs WHERE id=?",
@@ -559,15 +560,24 @@ class Journal:
                     (status, f"{type(exc).__name__}: {exc}", now, now, job_id),
                 )
                 self._db.commit()
-            except Exception:
-                pass
-            return {
+            except Exception as sub_exc:  # noqa: BLE001
+                # 不静默吞错：把二次失败回传给上层观测。
+                update_error = f"{type(sub_exc).__name__}: {sub_exc}"
+                try:
+                    self._db.rollback()
+                except sqlite3.Error:
+                    update_error = f"{update_error}; rollback_failed"
+
+            out: Dict[str, Any] = {
                 "job_id": job_id,
                 "session": session,
                 "done": False,
                 "retryable": retryable,
                 "error": f"{type(exc).__name__}: {exc}",
             }
+            if update_error:
+                out["update_error"] = update_error
+            return out
 
     def drain_ingest_jobs(self, character: str, max_jobs: int = 8) -> Dict[str, int]:
         done = 0

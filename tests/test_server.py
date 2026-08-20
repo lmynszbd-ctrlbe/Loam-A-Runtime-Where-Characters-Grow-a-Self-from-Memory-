@@ -169,6 +169,99 @@ def test_api_key_protects_non_health_routes():
         _stop_service(tmp, svc, httpd)
 
 
+def test_runtime_config_dashboard_and_explain_endpoints():
+    tmp, svc, httpd, _ = _start_service()
+    try:
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+
+        s0, dashboard0 = _req(base, "GET", "/dashboard")
+        assert s0 == 200
+        assert dashboard0["alerts"]["level"] in {"info", "warn", "error"}
+        assert "metrics" in dashboard0 and "dialog" in dashboard0["metrics"]
+
+        s1, cfg1 = _req(base, "GET", "/config")
+        assert s1 == 200
+        assert cfg1["current"]["context.max_matches"] == 8
+
+        s2, upd = _req(
+            base,
+            "POST",
+            "/config/update",
+            {
+                "updates": {
+                    "context.max_matches": 6,
+                    "ingest.max_turns_per_request": 2,
+                },
+                "note": "test update",
+            },
+        )
+        assert s2 == 200
+        assert upd["current"]["context.max_matches"] == 6
+        assert upd["current"]["ingest.max_turns_per_request"] == 2
+
+        # 触发一轮 ingest+digest，确保 explain 有内容可查。
+        _req(
+            base,
+            "POST",
+            "/ingest",
+            {
+                "session": "s1",
+                "turns": [
+                    {"turn": 1, "role": "user", "content": "我明天要开会，有点紧张"},
+                    {"turn": 2, "role": "assistant", "content": "好的"},
+                    {"turn": 3, "role": "assistant", "content": "好的"},
+                ],
+            },
+        )
+        _req(base, "POST", "/digest", {})
+
+        s3, ex = _req(base, "GET", "/explain?limit=10")
+        assert s3 == 200
+        assert "items" in ex and isinstance(ex["items"], list)
+
+        s4, cfg2 = _req(base, "GET", "/config")
+        assert s4 == 200
+        target_version = None
+        for item in cfg2.get("history", []):
+            conf = item.get("config") or {}
+            if conf.get("context.max_matches") == 8:
+                target_version = int(item["id"])
+                break
+        assert target_version is not None
+
+        s5, rb = _req(base, "POST", "/config/rollback", {"version": target_version, "note": "rollback"})
+        assert s5 == 200
+        assert rb["current"]["context.max_matches"] == 8
+    finally:
+        _stop_service(tmp, svc, httpd)
+
+
+def test_ingest_prefilter_drops_smalltalk_and_duplicates():
+    tmp, svc, httpd, _ = _start_service()
+    try:
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+        s, data = _req(
+            base,
+            "POST",
+            "/ingest",
+            {
+                "session": "s_prefilter",
+                "turns": [
+                    {"turn": 1, "role": "user", "content": "你好"},
+                    {"turn": 2, "role": "user", "content": "你好"},
+                    {"turn": 3, "role": "assistant", "content": "好的"},
+                    {"turn": 4, "role": "assistant", "content": "好的"},
+                    {"turn": 5, "role": "user", "content": "我明天要开会"},
+                ],
+            },
+        )
+        assert s == 200
+        assert data["added"] == 1, data
+        assert data["dropped_lightweight"] >= 4, data
+    finally:
+        _stop_service(tmp, svc, httpd)
+
+
 def test_unknown_route_returns_404_json():
     tmp, svc, httpd, _ = _start_service()
     try:

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -24,7 +25,7 @@ from urllib.parse import parse_qs, urlparse
 from .mind.context import ContextBuilder
 from .mind.digest import Digester, Grower
 from .mind.llm import Brain, load_brain
-from .store.journal import Journal
+from .store.journal import MAX_INGEST_JOB_ATTEMPTS, Journal
 from .store.memory import Memory
 
 
@@ -39,6 +40,25 @@ class ServiceConfig:
     audit_every: int = 50
     auto_start_grower: bool = True
     api_key: str = ""
+
+
+_RUNTIME_CONFIG_DEFAULTS: Dict[str, object] = {
+    # 上下文 top-k 与预算
+    "context.max_matches": 8,
+    "context.max_recall": 16,
+    "context.max_traits": 12,
+    "context.trait_floor": 0.2,
+    "context.soft_token_budget": 2200,
+    "context.hard_token_budget": 2600,
+    # 成本控制与请求上界
+    "ingest.max_turns_per_request": 80,
+    "ingest.max_content_chars": 3000,
+    "queue.max_sync_jobs": 1,
+    "queue.max_drain_jobs": 8,
+    "digest.max_limit": 80,
+    "drain.max_rounds": 100,
+    "queue.max_retry_attempts": MAX_INGEST_JOB_ATTEMPTS,
+}
 
 
 class LoamService:
@@ -57,7 +77,6 @@ class LoamService:
 
         # 崩溃恢复：把遗留 processing 队列任务恢复为 pending。
         self.journal.recover_processing_jobs(self.character)
-
         self.digester = Digester(
             self.character,
             self.journal,
@@ -65,10 +84,14 @@ class LoamService:
             self.brain,
             batch_turns=config.batch_turns,
         )
-        self.context = ContextBuilder(self.memory)
+
+        # 运行参数：支持版本化与配置回滚（只影响行为参数，不改历史真值）。
+        self._runtime_config = self._bootstrap_runtime_config()
+        self.context = self._build_context_builder(self._runtime_config)
 
         # 所有 journal/memory 操作都走同一把锁，避免 HTTP 请求与后台 grower 竞态。
         self._lock = threading.RLock()
+
 
         self.grower = Grower(
             self.digester,
@@ -81,6 +104,187 @@ class LoamService:
         if config.auto_start_grower:
             self.grower.start()
 
+    def _bootstrap_runtime_config(self) -> Dict[str, object]:
+        current = self.memory.runtime_config()
+        normalized = self._coerce_runtime_config(current)
+        if not current:
+            self.memory.set_runtime_config(normalized, note="bootstrap defaults", actor="bootstrap")
+        elif normalized != current:
+            self.memory.set_runtime_config(normalized, note="normalize config", actor="bootstrap")
+        return normalized
+
+    def _coerce_runtime_config(self, raw: Dict[str, object]) -> Dict[str, object]:
+        cfg: Dict[str, object] = dict(_RUNTIME_CONFIG_DEFAULTS)
+
+        cfg["context.max_matches"] = _clamp_int(raw.get("context.max_matches"), int(cfg["context.max_matches"]), 1, 32)
+        cfg["context.max_recall"] = _clamp_int(raw.get("context.max_recall"), int(cfg["context.max_recall"]), 1, 64)
+        cfg["context.max_traits"] = _clamp_int(raw.get("context.max_traits"), int(cfg["context.max_traits"]), 1, 24)
+        cfg["context.trait_floor"] = _clamp_float(raw.get("context.trait_floor"), float(cfg["context.trait_floor"]), 0.0, 1.0)
+        cfg["context.soft_token_budget"] = _clamp_int(raw.get("context.soft_token_budget"), int(cfg["context.soft_token_budget"]), 200, 6000)
+        cfg["context.hard_token_budget"] = _clamp_int(raw.get("context.hard_token_budget"), int(cfg["context.hard_token_budget"]), int(cfg["context.soft_token_budget"]), 8000)
+
+        cfg["ingest.max_turns_per_request"] = _clamp_int(raw.get("ingest.max_turns_per_request"), int(cfg["ingest.max_turns_per_request"]), 1, 500)
+        cfg["ingest.max_content_chars"] = _clamp_int(raw.get("ingest.max_content_chars"), int(cfg["ingest.max_content_chars"]), 64, 20000)
+
+        cfg["queue.max_sync_jobs"] = _clamp_int(raw.get("queue.max_sync_jobs"), int(cfg["queue.max_sync_jobs"]), 0, 8)
+        cfg["queue.max_drain_jobs"] = _clamp_int(raw.get("queue.max_drain_jobs"), int(cfg["queue.max_drain_jobs"]), 1, 64)
+        cfg["digest.max_limit"] = _clamp_int(raw.get("digest.max_limit"), int(cfg["digest.max_limit"]), 1, 500)
+        cfg["drain.max_rounds"] = _clamp_int(raw.get("drain.max_rounds"), int(cfg["drain.max_rounds"]), 1, 1000)
+        cfg["queue.max_retry_attempts"] = MAX_INGEST_JOB_ATTEMPTS
+        return cfg
+
+    def _build_context_builder(self, cfg: Dict[str, object]) -> ContextBuilder:
+        return ContextBuilder(
+            self.memory,
+            max_matches=int(cfg["context.max_matches"]),
+            max_recall=int(cfg["context.max_recall"]),
+            max_traits=int(cfg["context.max_traits"]),
+            trait_floor=float(cfg["context.trait_floor"]),
+            soft_token_budget=int(cfg["context.soft_token_budget"]),
+            hard_token_budget=int(cfg["context.hard_token_budget"]),
+        )
+
+    def runtime_config(self) -> Dict[str, Any]:
+        with self._lock:
+            return {
+                "current": dict(self._runtime_config),
+                "version": int(self.memory.get_state("runtime_config_version", "0") or 0),
+                "history": self.memory.runtime_config_history(limit=20),
+            }
+
+    def update_runtime_config(self, updates: Dict[str, Any], note: str = "") -> Dict[str, Any]:
+        with self._lock:
+            if not updates:
+                raise ValueError("updates 不能为空")
+            unknown = sorted([k for k in updates.keys() if k not in _RUNTIME_CONFIG_DEFAULTS])
+            if unknown:
+                raise ValueError(f"未知配置项: {', '.join(unknown)}")
+
+            merged = dict(self._runtime_config)
+            merged.update(updates)
+            normalized = self._coerce_runtime_config(merged)
+            version_id = self.memory.set_runtime_config(
+                normalized,
+                note=(note.strip() or "manual update"),
+                actor="api",
+            )
+            self._runtime_config = normalized
+            self.context = self._build_context_builder(self._runtime_config)
+            return {
+                "ok": True,
+                "version": version_id,
+                "current": dict(self._runtime_config),
+            }
+
+    def rollback_runtime_config(self, version_id: int, note: str = "") -> Dict[str, Any]:
+        with self._lock:
+            cfg = self.memory.rollback_runtime_config(
+                int(version_id),
+                note=(note.strip() or "manual rollback"),
+                actor="api",
+            )
+            self._runtime_config = self._coerce_runtime_config(cfg)
+            self.context = self._build_context_builder(self._runtime_config)
+            return {
+                "ok": True,
+                "source_version": int(version_id),
+                "version": int(self.memory.get_state("runtime_config_version", "0") or 0),
+                "current": dict(self._runtime_config),
+            }
+
+    def _metric_inc(self, key: str, delta: int = 1) -> None:
+        state_key = f"metric:{key}"
+        cur = _safe_int(self.memory.get_state(state_key, "0"), 0)
+        nxt = max(0, cur + int(delta))
+        self.memory.set_state(state_key, str(nxt))
+
+    def _metric_get(self, key: str) -> int:
+        return _safe_int(self.memory.get_state(f"metric:{key}", "0"), 0)
+
+    def _pipeline_metrics(self) -> Dict[str, Dict[str, int]]:
+        return {
+            "dialog": {
+                "context_requests": self._metric_get("dialog.context_requests"),
+                "context_learn_requests": self._metric_get("dialog.context_learn_requests"),
+            },
+            "growth": {
+                "ingest_requests": self._metric_get("growth.ingest_requests"),
+                "digest_requests": self._metric_get("growth.digest_requests"),
+                "drain_requests": self._metric_get("growth.drain_requests"),
+                "queue_jobs_done": self._metric_get("growth.queue_jobs_done"),
+                "queue_jobs_failed": self._metric_get("growth.queue_jobs_failed"),
+                "dropped_lightweight": self._metric_get("growth.dropped_lightweight"),
+                "overflow_trimmed_turns": self._metric_get("growth.overflow_trimmed_turns"),
+            },
+        }
+
+    def _build_alerts(self, queue: Dict[str, int], pending: int, open_gaps: int) -> Dict[str, Any]:
+        alerts: List[Dict[str, Any]] = []
+
+        if self.config.auto_start_grower and not self.grower.alive:
+            alerts.append({"level": "error", "code": "grower_down", "message": "grower 未运行"})
+        if int(queue.get("jobs_failed", 0)) > 0:
+            alerts.append({
+                "level": "error",
+                "code": "queue_failed",
+                "message": f"ingest 队列失败任务 {int(queue.get('jobs_failed', 0))} 条",
+            })
+        if self.grower.last_error:
+            alerts.append({"level": "warn", "code": "grower_last_error", "message": "grower 最近一次执行有异常"})
+        if open_gaps > 0:
+            alerts.append({"level": "warn", "code": "open_gaps", "message": f"还有 {open_gaps} 个漏轮缺口未补齐"})
+        if int(queue.get("pending_evidence", 0)) > 120 or pending > 240:
+            alerts.append({"level": "warn", "code": "backlog_high", "message": "待处理 backlog 偏高"})
+
+        if not alerts:
+            alerts.append({"level": "info", "code": "healthy", "message": "流水线运行正常"})
+
+        counts = {
+            "info": sum(1 for a in alerts if a["level"] == "info"),
+            "warn": sum(1 for a in alerts if a["level"] == "warn"),
+            "error": sum(1 for a in alerts if a["level"] == "error"),
+        }
+        level = "error" if counts["error"] else ("warn" if counts["warn"] else "info")
+        return {"level": level, "counts": counts, "items": alerts}
+
+    def _dashboard_unlocked(self) -> Dict[str, Any]:
+        queue = self.journal.queue_stats(self.character)
+        pending = self.digester.pending_count()
+        open_gaps = len(self.journal.open_gaps(self.character))
+        return {
+            "backlog": {
+                "pending": pending,
+                "open_gaps": open_gaps,
+                "queue": queue,
+            },
+            "alerts": self._build_alerts(queue, pending, open_gaps),
+            "metrics": self._pipeline_metrics(),
+            "runtime_config": {
+                "version": int(self.memory.get_state("runtime_config_version", "0") or 0),
+                "current": dict(self._runtime_config),
+            },
+        }
+
+    def dashboard(self) -> Dict[str, Any]:
+        with self._lock:
+            return self._dashboard_unlocked()
+
+    def explain(self, kind: str = "", limit: int = 20) -> Dict[str, Any]:
+        with self._lock:
+            rows = self.memory.history(limit=max(1, min(200, int(limit))), kind=(kind or None))
+            for row in rows:
+                evidence_ids = [x for x in row.get("evidence", []) if isinstance(x, str) and x.startswith("ev_")]
+                if not evidence_ids:
+                    row["evidence_events"] = []
+                    continue
+                events = self.memory.get_events(evidence_ids[:20])
+                row["evidence_events"] = [{"id": e.id, "summary": e.summary, "salience": e.salience} for e in events]
+            return {
+                "character": self.character,
+                "kind": kind or "all",
+                "items": rows,
+            }
+
     # ------------------------------------------------------------ 输入
 
     def ingest(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -90,7 +294,19 @@ class LoamService:
         if not turns:
             raise ValueError("ingest 需要 turns/messages 或 (turn, role, content)")
 
+        max_turns = int(self._runtime_config["ingest.max_turns_per_request"])
+        max_chars = int(self._runtime_config["ingest.max_content_chars"])
+        overflow_trimmed = 0
+        if len(turns) > max_turns:
+            overflow_trimmed = len(turns) - max_turns
+            turns = turns[-max_turns:]
+        turns = [_truncate_turn_content(t, max_chars) for t in turns]
+
         with self._lock:
+            self._metric_inc("growth.ingest_requests", 1)
+            if overflow_trimmed:
+                self._metric_inc("growth.overflow_trimmed_turns", overflow_trimmed)
+
             seen_turns = sorted({int(t["turn"]) for t in turns})
             gaps: List[Dict[str, int]] = []
             for t in seen_turns:
@@ -99,6 +315,9 @@ class LoamService:
                     gaps.append({"from": int(gap[0]), "to": int(gap[1])})
 
             filtered_turns, dropped = _prefilter_evidence(turns)
+            if dropped:
+                self._metric_inc("growth.dropped_lightweight", dropped)
+
             if filtered_turns:
                 queued = self.journal.enqueue_pending_evidence(
                     self.character,
@@ -120,52 +339,91 @@ class LoamService:
             queue_now: Dict[str, int] = {}
             # 可选同步模式：本次请求内先处理一轮队列
             if _coerce_bool(payload.get("sync"), default=False):
-                queue_now = self.journal.drain_ingest_jobs(self.character, max_jobs=1)
+                sync_jobs = int(self._runtime_config["queue.max_sync_jobs"])
+                if sync_jobs > 0:
+                    queue_now = self.journal.drain_ingest_jobs(self.character, max_jobs=sync_jobs)
+                    self._metric_inc("growth.queue_jobs_done", int(queue_now.get("jobs_done_now") or 0))
+                    self._metric_inc("growth.queue_jobs_failed", int(queue_now.get("jobs_failed_now") or 0))
 
             qstats = self.journal.queue_stats(self.character)
+            pending = self.digester.pending_count()
+            open_gaps = self.journal.open_gaps(self.character)
             return {
                 "character": self.character,
                 "session": session,
                 "added": int(queued.get("added") or 0),
                 "deduped": int(queued.get("deduped") or 0),
                 "dropped_lightweight": dropped,
+                "overflow_trimmed_turns": overflow_trimmed,
                 "turns": seen_turns,
                 "gaps": gaps,
-                "open_gaps": self.journal.open_gaps(self.character),
-                "pending": self.digester.pending_count(),
+                "open_gaps": open_gaps,
+                "pending": pending,
                 "pending_evidence": int(qstats.get("pending_evidence", 0)),
                 "queue": qstats,
                 "queue_now": queue_now,
+                "alerts": self._build_alerts(qstats, pending, len(open_gaps)),
             }
 
     # ------------------------------------------------------------ 处理
 
     def digest_once(self, limit: Optional[int] = None) -> Dict[str, Any]:
         with self._lock:
-            queue_now = self.journal.drain_ingest_jobs(self.character, max_jobs=1)
-            report = self.digester.digest_once(limit=limit)
+            self._metric_inc("growth.digest_requests", 1)
+            max_limit = int(self._runtime_config["digest.max_limit"])
+            safe_limit = max_limit if limit is None else max(1, min(int(limit), max_limit))
+
+            queue_now = self.journal.drain_ingest_jobs(
+                self.character,
+                max_jobs=int(self._runtime_config["queue.max_drain_jobs"]),
+            )
+            self._metric_inc("growth.queue_jobs_done", int(queue_now.get("jobs_done_now") or 0))
+            self._metric_inc("growth.queue_jobs_failed", int(queue_now.get("jobs_failed_now") or 0))
+
+            report = self.digester.digest_once(limit=safe_limit)
             out = report.as_dict()
-            out["pending"] = self.digester.pending_count()
-            out["queue"] = self.journal.queue_stats(self.character)
+            pending = self.digester.pending_count()
+            qstats = self.journal.queue_stats(self.character)
+            open_gaps = len(self.journal.open_gaps(self.character))
+            out["pending"] = pending
+            out["queue"] = qstats
             out["queue_now"] = queue_now
+            out["alerts"] = self._build_alerts(qstats, pending, open_gaps)
+            out["limit"] = safe_limit
             return out
 
     def drain(self, max_rounds: int = 50) -> Dict[str, Any]:
         with self._lock:
-            queue_now = self.journal.drain_ingest_jobs(self.character, max_jobs=max_rounds)
-            reports = self.grower.drain(max_rounds=max_rounds)
+            self._metric_inc("growth.drain_requests", 1)
+            safe_rounds = max(1, min(int(max_rounds), int(self._runtime_config["drain.max_rounds"])))
+            queue_now = self.journal.drain_ingest_jobs(
+                self.character,
+                max_jobs=min(safe_rounds, int(self._runtime_config["queue.max_drain_jobs"])),
+            )
+            self._metric_inc("growth.queue_jobs_done", int(queue_now.get("jobs_done_now") or 0))
+            self._metric_inc("growth.queue_jobs_failed", int(queue_now.get("jobs_failed_now") or 0))
+            reports = self.grower.drain(max_rounds=safe_rounds)
+            pending = self.digester.pending_count()
+            qstats = self.journal.queue_stats(self.character)
+            open_gaps = len(self.journal.open_gaps(self.character))
             return {
                 "rounds": len(reports),
+                "max_rounds": safe_rounds,
                 "reports": [r.as_dict() for r in reports],
-                "pending": self.digester.pending_count(),
-                "queue": self.journal.queue_stats(self.character),
+                "pending": pending,
+                "queue": qstats,
                 "queue_now": queue_now,
+                "alerts": self._build_alerts(qstats, pending, open_gaps),
             }
 
     # ------------------------------------------------------------ 输出
 
     def build_context(self, query: str, learn: bool = False) -> Dict[str, Any]:
         with self._lock:
+            # 对话链路指标与成长链路拆分统计。
+            self._metric_inc("dialog.context_requests", 1)
+            if learn:
+                self._metric_inc("dialog.context_learn_requests", 1)
             pack = self.context.build(self.character, query=query, learn=learn)
             return {"context": pack.as_dict(), "text": pack.render()}
 
@@ -247,6 +505,20 @@ class LoamHandler(BaseHTTPRequestHandler):
                 self._send_json(200, self.server.service.stats())
                 return
 
+            if path == "/dashboard":
+                self._send_json(200, self.server.service.dashboard())
+                return
+
+            if path == "/config":
+                self._send_json(200, self.server.service.runtime_config())
+                return
+
+            if path == "/explain":
+                kind = (qs.get("kind") or [""])[0]
+                limit_text = (qs.get("limit") or ["20"])[0]
+                self._send_json(200, self.server.service.explain(kind=kind, limit=int(limit_text or 20)))
+                return
+
             if path == "/context":
                 query = (qs.get("q") or [""])[0]
                 learn = _coerce_bool((qs.get("learn") or [None])[0], default=False)
@@ -295,6 +567,22 @@ class LoamHandler(BaseHTTPRequestHandler):
 
             if path == "/grower/stop":
                 self._send_json(200, self.server.service.stop_grower())
+                return
+
+            if path == "/config/update":
+                updates = payload.get("updates")
+                if not isinstance(updates, dict):
+                    raise ValueError("updates 必须是对象")
+                note = str(payload.get("note") or "")
+                self._send_json(200, self.server.service.update_runtime_config(updates, note=note))
+                return
+
+            if path == "/config/rollback":
+                version = payload.get("version")
+                if version is None:
+                    raise ValueError("rollback 需要 version")
+                note = str(payload.get("note") or "")
+                self._send_json(200, self.server.service.rollback_runtime_config(int(version), note=note))
                 return
 
             self._send_json(404, {"error": f"unknown route: {path}"})
@@ -432,27 +720,94 @@ _LIGHTWEIGHT_REPLIES = {
     "roger",
 }
 
+_SMALL_TALK_PHRASES = {
+    "你好",
+    "您好",
+    "嗨",
+    "hi",
+    "hello",
+    "在吗",
+    "在不在",
+    "早上好",
+    "晚上好",
+    "午安",
+}
+
+_FILLER_WORDS = {
+    "嗯",
+    "呃",
+    "额",
+    "啊",
+    "哦",
+    "唉",
+    "哈",
+    "哈哈",
+    "哈哈哈",
+    "…",
+    "...",
+    "？",
+    "?",
+    "！",
+    "!",
+}
+
+_PUNCT_ONLY_RE = re.compile(r"^[\W_]+$", re.UNICODE)
+
 
 def _prefilter_evidence(turns: List[Dict[str, Any]]) -> tuple[List[Dict[str, Any]], int]:
-    """轻量预过滤：优先保留用户输入，尽量剔除纯 ACK 噪声。"""
+    """轻量预过滤：过滤寒暄/语气词/重复，减少低价值证据进入成长链路。"""
     kept: List[Dict[str, Any]] = []
     dropped = 0
+    seen: set[str] = set()
 
     for t in turns:
         role = str(t.get("role") or "").strip().lower()
         content = str(t.get("content") or "")
         normalized = " ".join(content.strip().split())
+        low = normalized.lower()
 
-        # 只过滤 assistant 的纯确认短句，避免稀释后续提炼质量。
-        if role == "assistant" and normalized:
-            low = normalized.lower()
-            if low in _LIGHTWEIGHT_REPLIES or (len(normalized) <= 2 and low not in {"不", "行"}):
-                dropped += 1
-                continue
+        if not normalized:
+            dropped += 1
+            continue
 
-        kept.append(t)
+        # 同批重复内容直接去掉，避免无效放大。
+        signature = f"{role}\x00{low}"
+        if signature in seen:
+            dropped += 1
+            continue
+
+        if _is_lightweight_noise(role, normalized, low):
+            dropped += 1
+            continue
+
+        seen.add(signature)
+        item = dict(t)
+        item["content"] = normalized
+        kept.append(item)
 
     return kept, dropped
+
+
+def _is_lightweight_noise(role: str, normalized: str, low: str) -> bool:
+    if _PUNCT_ONLY_RE.match(normalized):
+        return True
+
+    if low in _SMALL_TALK_PHRASES:
+        return True
+
+    if role == "assistant" and low in _LIGHTWEIGHT_REPLIES:
+        return True
+
+    if role == "assistant" and low in _FILLER_WORDS:
+        return True
+
+    if role in ("assistant", "system") and len(normalized) <= 2 and low not in {"不", "行"}:
+        return True
+
+    if role == "user" and low in _FILLER_WORDS and len(normalized) <= 3:
+        return True
+
+    return False
 
 
 def _coerce_bool(value: Any, default: bool) -> bool:
@@ -468,3 +823,41 @@ def _coerce_bool(value: Any, default: bool) -> bool:
     if text in ("0", "false", "no", "off", ""):
         return False
     return default
+
+
+def _safe_int(value: Any, default: int) -> int:
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return int(default)
+
+
+def _clamp_int(value: Any, default: int, lower: int, upper: int) -> int:
+    out = _safe_int(value, default)
+    if out < lower:
+        return int(lower)
+    if out > upper:
+        return int(upper)
+    return int(out)
+
+
+def _clamp_float(value: Any, default: float, lower: float, upper: float) -> float:
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        out = float(default)
+    if out < lower:
+        return float(lower)
+    if out > upper:
+        return float(upper)
+    return float(out)
+
+
+def _truncate_turn_content(turn: Dict[str, Any], max_chars: int) -> Dict[str, Any]:
+    """限制单条输入长度，避免超长内容挤爆预算。"""
+    text = str(turn.get("content") or "")
+    if len(text) <= max_chars:
+        return turn
+    out = dict(turn)
+    out["content"] = text[:max_chars].rstrip() + "…"
+    return out
