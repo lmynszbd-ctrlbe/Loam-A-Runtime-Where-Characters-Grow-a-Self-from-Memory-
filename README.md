@@ -117,3 +117,10 @@ By default, provider keys are read from your own local files or environment vari
 
 Don’t hard-freeze a persona. Grow a self from memory.
 别写太固化的人设，让“自我”从记忆中生长。
+
+---
+
+## Authors
+
+- Project author: **lmynszbd-ctrlbe**
+- AI co-author: **ChatGPT**
