@@ -50,7 +50,7 @@ python -m loam run --character demo --home ~/.loam/characters
 - **容器化部署**：`Dockerfile` + `docker-compose.yml`
 - **多上游路由**：`MULTI_UPSTREAM_QUICKSTART.md`
 - **第三方集成**：`THIRD_PARTY_INTEGRATION.md`
-- **迁移与回滚**：`docs/MIGRATION_RUNBOOK.md`
+- **迁移与回滚**：`docs/MIGRATION_RUNBOOK.md`（含导出/加载/目标库一致性校验脚本）
 - **备份恢复与运维 SOP**：`docs/BACKUP_RESTORE_RUNBOOK.md`、`docs/OPS_SOP.md`
 - **合规与 License**：`docs/COMPLIANCE_AND_LICENSE.md`
 - **发布前检查**：`INTEGRATION_CHECKLIST.md`

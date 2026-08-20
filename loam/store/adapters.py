@@ -29,6 +29,8 @@ class PendingAdapter(Protocol):
 
 
 class JobAdapter(Protocol):
+    def recover_processing_jobs(self, character: str) -> int: ...
+
     def drain_ingest_jobs(self, character: str, max_jobs: int = 8) -> Dict[str, int]: ...
 
     def queue_stats(self, character: str) -> Dict[str, int]: ...
@@ -77,6 +79,13 @@ class ConfigAdapter(Protocol):
         merge: bool = True,
     ) -> Dict[str, object]: ...
 
+    def log_experiment_flags(
+        self,
+        flags: Dict[str, object],
+        note: str = "",
+        actor: str = "system",
+    ) -> int: ...
+
     def experiment_history(self, limit: int = 20) -> List[Dict[str, object]]: ...
 
 
@@ -107,6 +116,9 @@ class SQLitePendingAdapter:
 @dataclass
 class SQLiteJobAdapter:
     journal: Journal
+
+    def recover_processing_jobs(self, character: str) -> int:
+        return self.journal.recover_processing_jobs(character)
 
     def drain_ingest_jobs(self, character: str, max_jobs: int = 8) -> Dict[str, int]:
         return self.journal.drain_ingest_jobs(character, max_jobs=max_jobs)
@@ -175,6 +187,14 @@ class SQLiteConfigAdapter:
         merge: bool = True,
     ) -> Dict[str, object]:
         return self.memory.set_experiment_flags(flags, note=note, actor=actor, merge=merge)
+
+    def log_experiment_flags(
+        self,
+        flags: Dict[str, object],
+        note: str = "",
+        actor: str = "system",
+    ) -> int:
+        return self.memory.log_experiment_flags(flags, note=note, actor=actor)
 
     def experiment_history(self, limit: int = 20) -> List[Dict[str, object]]:
         return self.memory.experiment_history(limit=limit)

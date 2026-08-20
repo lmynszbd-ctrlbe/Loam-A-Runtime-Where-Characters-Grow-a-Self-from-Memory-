@@ -1,0 +1,135 @@
+name: CI Verify
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: loam
+          POSTGRES_PASSWORD: loam
+          POSTGRES_DB: loam
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U loam -d loam"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: loam
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install DB clients
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client default-mysql-client
+
+      - name: Compile check
+        run: |
+          python -m compileall -q loam tests scripts
+
+      - name: Unit / integration tests
+        run: |
+          for f in tests/test_*.py; do
+            echo "[RUN] $f"
+            python "$f"
+          done
+
+      - name: Reproducible build check
+        run: |
+          bash scripts/ops/check_reproducible_build.sh
+
+      - name: Prepare sample sqlite data
+        run: |
+          TMPDIR=$(mktemp -d)
+          echo "TMPDIR=$TMPDIR" >> "$GITHUB_ENV"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from loam.server import LoamService, ServiceConfig
+          from loam.mind.llm import ScriptedBrain
+
+          root = Path(os.environ["TMPDIR"]) / "characters"
+          brain = ScriptedBrain([[], {"appraisals": [], "proposals": []}, []])
+          svc = LoamService(
+              ServiceConfig(character="ci", home=str(root), auto_start_grower=False, audit_every=0),
+              brain=brain,
+          )
+          try:
+              svc.ingest(
+                  {
+                      "session": "s1",
+                      "turns": [
+                          {"turn": 1, "role": "user", "content": "我明天开会有点紧张"},
+                          {"turn": 1, "role": "assistant", "content": "我们先列提纲"},
+                      ],
+                  }
+              )
+              svc.digest_once()
+          finally:
+              svc.close()
+          print(root / "ci")
+          PY
+
+      - name: Export migration artifacts
+        run: |
+          CHAR_DIR="$TMPDIR/characters/ci"
+          OUT_DIR="$TMPDIR/migration"
+          python scripts/migration/sqlite_to_postgres_tikv.py \
+            --journal-db "$CHAR_DIR/journal.db" \
+            --memory-db "$CHAR_DIR/memory.db" \
+            --out-dir "$OUT_DIR" \
+            --label ci
+          echo "MANIFEST=$OUT_DIR/migration_manifest.json" >> "$GITHUB_ENV"
+
+      - name: Verify source-side manifest
+        run: |
+          python scripts/migration/verify_migration_consistency.py --manifest "$MANIFEST"
+
+      - name: Load into Postgres + MySQL(TiKV protocol sim)
+        run: |
+          python scripts/migration/load_to_postgres_tikv.py \
+            --manifest "$MANIFEST" \
+            --postgres-dsn "postgresql://loam:loam@127.0.0.1:5432/loam" \
+            --tikv-dsn "mysql://root:root@127.0.0.1:3306/loam"
+
+      - name: Verify target-side consistency
+        run: |
+          python scripts/migration/verify_loaded_target_consistency.py \
+            --manifest "$MANIFEST" \
+            --target postgres \
+            --postgres-dsn "postgresql://loam:loam@127.0.0.1:5432/loam"
+
+          python scripts/migration/verify_loaded_target_consistency.py \
+            --manifest "$MANIFEST" \
+            --target tikv \
+            --tikv-dsn "mysql://root:root@127.0.0.1:3306/loam"
+
+      - name: Docker build check
+        run: |
+          docker build -t loam-ci:latest .

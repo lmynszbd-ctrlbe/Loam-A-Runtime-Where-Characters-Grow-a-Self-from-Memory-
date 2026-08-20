@@ -28,9 +28,11 @@ def test_sqlite_storage_adapters_basic():
         )
         stats = a.jobs.queue_stats("阿萤")
         assert stats["pending_evidence"] >= 1
+        assert a.jobs.recover_processing_jobs("阿萤") >= 0
 
         flags = a.config.set_experiment_flags({"x": 1}, note="t", actor="tester")
         assert flags.get("x") == 1
+        assert a.config.log_experiment_flags({"y": 2}, note="t2", actor="tester") > 0
     finally:
         j.close()
         m.close()

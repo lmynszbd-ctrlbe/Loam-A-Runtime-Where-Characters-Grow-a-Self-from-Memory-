@@ -95,13 +95,16 @@ class LoamService:
         self.api_key = (config.api_key or os.environ.get("LOAM_API_KEY", "")).strip()
 
         # 崩溃恢复：把遗留 processing 队列任务恢复为 pending。
-        self.journal.recover_processing_jobs(self.character)
+        self.adapters.jobs.recover_processing_jobs(self.character)
         self.digester = Digester(
             self.character,
             self.journal,
             self.memory,
             self.brain,
             batch_turns=config.batch_turns,
+            pending_adapter=self.adapters.pending,
+            job_adapter=self.adapters.jobs,
+            trait_adapter=self.adapters.traits,
         )
 
         # 运行参数：支持版本化与配置回滚（只影响行为参数，不改历史真值）。
@@ -125,12 +128,20 @@ class LoamService:
             self.grower.start()
 
     def _bootstrap_runtime_config(self) -> Dict[str, object]:
-        current = self.memory.runtime_config()
+        current = self.adapters.config.runtime_config()
         normalized = self._coerce_runtime_config(current)
         if not current:
-            self.memory.set_runtime_config(normalized, note="bootstrap defaults", actor="bootstrap")
+            self.adapters.config.set_runtime_config(
+                normalized,
+                note="bootstrap defaults",
+                actor="bootstrap",
+            )
         elif normalized != current:
-            self.memory.set_runtime_config(normalized, note="normalize config", actor="bootstrap")
+            self.adapters.config.set_runtime_config(
+                normalized,
+                note="normalize config",
+                actor="bootstrap",
+            )
         return normalized
 
     def _coerce_runtime_config(self, raw: Dict[str, object]) -> Dict[str, object]:
@@ -202,7 +213,7 @@ class LoamService:
             return {
                 "current": dict(self._runtime_config),
                 "version": int(self.memory.get_state("runtime_config_version", "0") or 0),
-                "history": self.memory.runtime_config_history(limit=20),
+                "history": self.adapters.config.runtime_config_history(limit=20),
             }
 
     def update_runtime_config(self, updates: Dict[str, Any], note: str = "") -> Dict[str, Any]:
@@ -217,12 +228,12 @@ class LoamService:
             merged.update(updates)
             normalized = self._coerce_runtime_config(merged)
             note_text = note.strip() or "manual update"
-            version_id = self.memory.set_runtime_config(
+            version_id = self.adapters.config.set_runtime_config(
                 normalized,
                 note=note_text,
                 actor="api",
             )
-            self.memory.log_experiment_flags(updates, note=note_text, actor="api")
+            self.adapters.config.log_experiment_flags(updates, note=note_text, actor="api")
             self._runtime_config = normalized
             self.context = self._build_context_builder(self._runtime_config)
             self._apply_runtime_switches(self._runtime_config)
@@ -235,12 +246,12 @@ class LoamService:
     def rollback_runtime_config(self, version_id: int, note: str = "") -> Dict[str, Any]:
         with self._lock:
             note_text = note.strip() or "manual rollback"
-            cfg = self.memory.rollback_runtime_config(
+            cfg = self.adapters.config.rollback_runtime_config(
                 int(version_id),
                 note=note_text,
                 actor="api",
             )
-            self.memory.log_experiment_flags(
+            self.adapters.config.log_experiment_flags(
                 {"rollback_to_version": int(version_id)},
                 note=note_text,
                 actor="api",
@@ -382,15 +393,15 @@ class LoamService:
     def experiment_history(self, limit: int = 20) -> Dict[str, Any]:
         with self._lock:
             return {
-                "current": self.memory.experiment_flags(),
-                "items": self.memory.experiment_history(limit=max(1, min(int(limit), 200))),
+                "current": self.adapters.config.experiment_flags(),
+                "items": self.adapters.config.experiment_history(limit=max(1, min(int(limit), 200))),
             }
 
     def experiment_flags(self) -> Dict[str, Any]:
         with self._lock:
             return {
-                "current": self.memory.experiment_flags(),
-                "items": self.memory.experiment_history(limit=20),
+                "current": self.adapters.config.experiment_flags(),
+                "items": self.adapters.config.experiment_history(limit=20),
             }
 
     def update_experiment_flags(self, flags: Dict[str, Any], note: str = "", merge: bool = True) -> Dict[str, Any]:
@@ -398,7 +409,12 @@ class LoamService:
             if not isinstance(flags, dict) or not flags:
                 raise ValueError("flags 必须是非空对象")
             note_text = note.strip() or "experiment update"
-            current = self.memory.set_experiment_flags(flags, note=note_text, actor="api", merge=merge)
+            current = self.adapters.config.set_experiment_flags(
+                flags,
+                note=note_text,
+                actor="api",
+                merge=merge,
+            )
 
             # 允许实验开关直连低成本模型路由。
             if "brain.low_cost_enabled" in current:
@@ -411,7 +427,7 @@ class LoamService:
             return {
                 "ok": True,
                 "current": current,
-                "items": self.memory.experiment_history(limit=20),
+                "items": self.adapters.config.experiment_history(limit=20),
             }
 
     def _build_alerts(self, queue: Dict[str, int], pending: int, open_gaps: int) -> Dict[str, Any]:
@@ -444,7 +460,7 @@ class LoamService:
         return {"level": level, "counts": counts, "items": alerts}
 
     def _dashboard_unlocked(self) -> Dict[str, Any]:
-        queue = self.journal.queue_stats(self.character)
+        queue = self.adapters.jobs.queue_stats(self.character)
         pending = self.digester.pending_count()
         open_gaps = len(self.journal.open_gaps(self.character))
         decay = self._maybe_apply_decay_unlocked(force=False)
@@ -479,7 +495,7 @@ class LoamService:
                 "version": int(self.memory.get_state("runtime_config_version", "0") or 0),
                 "current": dict(self._runtime_config),
             },
-            "experiments": self.memory.experiment_flags(),
+            "experiments": self.adapters.config.experiment_flags(),
             "windows": {
                 "events": events_window,
                 "changes": changes_window,
@@ -511,7 +527,7 @@ class LoamService:
             "decay": decay,
             "recent": {
                 "recompute": self.memory.recompute_history(limit=5),
-                "experiments": self.memory.experiment_history(limit=5),
+                "experiments": self.adapters.config.experiment_history(limit=5),
             },
         }
 
@@ -626,7 +642,7 @@ class LoamService:
                 self._metric_inc("growth.dropped_lightweight", dropped)
 
             if filtered_turns:
-                queued = self.journal.enqueue_pending_evidence(
+                queued = self.adapters.pending.enqueue_pending_evidence(
                     self.character,
                     session,
                     filtered_turns,
@@ -634,7 +650,7 @@ class LoamService:
                     model=str(payload.get("model")) if payload.get("model") else None,
                 )
             else:
-                qstats0 = self.journal.queue_stats(self.character)
+                qstats0 = self.adapters.jobs.queue_stats(self.character)
                 queued = {
                     "added": 0,
                     "deduped": 0,
@@ -648,11 +664,11 @@ class LoamService:
             if _coerce_bool(payload.get("sync"), default=False):
                 sync_jobs = int(self._runtime_config["queue.max_sync_jobs"])
                 if sync_jobs > 0:
-                    queue_now = self.journal.drain_ingest_jobs(self.character, max_jobs=sync_jobs)
+                    queue_now = self.adapters.jobs.drain_ingest_jobs(self.character, max_jobs=sync_jobs)
                     self._metric_inc("growth.queue_jobs_done", int(queue_now.get("jobs_done_now") or 0))
                     self._metric_inc("growth.queue_jobs_failed", int(queue_now.get("jobs_failed_now") or 0))
 
-            qstats = self.journal.queue_stats(self.character)
+            qstats = self.adapters.jobs.queue_stats(self.character)
             pending = self.digester.pending_count()
             open_gaps = self.journal.open_gaps(self.character)
             return {
@@ -680,7 +696,7 @@ class LoamService:
             max_limit = int(self._runtime_config["digest.max_limit"])
             safe_limit = max_limit if limit is None else max(1, min(int(limit), max_limit))
 
-            queue_now = self.journal.drain_ingest_jobs(
+            queue_now = self.adapters.jobs.drain_ingest_jobs(
                 self.character,
                 max_jobs=int(self._runtime_config["queue.max_drain_jobs"]),
             )
@@ -690,7 +706,7 @@ class LoamService:
             report = self.digester.digest_once(limit=safe_limit)
             out = report.as_dict()
             pending = self.digester.pending_count()
-            qstats = self.journal.queue_stats(self.character)
+            qstats = self.adapters.jobs.queue_stats(self.character)
             open_gaps = len(self.journal.open_gaps(self.character))
             out["pending"] = pending
             out["queue"] = qstats
@@ -704,7 +720,7 @@ class LoamService:
         with self._lock:
             self._metric_inc("growth.drain_requests", 1)
             safe_rounds = max(1, min(int(max_rounds), int(self._runtime_config["drain.max_rounds"])))
-            queue_now = self.journal.drain_ingest_jobs(
+            queue_now = self.adapters.jobs.drain_ingest_jobs(
                 self.character,
                 max_jobs=min(safe_rounds, int(self._runtime_config["queue.max_drain_jobs"])),
             )
@@ -712,7 +728,7 @@ class LoamService:
             self._metric_inc("growth.queue_jobs_failed", int(queue_now.get("jobs_failed_now") or 0))
             reports = self.grower.drain(max_rounds=safe_rounds)
             pending = self.digester.pending_count()
-            qstats = self.journal.queue_stats(self.character)
+            qstats = self.adapters.jobs.queue_stats(self.character)
             open_gaps = len(self.journal.open_gaps(self.character))
             return {
                 "rounds": len(reports),

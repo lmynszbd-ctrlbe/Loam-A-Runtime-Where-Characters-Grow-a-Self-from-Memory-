@@ -41,7 +41,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "context":
         svc = _service_from_args(args, auto_start_grower=False)
         try:
-            out = svc.build_context(args.query, learn=not args.no_learn)
+            # 默认不学习；显式 --learn 才会让 recall 改写网络。
+            learn = bool(getattr(args, "learn", False))
+            if bool(getattr(args, "no_learn", False)):
+                learn = False
+            out = svc.build_context(args.query, learn=learn)
             if args.text_only:
                 print(out["text"])
             else:
@@ -114,7 +118,9 @@ def _parser() -> argparse.ArgumentParser:
     ctx = sub.add_parser("context", help="构造一次上下文")
     _common_service_flags(ctx)
     ctx.add_argument("query")
-    ctx.add_argument("--no-learn", action="store_true", help="回忆时不学习")
+    ctx.add_argument("--learn", action="store_true", help="回忆时学习（默认关闭）")
+    # 兼容旧参数：默认本来就不学习，传了也只是显式声明。
+    ctx.add_argument("--no-learn", action="store_true", help="显式关闭学习（默认即关闭）")
     ctx.add_argument("--text-only", action="store_true", help="只输出拼好的上下文文本")
 
     return p

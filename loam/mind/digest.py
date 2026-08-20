@@ -37,6 +37,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ..core.growth import Evidence, Trait
 from ..core.network import Network
+from ..store.adapters import JobAdapter, PendingAdapter, TraitAdapter
 from ..store.journal import Entry, Journal
 from ..store.memory import Event, Memory
 from . import prompts
@@ -114,6 +115,9 @@ class Digester:
         batch_turns: int = BATCH_TURNS,
         segment_max_entries: int = 24,
         segment_max_turn_span: int = 12,
+        pending_adapter: Optional[PendingAdapter] = None,
+        job_adapter: Optional[JobAdapter] = None,
+        trait_adapter: Optional[TraitAdapter] = None,
     ) -> None:
         self.character = character
         self.journal = journal
@@ -122,13 +126,19 @@ class Digester:
         self.batch_turns = batch_turns
         self.segment_max_entries = max(8, int(segment_max_entries))
         self.segment_max_turn_span = max(2, int(segment_max_turn_span))
+        self.pending_adapter = pending_adapter
+        self.job_adapter = job_adapter
+        self.trait_adapter = trait_adapter
 
     # ------------------------------------------------------------ 入口
 
     def pending_count(self) -> int:
         """整条流水线的待处理量：待消化 entries + 待入库 pending_evidence。"""
         pending_entries = len(self.journal.undigested(self.character, limit=10_000))
-        pending_evidence = self.journal.pending_evidence_count(self.character)
+        if self.pending_adapter is not None:
+            pending_evidence = self.pending_adapter.pending_evidence_count(self.character)
+        else:
+            pending_evidence = self.journal.pending_evidence_count(self.character)
         return pending_entries + pending_evidence
 
     def ready(self, idle_seconds: float = IDLE_SECONDS) -> bool:
@@ -371,7 +381,11 @@ class Digester:
     # ------------------------------------------------------------ 三到五、生长
 
     def _grow(self, events: Sequence[Event], cycle: int) -> Tuple[int, int, int]:
-        traits = self.memory.load_traits()
+        traits = (
+            self.trait_adapter.load_traits()
+            if self.trait_adapter is not None
+            else self.memory.load_traits()
+        )
         ev_view = [_event_view(e) for e in events[:APPRAISE_WINDOW]]
         by_id = {e.id: e for e in events}
 
@@ -453,7 +467,10 @@ class Digester:
             before = trait.strength
             delta = trait.settle(now=now)
             if abs(delta) < 1e-9:
-                self.memory.save_trait(trait)
+                if self.trait_adapter is not None:
+                    self.trait_adapter.save_trait(trait)
+                else:
+                    self.memory.save_trait(trait)
                 continue
             moved += 1
             # 质变了才记账。量变不记 —— 蓄水池里那些还没成事的
@@ -467,7 +484,10 @@ class Digester:
                 reason=f"{trait.phase}；印证{trait.reinforced}次，动摇{trait.contradicted}次",
                 evidence=trait.evidence[-12:] or [e.id for e in events[:1]],
             )
-            self.memory.save_trait(trait)
+            if self.trait_adapter is not None:
+                self.trait_adapter.save_trait(trait)
+            else:
+                self.memory.save_trait(trait)
 
             if trait.is_kernel and self.memory.get_state(f"kernel:{trait.id}") != "1":
                 self.memory.set_state(f"kernel:{trait.id}", "1")
@@ -684,7 +704,10 @@ class Grower:
         d = self.digester
 
         # 0) 先把 pending_evidence 搬运进 entries（同 session 串行）
-        q = d.journal.drain_ingest_jobs(d.character, max_jobs=1)
+        if d.job_adapter is not None:
+            q = d.job_adapter.drain_ingest_jobs(d.character, max_jobs=1)
+        else:
+            q = d.journal.drain_ingest_jobs(d.character, max_jobs=1)
 
         # 1) 再做自愈：有没有该收到却没收到的轮次
         filled = d.journal.reconcile_gaps(d.character)
@@ -726,7 +749,10 @@ class Grower:
         out: List[DigestReport] = []
         d = self.digester
         for _ in range(max_rounds):
-            q = d.journal.drain_ingest_jobs(d.character, max_jobs=1)
+            if d.job_adapter is not None:
+                q = d.job_adapter.drain_ingest_jobs(d.character, max_jobs=1)
+            else:
+                q = d.journal.drain_ingest_jobs(d.character, max_jobs=1)
 
             # 这里只看 entries 队列：digest_once 处理的是 undigested entries。
             has_entries = bool(d.journal.undigested(d.character, limit=1))

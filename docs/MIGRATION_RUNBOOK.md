@@ -15,23 +15,47 @@ Artifacts:
 - `<db>/tikv_load.sql`
 - table CSV files + sha256
 
-## B. Consistency verification (pre-cutover)
+## B. Consistency verification (source side)
 ```bash
 python scripts/migration/verify_migration_consistency.py \
   --manifest /tmp/loam_migration/migration_manifest.json
 ```
 
-## C. Load to target database
-- Postgres: execute generated `postgres_load.sql` via `psql`.
-- TiKV/MySQL protocol: execute generated `tikv_load.sql` via `mysql --local-infile=1`.
+## C. Load to target databases
+```bash
+python scripts/migration/load_to_postgres_tikv.py \
+  --manifest /tmp/loam_migration/migration_manifest.json \
+  --postgres-dsn postgresql://<user>:<pass>@<host>:5432/<db> \
+  --tikv-dsn mysql://<user>:<pass>@<host>:4000/<db>
+```
 
-## D. Rollback plan
+> 如只迁移单一目标，可用 `--skip-postgres` 或 `--skip-tikv`。
+
+## D. Consistency verification (target side)
+Postgres:
+```bash
+python scripts/migration/verify_loaded_target_consistency.py \
+  --manifest /tmp/loam_migration/migration_manifest.json \
+  --target postgres \
+  --postgres-dsn postgresql://<user>:<pass>@<host>:5432/<db>
+```
+
+TiKV:
+```bash
+python scripts/migration/verify_loaded_target_consistency.py \
+  --manifest /tmp/loam_migration/migration_manifest.json \
+  --target tikv \
+  --tikv-dsn mysql://<user>:<pass>@<host>:4000/<db>
+```
+
+## E. Rollback plan
 Before cutover, snapshot current SQLite files:
 ```bash
 python scripts/ops/create_snapshot.py \
   --character-dir ~/.loam/characters/<character> \
   --out-dir ~/.loam/backups
 ```
+
 If target validation fails:
 ```bash
 python scripts/migration/rollback_from_snapshot.py \
@@ -39,7 +63,7 @@ python scripts/migration/rollback_from_snapshot.py \
   --target-dir ~/.loam/characters/<character>
 ```
 
-## E. Migration rehearsal (pressure drill)
+## F. Migration rehearsal (pressure drill)
 ```bash
 python scripts/migration/rehearse_migration_load.py \
   --journal-db ~/.loam/characters/<character>/journal.db \
@@ -47,4 +71,4 @@ python scripts/migration/rehearse_migration_load.py \
   --rounds 5
 ```
 
-Use the duration distribution to estimate cutover window and rollback budget.
+Use duration distribution to estimate cutover window and rollback budget.
