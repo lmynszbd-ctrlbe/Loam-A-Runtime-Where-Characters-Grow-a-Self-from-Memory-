@@ -67,6 +67,7 @@ jobs:
       - name: Prepare sample sqlite data
         run: |
           TMPDIR=$(mktemp -d)
+          export TMPDIR
           echo "TMPDIR=$TMPDIR" >> "$GITHUB_ENV"
           python - <<'PY'
           import os
