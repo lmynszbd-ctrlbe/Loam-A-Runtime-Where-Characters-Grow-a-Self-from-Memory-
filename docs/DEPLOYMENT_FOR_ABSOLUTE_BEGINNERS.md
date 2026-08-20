@@ -42,6 +42,30 @@ loam 实际上有两个服务：
 
 没有这些，代理虽然能启动，但聊天不会成功。
 
+## 2.1 什么是“上游模板”？（第一次部署必看）
+
+你在文档里看到的“上游模板”，指的是仓库里的**示例文件**：
+- `~/loam/bridge/upstreams.example.json`
+
+> 如果你仓库不在 `~/loam`，把路径换成你实际克隆目录。
+
+它的本质是“可复制的 JSON 样板”：
+- 里面的 `sk-xxx`、`example.com` 都是占位值，不能直接用。
+- 你要把它复制成自己的运行配置文件：`~/.loam/upstreams.json`。
+- forced proxy 真正读取的是 `~/.loam/upstreams.json`，不是示例文件本身。
+
+你可以先看模板长什么样（只读，不会修改）：
+
+```bash
+cat ~/loam/bridge/upstreams.example.json
+```
+
+字段含义（超简版）：
+- `default`：当模型名没写 provider 前缀时，默认走哪个 provider。
+- `providers.<name>.base_url`：上游 API 地址（通常以 `https://` 开头，不是官网首页）。
+- `providers.<name>.api_key`：该上游的密钥。
+- `providers.<name>.default_model`：该上游默认模型 ID。
+
 ---
 
 # A) Android + Termux：一步一步（最详细）
@@ -90,6 +114,9 @@ git pull
 
 ## A-5. 创建上游配置文件（重点）
 
+这一步里的“上游模板”就是仓库中的示例文件：`~/loam/bridge/upstreams.example.json`。
+你要做的是：复制模板 → 生成自己的 `~/.loam/upstreams.json` → 再把占位值改成真实值。
+
 ```bash
 mkdir -p ~/.loam
 cp ~/loam/bridge/upstreams.example.json ~/.loam/upstreams.json
@@ -120,6 +147,12 @@ nano ~/.loam/upstreams.json
 - `Ctrl + O`（写入）
 - 回车确认
 - `Ctrl + X`（退出）
+
+可选但推荐：立刻检查 JSON 语法是否正确（输出 `JSON_OK` 才算通过）：
+
+```bash
+python -m json.tool ~/.loam/upstreams.json >/dev/null && echo JSON_OK
+```
 
 ## A-6. 一键启动 loam + proxy
 
@@ -205,13 +238,20 @@ cd ~/loam
 
 ## B-3. 创建上游映射
 
+和 Termux 一样，这里的“上游模板”也是仓库示例文件：`~/loam/bridge/upstreams.example.json`。
+复制后编辑 `~/.loam/upstreams.json`，把占位值换成你自己的真实参数。
+
 ```bash
 mkdir -p ~/.loam
 cp ~/loam/bridge/upstreams.example.json ~/.loam/upstreams.json
 nano ~/.loam/upstreams.json
 ```
 
-编辑方式与 Termux 一样（同上示例）。
+编辑方式与 Termux 一样（同上示例）。编辑后建议立刻校验 JSON：
+
+```bash
+python -m json.tool ~/.loam/upstreams.json >/dev/null && echo JSON_OK
+```
 
 ## B-4. 启动 loam（终端1）
 
@@ -287,7 +327,27 @@ docker compose logs -f
 curl -s http://127.0.0.1:8765/health
 ```
 
-> 注意：如果你要完整代理链路，仍需按项目架构运行 forced proxy 并配置 upstream。
+## C-6.（可选）把 proxy 链路也接上
+
+`docker compose` 这份默认配置只启动 loam，不会自动启动 forced proxy。
+如果你希望客户端走完整链路（`/context -> upstream -> /ingest`），还需要单独准备上游配置并启动 proxy：
+
+```bash
+mkdir -p ~/.loam
+cp ~/loam/bridge/upstreams.example.json ~/.loam/upstreams.json
+nano ~/.loam/upstreams.json
+python -m json.tool ~/.loam/upstreams.json >/dev/null && echo JSON_OK
+
+cd ~/loam
+UPSTREAMS_CONFIG="$HOME/.loam/upstreams.json" UPSTREAM_DEFAULT='relayA' python bridge/forced_flow_proxy.py
+```
+
+然后再验证：
+
+```bash
+curl -s http://127.0.0.1:8780/health
+curl -s http://127.0.0.1:8780/v1/models
+```
 
 ---
 

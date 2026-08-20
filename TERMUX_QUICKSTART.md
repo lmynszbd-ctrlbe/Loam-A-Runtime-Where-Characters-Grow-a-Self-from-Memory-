@@ -37,14 +37,15 @@ cd ~/loam
 
 ## Prepare upstream mapping
 
-Copy the upstream template to `~/.loam/upstreams.json` and replace placeholder fields with real values. This mapping controls where proxy forwards requests and which model each provider uses by default.
+The "upstream template" in this guide means the sample file inside this repository: `~/loam/bridge/upstreams.example.json`. It is only a starter template with placeholder values (`sk-xxx`, `example.com`). You must copy it to `~/.loam/upstreams.json` and replace placeholders with your real provider settings.
 
-把上游模板复制到 `~/.loam/upstreams.json`，并将占位值替换为真实参数。这份映射决定代理将请求转发到哪里，以及每个 provider 默认使用哪个模型。
+本指南里的“上游模板”指仓库内示例文件：`~/loam/bridge/upstreams.example.json`。它只是带占位值（`sk-xxx`、`example.com`）的样板，不能直接用于生产。你需要复制成 `~/.loam/upstreams.json`，再改成真实参数。
 
 ```bash
 mkdir -p ~/.loam
 cp ~/loam/bridge/upstreams.example.json ~/.loam/upstreams.json
 nano ~/.loam/upstreams.json
+python -m json.tool ~/.loam/upstreams.json >/dev/null && echo JSON_OK
 ```
 
 ---

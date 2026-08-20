@@ -48,6 +48,7 @@ python -m loam run --character demo --home ~/.loam/characters
 - **零基础超详细（推荐先看）**：`docs/DEPLOYMENT_FOR_ABSOLUTE_BEGINNERS.md`
 - **Android / Termux 快速版**：`TERMUX_QUICKSTART.md`
 - **Linux / VM / WSL / macOS**：`DEPLOYMENT_MODES.md`
+- **上游模板（必须先配）**：模板在 `bridge/upstreams.example.json`，运行时文件是 `~/.loam/upstreams.json`
 - **容器化部署**：`Dockerfile` + `docker-compose.yml`
 - **多上游路由**：`MULTI_UPSTREAM_QUICKSTART.md`
 - **第三方集成**：`THIRD_PARTY_INTEGRATION.md`

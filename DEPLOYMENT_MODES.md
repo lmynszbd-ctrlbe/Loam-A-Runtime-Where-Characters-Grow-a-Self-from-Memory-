@@ -5,6 +5,25 @@ This document explains non-Termux deployment options and when to choose each mod
 
 ---
 
+## Shared upstream config (all modes)
+
+All deployment modes share the same upstream mapping mechanism:
+- Template file in repo: `~/loam/bridge/upstreams.example.json`
+- Runtime file read by proxy: `~/.loam/upstreams.json`
+
+所有部署模式共用同一套上游映射机制：
+- 仓库模板文件：`~/loam/bridge/upstreams.example.json`
+- proxy 实际读取文件：`~/.loam/upstreams.json`
+
+```bash
+mkdir -p ~/.loam
+cp ~/loam/bridge/upstreams.example.json ~/.loam/upstreams.json
+nano ~/.loam/upstreams.json
+python -m json.tool ~/.loam/upstreams.json >/dev/null && echo JSON_OK
+```
+
+---
+
 ## 1) Termux on Android
 
 Use this mode when you want personal, mobile, always-on operation on one phone. It is the fastest path to launch and requires the least system administration. You run startup scripts under `scripts/termux/` and keep data under `~/.loam` in Termux storage.

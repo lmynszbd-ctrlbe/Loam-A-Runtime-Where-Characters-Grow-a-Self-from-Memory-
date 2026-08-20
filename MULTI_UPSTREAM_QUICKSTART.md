@@ -15,14 +15,15 @@ Your client sees one local OpenAI-compatible URL, but proxy still needs real des
 
 ## Create and edit mapping file
 
-Create `~/.loam/upstreams.json` from template, then replace placeholder fields with real values. Keep JSON syntax intact (commas, braces, quotes), because malformed JSON will prevent proxy startup.
+The upstream template file is `~/loam/bridge/upstreams.example.json` in this repository. It is only a starter sample, so you must copy it to `~/.loam/upstreams.json` and replace placeholders with real values. Keep JSON syntax intact (commas, braces, quotes), because malformed JSON will prevent proxy startup.
 
-从模板创建 `~/.loam/upstreams.json` 后，把占位值替换为真实参数。请保持 JSON 语法完整（逗号、花括号、引号），否则代理无法启动。
+上游模板文件就是仓库内的 `~/loam/bridge/upstreams.example.json`。它只是样板，必须复制到 `~/.loam/upstreams.json` 后再把占位值换成真实参数。请保持 JSON 语法完整（逗号、花括号、引号），否则代理无法启动。
 
 ```bash
 mkdir -p ~/.loam
 cp ~/loam/bridge/upstreams.example.json ~/.loam/upstreams.json
 nano ~/.loam/upstreams.json
+python -m json.tool ~/.loam/upstreams.json >/dev/null && echo JSON_OK
 ```
 
 Example:

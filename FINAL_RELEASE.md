@@ -37,14 +37,15 @@ Install Python 3.10+ and curl, clone repository, and ensure your runtime can rea
 
 ## 4) Upstream mapping (required)
 
-Create upstream mapping file from template and fill real provider values. The `default` field is fallback provider, while each provider block defines request destination and auth. This file is the core of multi-upstream routing.
+The upstream template is the sample file in this repository: `~/loam/bridge/upstreams.example.json`. It contains placeholders only, so copy it into runtime path and replace values with your real provider settings. The `default` field is fallback provider, while each provider block defines request destination and auth. This file is the core of multi-upstream routing.
 
-先从模板创建上游映射文件并填入真实 provider 参数。`default` 代表默认回退上游，每个 provider 块定义请求目标与鉴权信息。这份文件是多上游路由的核心。
+上游模板就是仓库里的示例文件：`~/loam/bridge/upstreams.example.json`。其中都是占位值，必须先复制到运行路径，再替换成真实 provider 参数。`default` 代表默认回退上游，每个 provider 块定义请求目标与鉴权信息。这份文件是多上游路由的核心。
 
 ```bash
 mkdir -p ~/.loam
 cp ~/loam/bridge/upstreams.example.json ~/.loam/upstreams.json
 nano ~/.loam/upstreams.json
+python -m json.tool ~/.loam/upstreams.json >/dev/null && echo JSON_OK
 ```
 
 ---
