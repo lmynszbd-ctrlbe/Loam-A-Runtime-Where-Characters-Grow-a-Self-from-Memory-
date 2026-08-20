@@ -400,10 +400,10 @@ class Digester:
                     if trait is None or not item.get("opportunity"):
                         continue
                     trait.observe(bool(item.get("expressed")))
-            except (BrainError, ValueError):
+            except (BrainError, ValueError) as exc:
                 # 行为核对是校准项，缺一次不影响主干。宁可这次不校准，
                 # 也不要因为它失败而丢掉上面已经判好的印证。
-                pass
+                self.memory.set_state("last_observe_error", str(exc)[:200])
 
         # --- 结算
         now = time.strftime("%Y-%m-%d %H:%M")
@@ -575,7 +575,6 @@ class Grower:
 
     不用 systemd 也不用 cron，因为要能在 Termux 上活着。
     """
-
     def __init__(
         self,
         digester: Digester,
@@ -583,6 +582,7 @@ class Grower:
         idle_seconds: float = IDLE_SECONDS,
         audit_every: int = AUDIT_EVERY,
         on_report: Optional[Any] = None,
+        step_lock: Optional[threading.RLock] = None,
     ) -> None:
         self.digester = digester
         self.interval = interval
@@ -594,6 +594,8 @@ class Grower:
         self._thread: Optional[threading.Thread] = None
         self.reports: List[DigestReport] = []
         self.last_error: Optional[str] = None
+        self._step_lock = step_lock
+
 
     # ------------------------------------------------------------ 生命周期
 
@@ -618,7 +620,11 @@ class Grower:
     def _loop(self) -> None:
         while not self._stop.is_set():
             try:
-                self.step()
+                if self._step_lock:
+                    with self._step_lock:
+                        self.step()
+                else:
+                    self.step()
             except Exception:  # noqa: BLE001 - 后台线程死了整个成长就停了
                 self.last_error = traceback.format_exc(limit=3)
             self._stop.wait(self.interval)
@@ -629,9 +635,7 @@ class Grower:
 
         # 先自愈：有没有该收到却没收到的轮次
         filled = d.journal.reconcile_gaps(d.character)
-        for s in d.journal.stale_sessions(d.character, idle_seconds=self.idle_seconds):
-            # 会话已经凉了，游标不必再等后面的轮次
-            pass
+        stale = d.journal.stale_sessions(d.character, idle_seconds=self.idle_seconds)
 
         if not d.ready(idle_seconds=self.idle_seconds):
             return None
@@ -639,6 +643,8 @@ class Grower:
         report = d.digest_once()
         if filled:
             report.errors.append(f"顺手关闭了 {filled} 个漏轮缺口")
+        if stale:
+            report.errors.append(f"检测到 {len(stale)} 个长时间无新输入会话（仅提示）")
         self.reports.append(report)
         if len(self.reports) > 200:
             del self.reports[:-200]
@@ -646,7 +652,7 @@ class Grower:
             try:
                 self.on_report(report)
             except Exception:  # noqa: BLE001
-                pass
+                self.last_error = traceback.format_exc(limit=3)
 
         if self.audit_every and report.cycle and report.cycle % self.audit_every == 0:
             try:

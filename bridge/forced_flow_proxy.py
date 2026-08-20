@@ -33,7 +33,7 @@ PROXY_PORT = int(os.environ.get("PROXY_PORT", "8780"))
 LOAM_URL = os.environ.get("LOAM_URL", "http://127.0.0.1:8765").rstrip("/")
 
 DEFAULT_SESSION = os.environ.get("LOAM_SESSION", "proxy-default")
-LEARN_ON_CONTEXT = os.environ.get("LOAM_CONTEXT_LEARN", "1") not in ("0", "false", "False")
+LEARN_ON_CONTEXT = os.environ.get("LOAM_CONTEXT_LEARN", "0") not in ("0", "false", "False")
 FORCE_DIGEST = os.environ.get("LOAM_FORCE_DIGEST", "0") in ("1", "true", "True")
 
 STORE = Path(os.environ.get("PROXY_STATE_PATH", "~/.loam/proxy_state.json")).expanduser()
@@ -306,7 +306,8 @@ class Handler(BaseHTTPRequestHandler):
                         timeout=30,
                     )
                     ctx_text = str(c.get("text") or "")
-                except Exception:
+                except Exception as exc:
+                    print(f"[proxy] context fetch failed: {type(exc).__name__}: {exc}")
                     ctx_text = ""
 
             merged = _build_messages_with_context(messages, ctx_text) if ctx_text else messages
@@ -347,8 +348,8 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     if FORCE_DIGEST:
                         _json_post(f"{LOAM_URL}/digest", {}, timeout=60)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    print(f"[proxy] ingest failed: {type(exc).__name__}: {exc}")
 
             self._send(200, up_resp)
         except ValueError as e:

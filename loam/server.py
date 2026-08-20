@@ -9,7 +9,12 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 import threading
+import time
+import traceback
+import uuid
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -33,6 +38,7 @@ class ServiceConfig:
     idle_seconds: float = 900.0
     audit_every: int = 50
     auto_start_grower: bool = True
+    api_key: str = ""
 
 
 class LoamService:
@@ -47,6 +53,7 @@ class LoamService:
         self.journal = Journal(self.root / "journal.db")
         self.memory = Memory(self.root / "memory.db")
         self.brain = brain or load_brain()
+        self.api_key = (config.api_key or os.environ.get("LOAM_API_KEY", "")).strip()
 
         self.digester = Digester(
             self.character,
@@ -55,15 +62,18 @@ class LoamService:
             self.brain,
             batch_turns=config.batch_turns,
         )
+        self.context = ContextBuilder(self.memory)
+
+        # 所有 journal/memory 操作都走同一把锁，避免 HTTP 请求与后台 grower 竞态。
+        self._lock = threading.RLock()
+
         self.grower = Grower(
             self.digester,
             interval=config.grow_interval,
             idle_seconds=config.idle_seconds,
             audit_every=config.audit_every,
+            step_lock=self._lock,
         )
-        self.context = ContextBuilder(self.memory)
-
-        self._lock = threading.RLock()
 
         if config.auto_start_grower:
             self.grower.start()
@@ -123,7 +133,7 @@ class LoamService:
 
     # ------------------------------------------------------------ 输出
 
-    def build_context(self, query: str, learn: bool = True) -> Dict[str, Any]:
+    def build_context(self, query: str, learn: bool = False) -> Dict[str, Any]:
         with self._lock:
             pack = self.context.build(self.character, query=query, learn=learn)
             return {"context": pack.as_dict(), "text": pack.render()}
@@ -138,6 +148,22 @@ class LoamService:
                 "pending": self.digester.pending_count(),
                 "grower_alive": self.grower.alive,
                 "last_error": self.grower.last_error,
+            }
+
+    def healthz(self) -> Dict[str, Any]:
+        with self._lock:
+            pending = self.digester.pending_count()
+            ok = True
+            if self.config.auto_start_grower and not self.grower.alive:
+                ok = False
+            return {
+                "ok": ok,
+                "character": self.character,
+                "pending": pending,
+                "open_gaps": len(self.journal.open_gaps(self.character)),
+                "grower_alive": self.grower.alive,
+                "last_error": self.grower.last_error,
+                "ts": time.time(),
             }
 
     # ------------------------------------------------------------ grower
@@ -179,13 +205,20 @@ class LoamHandler(BaseHTTPRequestHandler):
                 self._send_json(200, {"ok": True, "character": self.server.service.character})
                 return
 
+            if not self._require_auth(path):
+                return
+
+            if path == "/healthz":
+                self._send_json(200, self.server.service.healthz())
+                return
+
             if path == "/stats":
                 self._send_json(200, self.server.service.stats())
                 return
 
             if path == "/context":
                 query = (qs.get("q") or [""])[0]
-                learn = (qs.get("learn") or ["1"])[0] not in ("0", "false", "False")
+                learn = _coerce_bool((qs.get("learn") or [None])[0], default=False)
                 self._send_json(200, self.server.service.build_context(query, learn=learn))
                 return
 
@@ -193,13 +226,16 @@ class LoamHandler(BaseHTTPRequestHandler):
         except ValueError as exc:
             self._send_json(400, {"error": str(exc)})
         except Exception as exc:  # noqa: BLE001
-            self._send_json(500, {"error": f"{type(exc).__name__}: {exc}"})
+            self._send_internal_error(exc)
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
 
         try:
+            if not self._require_auth(path):
+                return
+
             payload = self._read_json()
 
             if path == "/ingest":
@@ -218,7 +254,7 @@ class LoamHandler(BaseHTTPRequestHandler):
 
             if path == "/context":
                 query = str(payload.get("query") or "")
-                learn = bool(payload.get("learn", True))
+                learn = _coerce_bool(payload.get("learn"), default=False)
                 self._send_json(200, self.server.service.build_context(query, learn=learn))
                 return
 
@@ -234,7 +270,7 @@ class LoamHandler(BaseHTTPRequestHandler):
         except ValueError as exc:
             self._send_json(400, {"error": str(exc)})
         except Exception as exc:  # noqa: BLE001
-            self._send_json(500, {"error": f"{type(exc).__name__}: {exc}"})
+            self._send_internal_error(exc)
 
     # ------------------------------------------------------------ 工具
 
@@ -250,6 +286,37 @@ class LoamHandler(BaseHTTPRequestHandler):
         if not isinstance(data, dict):
             raise ValueError("JSON body 必须是对象")
         return data
+
+    def _require_auth(self, path: str) -> bool:
+        expected = self.server.service.api_key
+        if not expected:
+            return True
+
+        # 健康探针默认放行，避免部署平台被鉴权卡死。
+        if path in ("/health", "/healthz"):
+            return True
+
+        presented = (self.headers.get("X-API-Key") or "").strip()
+        if not presented:
+            auth = (self.headers.get("Authorization") or "").strip()
+            if auth.lower().startswith("bearer "):
+                presented = auth[7:].strip()
+
+        if presented == expected:
+            return True
+
+        self._send_json(401, {"error": "unauthorized", "message": "missing or invalid api key"})
+        return False
+
+    def _send_internal_error(self, exc: Exception) -> None:
+        rid = uuid.uuid4().hex[:12]
+        trace = traceback.format_exc()
+        print(
+            f"[loam][error][{rid}] {type(exc).__name__}: {exc}\n{trace}",
+            file=sys.stderr,
+            flush=True,
+        )
+        self._send_json(500, {"error": "internal_error", "request_id": rid})
 
     def _send_json(self, status: int, payload: Dict[str, Any]) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -318,3 +385,18 @@ def _one_turn(raw: Dict[str, Any]) -> Dict[str, Any]:
     if "meta" in raw and isinstance(raw["meta"], dict):
         out["meta"] = raw["meta"]
     return out
+
+
+def _coerce_bool(value: Any, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    text = str(value).strip().lower()
+    if text in ("1", "true", "yes", "on"):
+        return True
+    if text in ("0", "false", "no", "off", ""):
+        return False
+    return default

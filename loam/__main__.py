@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Any
 
@@ -78,6 +79,7 @@ def _service_from_args(args: argparse.Namespace, auto_start_grower: bool) -> Loa
         idle_seconds=float(getattr(args, "idle_seconds", 900.0)),
         audit_every=int(getattr(args, "audit_every", 50)),
         auto_start_grower=auto_start_grower,
+        api_key=str(getattr(args, "api_key", os.environ.get("LOAM_API_KEY", ""))),
     )
     brain = load_brain(home=str(getattr(args, "secrets_home", "~/.loam")))
     return LoamService(cfg, brain=brain)
@@ -123,6 +125,7 @@ def _common_service_flags(sp: argparse.ArgumentParser) -> None:
     sp.add_argument("--home", default="~/.loam/characters")
     sp.add_argument("--session", default="default")
     sp.add_argument("--secrets-home", default="~/.loam")
+    sp.add_argument("--api-key", default=os.environ.get("LOAM_API_KEY", ""))
     sp.add_argument("--batch-turns", type=int, default=20)
     sp.add_argument("--grow-interval", type=float, default=60.0)
     sp.add_argument("--idle-seconds", type=float, default=900.0)

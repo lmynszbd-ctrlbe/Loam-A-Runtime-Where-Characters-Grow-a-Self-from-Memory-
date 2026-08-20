@@ -17,7 +17,7 @@ from loam.mind.llm import ScriptedBrain
 from loam.server import LoamService, ServiceConfig, build_server
 
 
-def _start_service():
+def _start_service(api_key: str = ""):
     tmp = tempfile.mkdtemp()
     brain = ScriptedBrain(
         [
@@ -43,6 +43,7 @@ def _start_service():
             auto_start_grower=False,
             batch_turns=20,
             audit_every=0,
+            api_key=api_key,
         ),
         brain=brain,
     )
@@ -59,15 +60,18 @@ def _stop_service(tmp: str, svc: LoamService, httpd):
     shutil.rmtree(tmp)
 
 
-def _req(base: str, method: str, path: str, body=None):
+def _req(base: str, method: str, path: str, body=None, headers=None):
     data = None
     if body is not None:
         data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    hs = {"Content-Type": "application/json; charset=utf-8"}
+    if headers:
+        hs.update(headers)
     req = urllib.request.Request(
         base + path,
         data=data,
         method=method,
-        headers={"Content-Type": "application/json; charset=utf-8"},
+        headers=hs,
     )
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
@@ -142,6 +146,25 @@ def test_context_endpoint_returns_rendered_text():
         assert "text" in data and "context" in data
         assert "被想起的经历" in data["text"]
         assert data["context"]["recalled"], "应返回至少一条相关记忆"
+    finally:
+        _stop_service(tmp, svc, httpd)
+
+
+def test_api_key_protects_non_health_routes():
+    tmp, svc, httpd, _ = _start_service(api_key="secret-token")
+    try:
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+
+        # 健康探针允许匿名
+        s0, j0 = _req(base, "GET", "/health")
+        assert s0 == 200 and j0["ok"] is True
+
+        s1, _ = _req(base, "GET", "/stats")
+        assert s1 == 401
+
+        s2, j2 = _req(base, "GET", "/stats", headers={"X-API-Key": "secret-token"})
+        assert s2 == 200
+        assert j2["character"] == "阿萤"
     finally:
         _stop_service(tmp, svc, httpd)
 
