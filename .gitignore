@@ -11,8 +11,12 @@ venv/
 .loam/
 *.log
 *.pid
-
 # OS/editor
 .DS_Store
 .vscode/
 .idea/
+
+# Local chat handoff artifacts (not project source)
+CHAT_COMPRESS_SUMMARY.md
+NEW_CHAT_BOOTSTRAP_PROMPT.txt
+
