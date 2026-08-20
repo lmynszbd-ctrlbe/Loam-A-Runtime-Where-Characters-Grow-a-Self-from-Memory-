@@ -52,6 +52,14 @@ def _mysql_ident(name: str) -> str:
     return "`" + name.replace("`", "``") + "`"
 
 
+def _mysql_literal(value: object) -> str:
+    if value is None:
+        return "NULL"
+    s = str(value)
+    s = s.replace("\\", "\\\\").replace("'", "\\'")
+    return "'" + s + "'"
+
+
 def _map_type_pg(sqlite_type: str) -> str:
     t = (sqlite_type or "").strip().upper()
     if "INT" in t:
@@ -216,16 +224,38 @@ def _export_one_db(db_path: Path, out_root: Path) -> Dict[str, object]:
             )
 
             tk_lines.append(e.tikv_sql)
-            tk_lines.append(
-                "LOAD DATA LOCAL INFILE '"
-                + Path(e.csv_path).as_posix()
-                + "' INTO TABLE "
-                + _mysql_ident(e.name)
-                + " FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '\"' ESCAPED BY '\"'"
-                + " LINES TERMINATED BY '\\n' IGNORE 1 LINES ("
-                + ", ".join(_mysql_ident(c) for c in e.columns)
-                + ");"
-            )
+            if e.name == "state":
+                # state.value 里是 JSON，包含大量引号。某些 MySQL 8 组合下
+                # LOAD DATA 对双引号转义解析不稳定，会把后续行吞成 1 行。
+                # 对 state 表改用逐行 INSERT，保证行数与内容稳定一致。
+                tk_lines.append("DELETE FROM " + _mysql_ident(e.name) + ";")
+                with Path(e.csv_path).open("r", encoding="utf-8", newline="") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        vals = [
+                            _mysql_literal(row.get(c))
+                            for c in e.columns
+                        ]
+                        tk_lines.append(
+                            "INSERT INTO "
+                            + _mysql_ident(e.name)
+                            + " ("
+                            + ", ".join(_mysql_ident(c) for c in e.columns)
+                            + ") VALUES ("
+                            + ", ".join(vals)
+                            + ");"
+                        )
+            else:
+                tk_lines.append(
+                    "LOAD DATA LOCAL INFILE '"
+                    + Path(e.csv_path).as_posix()
+                    + "' INTO TABLE "
+                    + _mysql_ident(e.name)
+                    + " FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '\"' ESCAPED BY '\"'"
+                    + " LINES TERMINATED BY '\\n' IGNORE 1 LINES ("
+                    + ", ".join(_mysql_ident(c) for c in e.columns)
+                    + ");"
+                )
 
         pg_sql_path.write_text("\n\n".join(pg_lines) + "\n", encoding="utf-8")
         tk_sql_path.write_text("\n\n".join(tk_lines) + "\n", encoding="utf-8")
