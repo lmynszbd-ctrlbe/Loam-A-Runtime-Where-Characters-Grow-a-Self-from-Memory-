@@ -55,6 +55,9 @@ class LoamService:
         self.brain = brain or load_brain()
         self.api_key = (config.api_key or os.environ.get("LOAM_API_KEY", "")).strip()
 
+        # 崩溃恢复：把遗留 processing 队列任务恢复为 pending。
+        self.journal.recover_processing_jobs(self.character)
+
         self.digester = Digester(
             self.character,
             self.journal,
@@ -81,7 +84,7 @@ class LoamService:
     # ------------------------------------------------------------ 输入
 
     def ingest(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """写入一批原始日记。"""
+        """写入一批原始证据到 pending 队列。"""
         session = str(payload.get("session") or self.config.default_session)
         turns = _normalise_turns(payload)
         if not turns:
@@ -95,40 +98,68 @@ class LoamService:
                 if gap:
                     gaps.append({"from": int(gap[0]), "to": int(gap[1])})
 
-            added = self.journal.append_batch(
-                self.character,
-                session,
-                turns,
-                client=str(payload.get("client")) if payload.get("client") else None,
-                model=str(payload.get("model")) if payload.get("model") else None,
-            )
+            filtered_turns, dropped = _prefilter_evidence(turns)
+            if filtered_turns:
+                queued = self.journal.enqueue_pending_evidence(
+                    self.character,
+                    session,
+                    filtered_turns,
+                    client=str(payload.get("client")) if payload.get("client") else None,
+                    model=str(payload.get("model")) if payload.get("model") else None,
+                )
+            else:
+                qstats0 = self.journal.queue_stats(self.character)
+                queued = {
+                    "added": 0,
+                    "deduped": 0,
+                    "pending_evidence": int(qstats0.get("pending_evidence", 0)),
+                    "jobs_pending": int(qstats0.get("jobs_pending", 0)),
+                    "jobs_processing": int(qstats0.get("jobs_processing", 0)),
+                }
 
+            queue_now: Dict[str, int] = {}
+            # 可选同步模式：本次请求内先处理一轮队列
+            if _coerce_bool(payload.get("sync"), default=False):
+                queue_now = self.journal.drain_ingest_jobs(self.character, max_jobs=1)
+
+            qstats = self.journal.queue_stats(self.character)
             return {
                 "character": self.character,
                 "session": session,
-                "added": added,
+                "added": int(queued.get("added") or 0),
+                "deduped": int(queued.get("deduped") or 0),
+                "dropped_lightweight": dropped,
                 "turns": seen_turns,
                 "gaps": gaps,
                 "open_gaps": self.journal.open_gaps(self.character),
                 "pending": self.digester.pending_count(),
+                "pending_evidence": int(qstats.get("pending_evidence", 0)),
+                "queue": qstats,
+                "queue_now": queue_now,
             }
 
     # ------------------------------------------------------------ 处理
 
     def digest_once(self, limit: Optional[int] = None) -> Dict[str, Any]:
         with self._lock:
+            queue_now = self.journal.drain_ingest_jobs(self.character, max_jobs=1)
             report = self.digester.digest_once(limit=limit)
             out = report.as_dict()
             out["pending"] = self.digester.pending_count()
+            out["queue"] = self.journal.queue_stats(self.character)
+            out["queue_now"] = queue_now
             return out
 
     def drain(self, max_rounds: int = 50) -> Dict[str, Any]:
         with self._lock:
+            queue_now = self.journal.drain_ingest_jobs(self.character, max_jobs=max_rounds)
             reports = self.grower.drain(max_rounds=max_rounds)
             return {
                 "rounds": len(reports),
                 "reports": [r.as_dict() for r in reports],
                 "pending": self.digester.pending_count(),
+                "queue": self.journal.queue_stats(self.character),
+                "queue_now": queue_now,
             }
 
     # ------------------------------------------------------------ 输出
@@ -385,6 +416,43 @@ def _one_turn(raw: Dict[str, Any]) -> Dict[str, Any]:
     if "meta" in raw and isinstance(raw["meta"], dict):
         out["meta"] = raw["meta"]
     return out
+
+
+_LIGHTWEIGHT_REPLIES = {
+    "嗯",
+    "好的",
+    "好",
+    "收到",
+    "知道了",
+    "明白",
+    "明白了",
+    "ok",
+    "okay",
+    "got it",
+    "roger",
+}
+
+
+def _prefilter_evidence(turns: List[Dict[str, Any]]) -> tuple[List[Dict[str, Any]], int]:
+    """轻量预过滤：优先保留用户输入，尽量剔除纯 ACK 噪声。"""
+    kept: List[Dict[str, Any]] = []
+    dropped = 0
+
+    for t in turns:
+        role = str(t.get("role") or "").strip().lower()
+        content = str(t.get("content") or "")
+        normalized = " ".join(content.strip().split())
+
+        # 只过滤 assistant 的纯确认短句，避免稀释后续提炼质量。
+        if role == "assistant" and normalized:
+            low = normalized.lower()
+            if low in _LIGHTWEIGHT_REPLIES or (len(normalized) <= 2 and low not in {"不", "行"}):
+                dropped += 1
+                continue
+
+        kept.append(t)
+
+    return kept, dropped
 
 
 def _coerce_bool(value: Any, default: bool) -> bool:

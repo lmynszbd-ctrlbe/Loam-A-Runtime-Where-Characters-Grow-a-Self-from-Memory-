@@ -157,6 +157,57 @@ def test_trait_staged_roundtrip_via_memory():
         shutil.rmtree(tmp)
 
 
+def test_pending_ingest_queue_dedup_and_process():
+    tmp = tempfile.mkdtemp()
+    try:
+        j = Journal(Path(tmp) / "journal.db")
+        c = "阿萤"
+        turns = [
+            {"turn": 1, "role": "user", "content": "我明天要开会"},
+            {"turn": 1, "role": "assistant", "content": "先列提纲"},
+        ]
+
+        first = j.enqueue_pending_evidence(c, "s1", turns)
+        assert first["added"] == 2 and first["deduped"] == 0
+
+        again = j.enqueue_pending_evidence(c, "s1", turns)
+        assert again["added"] == 0 and again["deduped"] == 2
+
+        out = j.process_one_ingest_job(c)
+        assert out and out["done"] is True
+        assert out["entries_added"] == 2
+        assert j.pending_evidence_count(c) == 0
+        assert len(j.read(c, session="s1")) == 2
+    finally:
+        j.close()
+        shutil.rmtree(tmp)
+
+
+def test_recover_processing_jobs_to_pending():
+    tmp = tempfile.mkdtemp()
+    try:
+        j = Journal(Path(tmp) / "journal.db")
+        c = "阿萤"
+        j.enqueue_pending_evidence(
+            c,
+            "s1",
+            [{"turn": 1, "role": "user", "content": "一条证据"}],
+        )
+
+        claimed = j._claim_next_job(c)  # type: ignore[attr-defined]
+        assert claimed is not None
+        assert j.queue_stats(c)["jobs_processing"] == 1
+
+        recovered = j.recover_processing_jobs(c)
+        assert recovered == 1
+        stats = j.queue_stats(c)
+        assert stats["jobs_processing"] == 0
+        assert stats["jobs_pending"] == 1
+    finally:
+        j.close()
+        shutil.rmtree(tmp)
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

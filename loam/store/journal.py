@@ -23,7 +23,7 @@ import sqlite3
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Sequence
+from typing import Any, Dict, Iterator, List, Optional, Sequence
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS entries (
@@ -74,6 +74,53 @@ CREATE TABLE IF NOT EXISTS gaps (
 
 CREATE INDEX IF NOT EXISTS idx_open_gaps
     ON gaps(character, filled);
+
+-- ---------------------------------------------------------------- 证据缓冲与异步 ingest 队列
+CREATE TABLE IF NOT EXISTS pending_evidence (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    character     TEXT    NOT NULL,
+    session       TEXT    NOT NULL,
+    turn          INTEGER NOT NULL,
+    role          TEXT    NOT NULL,
+    content       TEXT    NOT NULL,
+    evidence_hash TEXT    NOT NULL,
+    client        TEXT,
+    model         TEXT,
+    meta          TEXT,
+    wrote_at      REAL    NOT NULL,
+    status        TEXT    NOT NULL DEFAULT 'pending',
+    created_at    REAL    NOT NULL,
+    processed_at  REAL,
+    job_id        INTEGER
+);
+
+-- 幂等：同 session + 同证据哈希只入一次
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_evidence_unique
+    ON pending_evidence(character, session, evidence_hash);
+
+CREATE INDEX IF NOT EXISTS idx_pending_evidence_status
+    ON pending_evidence(character, status, id);
+
+CREATE TABLE IF NOT EXISTS ingest_jobs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    character   TEXT    NOT NULL,
+    session     TEXT    NOT NULL,
+    status      TEXT    NOT NULL DEFAULT 'pending',
+    attempts    INTEGER NOT NULL DEFAULT 0,
+    error       TEXT,
+    created_at  REAL    NOT NULL,
+    updated_at  REAL    NOT NULL,
+    started_at  REAL,
+    finished_at REAL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ingest_jobs_status
+    ON ingest_jobs(character, status, id);
+
+-- 每个 session 同时最多一条 open job（pending/processing）
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ingest_jobs_open_session
+    ON ingest_jobs(character, session)
+    WHERE status IN ('pending', 'processing');
 """
 
 
@@ -106,6 +153,16 @@ def fingerprint(character: str, session: str, turn: int, role: str, content: str
     是不同的事件，不该被当成重复。
     """
     raw = f"{character}\x00{session}\x00{turn}\x00{role}\x00{content}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
+
+
+def evidence_fingerprint(session: str, role: str, content: str) -> str:
+    """pending 证据指纹（不含 turn），用于幂等去重。
+
+    设计约束：UNIQUE(session_id, evidence_hash) 冲突时直接跳过。
+    """
+    normalized = " ".join((content or "").strip().split())
+    raw = f"{session}\x00{(role or '').strip().lower()}\x00{normalized}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
 
 
@@ -224,6 +281,301 @@ class Journal:
                 continue
         self._db.commit()
         return added
+
+    # ------------------------------------------------------------ pending 证据与 ingest 队列
+
+    def enqueue_pending_evidence(
+        self,
+        character: str,
+        session: str,
+        turns: Sequence[Dict[str, object]],
+        client: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> Dict[str, int]:
+        """原子地：证据落盘 + 建立（或复用）session 队列任务。"""
+        now = time.time()
+        added = 0
+        deduped = 0
+
+        with self._db:
+            for t in turns:
+                role = str(t.get("role") or "").strip()
+                content = str(t.get("content") or "").strip()
+                if not role or not content:
+                    continue
+                ev_hash = evidence_fingerprint(session, role, content)
+                try:
+                    self._db.execute(
+                        "INSERT INTO pending_evidence"
+                        " (character, session, turn, role, content, evidence_hash,"
+                        "  client, model, meta, wrote_at, status, created_at)"
+                        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (
+                            character,
+                            session,
+                            int(t.get("turn") or 0),
+                            role,
+                            content,
+                            ev_hash,
+                            client,
+                            model,
+                            json.dumps(t.get("meta") or {}, ensure_ascii=False),
+                            float(t.get("wrote_at") or now),
+                            "pending",
+                            now,
+                        ),
+                    )
+                    added += 1
+                except sqlite3.IntegrityError:
+                    deduped += 1
+            # 只有存在待处理证据时，才需要保持 open job。
+            has_pending = self._db.execute(
+                "SELECT 1 FROM pending_evidence"
+                " WHERE character=? AND session=? AND status='pending'"
+                " ORDER BY id LIMIT 1",
+                (character, session),
+            ).fetchone()
+            if has_pending is not None:
+                row = self._db.execute(
+                    "SELECT id FROM ingest_jobs"
+                    " WHERE character=? AND session=? AND status IN ('pending','processing')"
+                    " ORDER BY id LIMIT 1",
+                    (character, session),
+                ).fetchone()
+                if row is None:
+                    self._db.execute(
+                        "INSERT INTO ingest_jobs"
+                        " (character, session, status, attempts, created_at, updated_at)"
+                        " VALUES (?,?,?,?,?,?)",
+                        (character, session, "pending", 0, now, now),
+                    )
+
+
+        queue = self.queue_stats(character)
+        return {
+            "added": added,
+            "deduped": deduped,
+            "pending_evidence": int(queue.get("pending_evidence", 0)),
+            "jobs_pending": int(queue.get("jobs_pending", 0)),
+            "jobs_processing": int(queue.get("jobs_processing", 0)),
+        }
+
+    def recover_processing_jobs(self, character: str) -> int:
+        """重启恢复：把遗留 processing 任务打回 pending。"""
+        now = time.time()
+        cur = self._db.execute(
+            "UPDATE ingest_jobs SET status='pending', updated_at=?"
+            " WHERE character=? AND status='processing'",
+            (now, character),
+        )
+        self._db.commit()
+        return int(cur.rowcount or 0)
+
+    def queue_stats(self, character: str) -> Dict[str, int]:
+        pending = self._db.execute(
+            "SELECT COUNT(*) n FROM ingest_jobs WHERE character=? AND status='pending'",
+            (character,),
+        ).fetchone()["n"]
+        processing = self._db.execute(
+            "SELECT COUNT(*) n FROM ingest_jobs WHERE character=? AND status='processing'",
+            (character,),
+        ).fetchone()["n"]
+        failed = self._db.execute(
+            "SELECT COUNT(*) n FROM ingest_jobs WHERE character=? AND status='failed'",
+            (character,),
+        ).fetchone()["n"]
+        pending_ev = self._db.execute(
+            "SELECT COUNT(*) n FROM pending_evidence"
+            " WHERE character=? AND status='pending'",
+            (character,),
+        ).fetchone()["n"]
+        return {
+            "jobs_pending": int(pending or 0),
+            "jobs_processing": int(processing or 0),
+            "jobs_failed": int(failed or 0),
+            "pending_evidence": int(pending_ev or 0),
+        }
+
+    def pending_evidence_count(self, character: str) -> int:
+        """只统计未处理完毕证据。"""
+        row = self._db.execute(
+            "SELECT COUNT(*) n FROM pending_evidence"
+            " WHERE character=? AND status='pending'",
+            (character,),
+        ).fetchone()
+        return int(row["n"] or 0)
+
+    def _claim_next_job(self, character: str) -> Optional[sqlite3.Row]:
+        now = time.time()
+        self._db.execute("BEGIN IMMEDIATE")
+        row = self._db.execute(
+            "SELECT j.id, j.session FROM ingest_jobs j"
+            " WHERE j.character=? AND j.status='pending'"
+            "   AND j.session NOT IN ("
+            "       SELECT session FROM ingest_jobs"
+            "       WHERE character=? AND status='processing'"
+            "   )"
+            " ORDER BY j.id LIMIT 1",
+            (character, character),
+        ).fetchone()
+        if row is None:
+            self._db.execute("COMMIT")
+            return None
+
+        cur = self._db.execute(
+            "UPDATE ingest_jobs SET status='processing', attempts=attempts+1,"
+            " started_at=COALESCE(started_at, ?), updated_at=?"
+            " WHERE id=? AND status='pending'",
+            (now, now, int(row["id"])),
+        )
+        if (cur.rowcount or 0) != 1:
+            self._db.execute("ROLLBACK")
+            return None
+        self._db.execute("COMMIT")
+        return row
+
+    def process_one_ingest_job(self, character: str) -> Optional[Dict[str, Any]]:
+        """处理一条队列任务：pending_evidence -> entries。"""
+        job = self._claim_next_job(character)
+        if job is None:
+            return None
+
+        job_id = int(job["id"])
+        session = str(job["session"])
+        now = time.time()
+
+        try:
+            rows = self._db.execute(
+                "SELECT id, turn, role, content, meta, wrote_at, client, model"
+                " FROM pending_evidence"
+                " WHERE character=? AND session=? AND status='pending'"
+                " ORDER BY id LIMIT 500",
+                (character, session),
+            ).fetchall()
+
+            if not rows:
+                self._db.execute(
+                    "UPDATE ingest_jobs SET status='done', finished_at=?, updated_at=?, error=NULL"
+                    " WHERE id=?",
+                    (now, now, job_id),
+                )
+                self._db.commit()
+                return {
+                    "job_id": job_id,
+                    "session": session,
+                    "evidence": 0,
+                    "entries_added": 0,
+                    "done": True,
+                }
+
+            turns: List[Dict[str, object]] = []
+            evidence_ids: List[int] = []
+            client = None
+            model = None
+            for r in rows:
+                evidence_ids.append(int(r["id"]))
+                turns.append(
+                    {
+                        "turn": int(r["turn"]),
+                        "role": str(r["role"]),
+                        "content": str(r["content"]),
+                        "wrote_at": float(r["wrote_at"]),
+                        "meta": json.loads(r["meta"] or "{}"),
+                    }
+                )
+                if client is None:
+                    client = r["client"]
+                if model is None:
+                    model = r["model"]
+
+            added = self.append_batch(
+                character,
+                session,
+                turns,
+                client=(str(client) if client else None),
+                model=(str(model) if model else None),
+            )
+
+            with self._db:
+                self._db.executemany(
+                    "UPDATE pending_evidence"
+                    " SET status='processed', processed_at=?, job_id=?"
+                    " WHERE id=?",
+                    [(now, job_id, i) for i in evidence_ids],
+                )
+                self._db.execute(
+                    "UPDATE ingest_jobs"
+                    " SET status='done', finished_at=?, updated_at=?, error=NULL"
+                    " WHERE id=?",
+                    (now, now, job_id),
+                )
+
+                remain = self._db.execute(
+                    "SELECT COUNT(*) n FROM pending_evidence"
+                    " WHERE character=? AND session=? AND status='pending'",
+                    (character, session),
+                ).fetchone()["n"]
+                open_job = self._db.execute(
+                    "SELECT id FROM ingest_jobs"
+                    " WHERE character=? AND session=? AND status IN ('pending','processing')"
+                    " ORDER BY id LIMIT 1",
+                    (character, session),
+                ).fetchone()
+                if remain and open_job is None:
+                    self._db.execute(
+                        "INSERT INTO ingest_jobs"
+                        " (character, session, status, attempts, created_at, updated_at)"
+                        " VALUES (?,?,?,?,?,?)",
+                        (character, session, "pending", 0, now, now),
+                    )
+
+            return {
+                "job_id": job_id,
+                "session": session,
+                "evidence": len(evidence_ids),
+                "entries_added": added,
+                "done": True,
+            }
+        except Exception as exc:  # noqa: BLE001
+            self._db.execute(
+                "UPDATE ingest_jobs"
+                " SET status='failed', error=?, updated_at=?, finished_at=?"
+                " WHERE id=?",
+                (f"{type(exc).__name__}: {exc}", now, now, job_id),
+            )
+            self._db.commit()
+            return {
+                "job_id": job_id,
+                "session": session,
+                "done": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+
+    def drain_ingest_jobs(self, character: str, max_jobs: int = 8) -> Dict[str, int]:
+        done = 0
+        failed = 0
+        evidence = 0
+        entries = 0
+        for _ in range(max_jobs):
+            r = self.process_one_ingest_job(character)
+            if not r:
+                break
+            if r.get("done"):
+                done += 1
+                evidence += int(r.get("evidence") or 0)
+                entries += int(r.get("entries_added") or 0)
+            else:
+                failed += 1
+        out = self.queue_stats(character)
+        out.update(
+            {
+                "jobs_done_now": done,
+                "jobs_failed_now": failed,
+                "evidence_processed_now": evidence,
+                "entries_added_now": entries,
+            }
+        )
+        return out
 
     # ------------------------------------------------------------ 漏轮检测
 
@@ -406,6 +758,28 @@ class Journal:
             + (" AND character=?" if character else ""),
             args,
         ).fetchone()["n"]
+
+        pending_ev = self._db.execute(
+            "SELECT COUNT(*) n FROM pending_evidence WHERE status='pending'"
+            + (" AND character=?" if character else ""),
+            args,
+        ).fetchone()["n"]
+        jobs_pending = self._db.execute(
+            "SELECT COUNT(*) n FROM ingest_jobs WHERE status='pending'"
+            + (" AND character=?" if character else ""),
+            args,
+        ).fetchone()["n"]
+        jobs_processing = self._db.execute(
+            "SELECT COUNT(*) n FROM ingest_jobs WHERE status='processing'"
+            + (" AND character=?" if character else ""),
+            args,
+        ).fetchone()["n"]
+        jobs_failed = self._db.execute(
+            "SELECT COUNT(*) n FROM ingest_jobs WHERE status='failed'"
+            + (" AND character=?" if character else ""),
+            args,
+        ).fetchone()["n"]
+
         n = row["n"] or 0
         return {
             "条数": n,
@@ -414,6 +788,10 @@ class Journal:
             "已消化": row["done"] or 0,
             "待消化": n - (row["done"] or 0),
             "未补缺口": gaps,
+            "待处理证据": pending_ev or 0,
+            "队列待处理": jobs_pending or 0,
+            "队列处理中": jobs_processing or 0,
+            "队列失败": jobs_failed or 0,
             "最早": _fmt(row["first"]),
             "最近": _fmt(row["last"]),
         }

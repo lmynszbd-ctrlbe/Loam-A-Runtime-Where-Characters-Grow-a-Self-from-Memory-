@@ -121,7 +121,10 @@ class Digester:
     # ------------------------------------------------------------ 入口
 
     def pending_count(self) -> int:
-        return len(self.journal.undigested(self.character, limit=10_000))
+        """整条流水线的待处理量：待消化 entries + 待入库 pending_evidence。"""
+        pending_entries = len(self.journal.undigested(self.character, limit=10_000))
+        pending_evidence = self.journal.pending_evidence_count(self.character)
+        return pending_entries + pending_evidence
 
     def ready(self, idle_seconds: float = IDLE_SECONDS) -> bool:
         """现在该不该煮。
@@ -633,11 +636,16 @@ class Grower:
         """醒来一次做的全部事情。也可以手动调，用于测试和 CLI。"""
         d = self.digester
 
-        # 先自愈：有没有该收到却没收到的轮次
+        # 0) 先把 pending_evidence 搬运进 entries（同 session 串行）
+        q = d.journal.drain_ingest_jobs(d.character, max_jobs=1)
+
+        # 1) 再做自愈：有没有该收到却没收到的轮次
         filled = d.journal.reconcile_gaps(d.character)
         stale = d.journal.stale_sessions(d.character, idle_seconds=self.idle_seconds)
 
         if not d.ready(idle_seconds=self.idle_seconds):
+            if q.get("jobs_failed_now"):
+                self.last_error = f"ingest queue failed: {q.get('jobs_failed_now')}"
             return None
 
         report = d.digest_once()
@@ -645,6 +653,9 @@ class Grower:
             report.errors.append(f"顺手关闭了 {filled} 个漏轮缺口")
         if stale:
             report.errors.append(f"检测到 {len(stale)} 个长时间无新输入会话（仅提示）")
+        if q.get("jobs_failed_now"):
+            report.errors.append(f"ingest queue 失败 {int(q.get('jobs_failed_now') or 0)} 次")
+
         self.reports.append(report)
         if len(self.reports) > 200:
             del self.reports[:-200]
@@ -664,11 +675,22 @@ class Grower:
 
     def drain(self, max_rounds: int = 50) -> List[DigestReport]:
         """一直煮到没料为止。用于导入历史记录，或者测试。"""
-        out = []
+        out: List[DigestReport] = []
+        d = self.digester
         for _ in range(max_rounds):
-            if not self.digester.pending_count():
-                break
-            r = self.digester.digest_once()
+            q = d.journal.drain_ingest_jobs(d.character, max_jobs=1)
+
+            # 这里只看 entries 队列：digest_once 处理的是 undigested entries。
+            has_entries = bool(d.journal.undigested(d.character, limit=1))
+            if not has_entries:
+                # 没有可消化生料，且本轮也没搬运/失败，就可以停。
+                if int(q.get("jobs_done_now") or 0) == 0 and int(q.get("jobs_failed_now") or 0) == 0:
+                    break
+                continue
+
+            r = d.digest_once()
+            if int(q.get("jobs_failed_now") or 0):
+                r.errors.append(f"ingest queue 失败 {int(q.get('jobs_failed_now') or 0)} 次")
             out.append(r)
             if r.errors and not r.events:
                 break
