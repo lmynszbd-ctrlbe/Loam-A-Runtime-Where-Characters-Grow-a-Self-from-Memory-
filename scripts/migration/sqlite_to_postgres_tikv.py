@@ -134,8 +134,19 @@ def _export_table(conn: sqlite3.Connection, table: str, sqlite_sql: str, out_dir
         name = str(c["name"])
         typ = str(c["type"] or "")
         nullable = int(c["notnull"] or 0) == 0
+
         pg_line = f"{_quote_ident(name)} {_map_type_pg(typ)}"
-        tk_line = f"{_mysql_ident(name)} {_map_type_tikv(typ)}"
+
+        tk_type = _map_type_tikv(typ)
+        # MySQL/TiKV 不允许 TEXT/BLOB 直接做主键（需要前缀长度）。
+        # 对文本/二进制主键列收敛到可索引的定长类型，避免 DDL 失败。
+        if name in pk_cols:
+            if tk_type == "LONGTEXT":
+                tk_type = "VARCHAR(191)"
+            elif tk_type == "LONGBLOB":
+                tk_type = "VARBINARY(191)"
+        tk_line = f"{_mysql_ident(name)} {tk_type}"
+
         if not nullable:
             pg_line += " NOT NULL"
             tk_line += " NOT NULL"
