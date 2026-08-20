@@ -9,7 +9,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from loam.core.growth import Trait, Evidence, CEILING  # noqa: E402
+from loam.core.growth import (  # noqa: E402
+    CEILING,
+    PENDING_RESIDUAL,
+    Evidence,
+    Trait,
+)
 
 
 def drive(trait, cycles, signal=1.0, salience=0.5, express=0.5, tag="t"):
@@ -156,6 +161,30 @@ def test_active_trait_does_not_decay():
         t.observe(expressed=True)
         t.settle(now=f"c{i}")
     assert t.strength >= before, "有输入的周期不该衰减"
+
+
+def test_dynamic_gate_increases_after_commit():
+    """每次发生质变后，下一次门槛应当更高（边际递减）。"""
+    t = Trait(id="m", text="x")
+    gate0 = t.gate
+    t.feed(Evidence(event_id="m0", signal=1.0, salience=1.0))
+    moved = t.settle(now="m1")
+
+    assert moved > 0.0, "应先发生一次质变"
+    assert t.gate_level == 1, "发生质变后应抬升 gate_level"
+    assert t.gate > gate0, "下一次门槛应上升"
+
+
+def test_commit_keeps_pending_residual():
+    """质变后 pending 不清零，保留残留惯性。"""
+    t = Trait(id="n", text="x")
+    t.feed(Evidence(event_id="n0", signal=1.0, salience=1.0))
+    before_pending = t.pending
+    moved = t.settle(now="n1")
+
+    assert moved > 0.0
+    assert moved < before_pending, "本轮不应吃掉全部 pending"
+    assert abs(t.pending - before_pending * PENDING_RESIDUAL) < 1e-9
 
 
 if __name__ == "__main__":

@@ -59,6 +59,17 @@ GATE_RATIO = 0.5
 #: 蓄水池阈值下限。防止萌芽期的特质因为阈值趋零而抖动。
 GATE_FLOOR = 0.004
 
+#: 动态门槛增益。每发生一次"质变提交"，下一次提交阈值按该倍率抬高。
+#: 用来实现边际递减：越往后，越难继续大幅跃迁。
+GATE_LEVEL_MULTIPLIER = 1.1
+
+#: 动态门槛的最大放大倍数。防止阈值无限上升导致完全冻结。
+GATE_LEVEL_CAP = 1.5
+
+#: 质变提交后保留的 pending 比例（惯性残留）。
+#: 不是把经历抹平，而是给下一轮一点连续性。
+PENDING_RESIDUAL = 0.2
+
 #: 蓄水池的渗漏系数。只在完全没有输入的周期生效 ——
 #: 渗漏的意思是"长期不被印证的冲动自己淡掉"，不是"攒着的东西一律漏"。
 #:
@@ -119,12 +130,15 @@ class Trait:
     id: str
     text: str
     strength: float = 0.0
-
     #: 蓄水池。未提交的变化在这里攒着。
     pending: float = 0.0
 
+    #: 动态门槛等级。每发生一次质变就提升一级，使下一次更难。
+    gate_level: int = 0
+
     #: 来历。每个提交过的变化都留下它依据的事件。
     evidence: List[str] = field(default_factory=list)
+
 
     reinforced: int = 0
     contradicted: int = 0
@@ -142,10 +156,17 @@ class Trait:
     def gate(self) -> float:
         """当前蓄水池阈值 —— 需要攒多少才会发生一次质变。
 
-        跟当前可塑量成比例。所以高强度特质的阈值也小，
-        它仍然可以被改变，只是每次只动一点，而且要攒很久。
+        由两部分共同决定：
+        1) 基础门槛：跟当前可塑量成比例。
+        2) 等级放大：每次质变后下一次门槛更高（边际递减）。
+
+        这样既保留"生长期快、固化期慢"，又避免连续质变过快把角色
+        推成不自然的超级状态。
         """
-        return max(GATE_FLOOR, GATE_RATIO * self._capacity())
+        base = max(GATE_FLOOR, GATE_RATIO * self._capacity())
+        level = max(0, int(self.gate_level))
+        scale = min(GATE_LEVEL_CAP, math.pow(GATE_LEVEL_MULTIPLIER, level))
+        return base * scale
 
     def _capacity(self) -> float:
         """当前的可塑量，一个 S*(1-S) 钟形。
@@ -199,7 +220,8 @@ class Trait:
         moved = 0.0
         if abs(self.pending) >= self.gate:
             before = self.strength
-            self.strength = _clamp(self.strength + self.pending, 0.0, CEILING)
+            applied = self.pending * (1.0 - PENDING_RESIDUAL)
+            self.strength = _clamp(self.strength + applied, 0.0, CEILING)
             moved = self.strength - before
             # 质变发生，把攒到现在的全部来历记进去
             self.evidence.extend(self._staged)
@@ -207,7 +229,15 @@ class Trait:
             self.last_commit_at = now
             if self.formed_at is None:
                 self.formed_at = now
-            self.pending = 0.0
+            # 不完全清零：保留一部分惯性，避免刚跃迁完立刻掉回去。
+            self.pending *= PENDING_RESIDUAL
+            if abs(moved) > 1e-9:
+                self.gate_level += 1
+            # 到边界后，同向残留不再保留，避免在边界上空转。
+            if (self.strength <= 0.0 and self.pending < 0.0) or (
+                self.strength >= CEILING and self.pending > 0.0
+            ):
+                self.pending = 0.0
         elif not had_input:
             # 这个周期没人提它 —— 蓄水池渗漏一部分。
             # 有输入的周期不漏：一次次被印证的小事必须能攒起来，

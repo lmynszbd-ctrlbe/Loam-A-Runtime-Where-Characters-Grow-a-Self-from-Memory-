@@ -153,6 +153,11 @@ def test_trait_staged_roundtrip_via_memory():
         loaded = [x for x in m.load_traits() if x.id == "tr_stage"][0]
         assert loaded.pending > 0
         assert loaded._staged, "蓄水池来历要可持久化"
+
+        loaded.gate_level = 2
+        m.save_trait(loaded)
+        loaded2 = [x for x in m.load_traits() if x.id == "tr_stage"][0]
+        assert loaded2.gate_level == 2, "动态门槛等级要可持久化"
     finally:
         m.close()
         shutil.rmtree(tmp)

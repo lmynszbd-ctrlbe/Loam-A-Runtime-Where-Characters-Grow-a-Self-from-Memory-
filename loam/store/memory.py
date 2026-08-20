@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS traits (
     text           TEXT    NOT NULL,
     strength       REAL    NOT NULL DEFAULT 0.0,
     pending        REAL    NOT NULL DEFAULT 0.0,
+    -- 动态门槛等级：每次发生质变后递增。
+    gate_level     INTEGER NOT NULL DEFAULT 0,
     -- 已提交的来历
     evidence       TEXT    NOT NULL DEFAULT '[]',
     -- 蓄水池里攒着但还没质变的来历。不能丢。
@@ -245,9 +247,27 @@ class Memory:
         self._db.execute("PRAGMA journal_mode=WAL")
         self._db.execute("PRAGMA synchronous=NORMAL")
         self._db.executescript(SCHEMA)
+        self._ensure_schema_compat()
         for trig in TRIGGERS:
             self._db.execute(trig)
         self._db.commit()
+
+    def _ensure_schema_compat(self) -> None:
+        """向后兼容旧库：按需补齐新字段。"""
+        self._ensure_column(
+            "traits",
+            "gate_level",
+            "gate_level INTEGER NOT NULL DEFAULT 0",
+        )
+
+    def _ensure_column(self, table: str, column: str, ddl: str) -> None:
+        cols = {
+            str(r["name"])
+            for r in self._db.execute(f"PRAGMA table_info({table})").fetchall()
+        }
+        if column in cols:
+            return
+        self._db.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
 
     # ------------------------------------------------------------ 事件
     def add_event(self, event: Event) -> None:
@@ -563,6 +583,7 @@ class Memory:
                 text=r["text"],
                 strength=r["strength"],
                 pending=r["pending"],
+                gate_level=int(r["gate_level"] or 0),
                 evidence=json.loads(r["evidence"]),
                 reinforced=r["reinforced"],
                 contradicted=r["contradicted"],
@@ -578,22 +599,23 @@ class Memory:
 
     def save_trait(self, trait: Trait, from_seed: bool = False) -> None:
         self._db.execute(
-            "INSERT INTO traits (id, text, strength, pending, evidence, staged,"
+            "INSERT INTO traits (id, text, strength, pending, gate_level, evidence, staged,"
             " reinforced, contradicted, expressed, opportunities,"
             " formed_at, last_commit_at, from_seed)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT(id) DO UPDATE SET"
             "   text=excluded.text, strength=excluded.strength,"
-            "   pending=excluded.pending, evidence=excluded.evidence,"
-            "   staged=excluded.staged, reinforced=excluded.reinforced,"
-            "   contradicted=excluded.contradicted, expressed=excluded.expressed,"
-            "   opportunities=excluded.opportunities, formed_at=excluded.formed_at,"
-            "   last_commit_at=excluded.last_commit_at",
+            "   pending=excluded.pending, gate_level=excluded.gate_level,"
+            "   evidence=excluded.evidence, staged=excluded.staged,"
+            "   reinforced=excluded.reinforced, contradicted=excluded.contradicted,"
+            "   expressed=excluded.expressed, opportunities=excluded.opportunities,"
+            "   formed_at=excluded.formed_at, last_commit_at=excluded.last_commit_at",
             (
                 trait.id,
                 trait.text,
                 trait.strength,
                 trait.pending,
+                int(trait.gate_level),
                 json.dumps(trait.evidence),
                 json.dumps(trait._staged),
                 trait.reinforced,
