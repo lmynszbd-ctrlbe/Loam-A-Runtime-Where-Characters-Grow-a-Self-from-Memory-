@@ -45,7 +45,8 @@ python -m loam run --character demo --home ~/.loam/characters
 - `/recompute` 与 `/recompute/history`（增量/全量重算）
 
 ## 部署方式
-- **Android / Termux**：`TERMUX_QUICKSTART.md`
+- **零基础超详细（推荐先看）**：`docs/DEPLOYMENT_FOR_ABSOLUTE_BEGINNERS.md`
+- **Android / Termux 快速版**：`TERMUX_QUICKSTART.md`
 - **Linux / VM / WSL / macOS**：`DEPLOYMENT_MODES.md`
 - **容器化部署**：`Dockerfile` + `docker-compose.yml`
 - **多上游路由**：`MULTI_UPSTREAM_QUICKSTART.md`
@@ -72,7 +73,8 @@ python -m loam run --character demo --home ~/.loam/characters
 
 ## 项目归属
 - **@lmynszbd-ctrlbe** — Project initiated, designed, and directed by @lmynszbd-ctrlbe.
-- **all（崽崽）** — AI co-author (implementation assistance, checklist closure, release-note drafting).
+- **玉槿（AI 共创者）** — AI co-author (implementation assistance, checklist closure, beginner deployment documentation, release-note drafting).
+- **all（AI 共创者）** — AI co-author (implementation assistance, refactoring support, test scaffolding).
 
 ---
 Don’t hard-freeze a persona. Grow a self from memory.

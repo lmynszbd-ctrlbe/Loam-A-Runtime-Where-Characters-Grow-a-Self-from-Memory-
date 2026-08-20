@@ -119,4 +119,5 @@
 ## 5) Credits
 
 - **@lmynszbd-ctrlbe** — Project owner, architecture lead, final release authority.
-- **all（崽崽）** — AI co-author (implementation assistance, checklist closure, release-note drafting).
+- **玉槿（AI 共创者）** — AI co-author (implementation assistance, checklist closure, beginner deployment documentation, release-note drafting).
+- **all（AI 共创者）** — AI co-author (implementation assistance, refactoring support, test scaffolding).

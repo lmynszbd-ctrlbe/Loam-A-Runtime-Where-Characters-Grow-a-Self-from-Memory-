@@ -3,6 +3,12 @@
 This playbook covers complete deployment from zero to production-like operation, including Termux, Linux server, desktop dev, and containerized scenarios.
 本手册覆盖从零到可上线的完整部署路径，包含 Termux、Linux 服务器、桌面开发与容器化场景。
 
+> If you are a complete beginner, read this first:
+> `docs/DEPLOYMENT_FOR_ABSOLUTE_BEGINNERS.md`
+>
+> 如果你是零基础用户，请先看：
+> `docs/DEPLOYMENT_FOR_ABSOLUTE_BEGINNERS.md`
+
 ---
 
 ## 1) Architecture in one paragraph

@@ -3,6 +3,12 @@
 This guide is for users who deploy loam on a single Android device with Termux.
 本指南面向在单台 Android 设备上使用 Termux 部署 loam 的用户。
 
+> If you need ultra-detailed step-by-step guidance (beginner friendly), read:
+> `docs/DEPLOYMENT_FOR_ABSOLUTE_BEGINNERS.md`
+>
+> 如果你希望看到“每一步都拆开讲”的零基础手册，请看：
+> `docs/DEPLOYMENT_FOR_ABSOLUTE_BEGINNERS.md`
+
 ---
 
 ## Before you start
