@@ -95,6 +95,8 @@ install_prereqs() {
 clone_repo() {
     heading "Cloning loam"
     LOAM_DIR="${HOME}/loam"
+    REPO="https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git"
+    RAW="https://raw.githubusercontent.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/main"
 
     if [ -d "$LOAM_DIR" ]; then
         say "loam already exists at ${LOAM_DIR}"
@@ -102,11 +104,15 @@ clone_repo() {
         if git pull --ff-only 2>/dev/null; then
             say "Pulled latest changes"
         else
-            warn "Could not pull latest — you may have local changes. Continuing..."
+            warn "git pull failed (network issue?) — trying curl fallback..."
+            for f in scripts/admin.py scripts/setup.sh bridge/forced_flow_proxy.py; do
+                curl -fsSL "${RAW}/${f}" -o "${f}" 2>/dev/null && say "  ✓ ${f}" || warn "  ✗ ${f} (skipped)"
+            done
+            say "Core files updated via curl"
         fi
     else
         say "Cloning into ${LOAM_DIR}..."
-        git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git "$LOAM_DIR"
+        git clone "$REPO" "$LOAM_DIR"
         cd "$LOAM_DIR"
     fi
 }
@@ -162,11 +168,17 @@ EOF
 start_services() {
     heading "Starting loam"
 
-    # Kill any existing instances
+    # Kill any existing instances — aggressive port-based kill for Android
+    say "Stopping old processes..."
     pkill -f "loam.__main__" 2>/dev/null || true
     pkill -f "forced_flow_proxy" 2>/dev/null || true
+    pkill -f "scripts/admin.py" 2>/dev/null || true
     pkill -f "dashboard.py" 2>/dev/null || true
-    sleep 1
+    # Aggressive: kill anything on loam ports (Android stubborn processes)
+    fuser -k 8765/tcp 2>/dev/null || true
+    fuser -k 8780/tcp 2>/dev/null || true
+    fuser -k 8899/tcp 2>/dev/null || true
+    sleep 2
 
     # Start loam
     nohup python3 -m loam run --grow-interval 60 > /dev/null 2>&1 &
