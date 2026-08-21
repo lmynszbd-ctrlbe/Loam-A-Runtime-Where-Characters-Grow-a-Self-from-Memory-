@@ -1,8 +1,6 @@
 # loam Deployment Guide
 
 > 🚀 **One-click**: `git clone <repo> && cd loam && bash scripts/setup.sh` — auto-detects OS, installs everything, opens admin panel.
-> 📖 **Manual**: pick your platform below for step-by-step commands.
-
 ---
 
 ## Quick overview
