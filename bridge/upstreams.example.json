@@ -2,18 +2,8 @@
   "default": "relayA",
   "providers": {
     "relayA": {
-      "base_url": "https://relay-a.example.com",
+      "base_url": "https://api.deepseek.com",
       "api_key": "sk-xxx",
-      "default_model": "gpt-4o-mini"
-    },
-    "relayB": {
-      "base_url": "https://relay-b.example.com",
-      "api_key": "sk-yyy",
-      "default_model": "claude-3-5-sonnet"
-    },
-    "relayC": {
-      "base_url": "https://relay-c.example.com",
-      "api_key": "sk-zzz",
       "default_model": "deepseek-chat"
     }
   }

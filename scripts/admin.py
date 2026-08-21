@@ -291,15 +291,15 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
       <div class="grid connect-form-row" style="grid-template-columns:1fr 1fr 1fr auto auto; gap:8px; align-items:end">
         <div class="form-group" style="margin:0">
           <label>Base URL（API 地址）</label>
-          <input id="sec-url" placeholder="https://api.deepseek.com">
+          <input id="sec-url" placeholder="请填写">
         </div>
         <div class="form-group" style="margin:0">
           <label>API Key（密钥）</label>
-          <input id="sec-key" placeholder="sk-..." type="password">
+          <input id="sec-key" placeholder="请填写" type="password">
         </div>
         <div class="form-group" style="margin:0">
           <label>Model（模型名）</label>
-          <input id="sec-model" placeholder="deepseek-chat" list="sec-models-list">
+          <input id="sec-model" placeholder="请填写" list="sec-models-list">
           <datalist id="sec-models-list"></datalist>
         </div>
         <button class="btn btn-sm btn-outline" style="height:38px;align-self:end" class="btn-fetch" onclick="fetchModels('sec')" title="从提供商拉取可用模型列表">拉取</button>
@@ -608,19 +608,19 @@ function renderUpstreamRows(defName) {
     return `<div class="upstream-row" id="up-row-${escAttr(name)}" style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto auto;gap:8px;align-items:end;padding:8px 0;border-bottom:1px solid var(--border)">
       <div class="form-group" style="margin:0">
         <label>Name</label>
-        <input class="up-name-inp" value="${escAttr(name)}" placeholder="relayA" style="font-weight:600">
+        <input class="up-name-inp" value="${escAttr(name)}" placeholder="请填写" style="font-weight:600">
       </div>
       <div class="form-group" style="margin:0">
         <label>Base URL</label>
-        <input class="up-url-inp" value="${escAttr(p.base_url||'')}" placeholder="https://api.deepseek.com">
+        <input class="up-url-inp" value="${escAttr(p.base_url||'')}" placeholder="请填写">
       </div>
       <div class="form-group" style="margin:0">
         <label>API Key</label>
-        <input class="up-key-inp" type="password" value="${escAttr(p.api_key||'')}" placeholder="sk-...">
+        <input class="up-key-inp" type="password" value="${escAttr(p.api_key||'')}" placeholder="请填写">
       </div>
       <div class="form-group" style="margin:0">
         <label>Model</label>
-        <input class="up-model-inp" value="${escAttr(p.default_model||'')}" placeholder="deepseek-chat" list="up-models-list-${escAttr(name)}">
+        <input class="up-model-inp" value="${escAttr(p.default_model||'')}" placeholder="请填写" list="up-models-list-${escAttr(name)}">
         <datalist id="up-models-list-${escAttr(name)}"></datalist>
       </div>
       <button class="btn btn-sm btn-outline" style="height:38px;align-self:end" class="btn-fetch" onclick="fetchModels('${escAttr(name)}')" title="拉取模型列表">拉取</button>
@@ -656,20 +656,24 @@ function collectUpstreamFromDOM() {
   rows.forEach(row => {
     const name = (row.querySelector('.up-name-inp')?.value || '').trim();
     if (!name) return;
+    const modelEl = row.querySelector('.up-model-inp');
+    const modelVal = modelEl ? (modelEl.tagName === 'SELECT' ? modelEl.value : modelEl.value) : '';
     data[name] = {
       base_url: (row.querySelector('.up-url-inp')?.value || '').trim(),
       api_key: (row.querySelector('.up-key-inp')?.value || '').trim(),
-      default_model: (row.querySelector('.up-model-inp')?.value || '').trim(),
+      default_model: modelVal.trim(),
     };
   });
   return data;
 }
 
 async function saveSecrets() {
+  const modelEl = document.getElementById('sec-model');
+  const modelVal = (modelEl.tagName === 'SELECT' ? modelEl.value : modelEl.value).trim();
   const body = {
     api_key: document.getElementById('sec-key').value.trim(),
     base_url: document.getElementById('sec-url').value.trim(),
-    model: document.getElementById('sec-model').value.trim(),
+    model: modelVal,
   };
   if (!body.api_key || !body.base_url || !body.model) {
     toast('Fill in all three fields for loam Memory API', 'err'); return;
@@ -705,31 +709,51 @@ function loadConnect() { loadApiConfig(); }
 
 // ---- FETCH MODELS ----
 async function fetchModels(section) {
-  let url, key, targetList, btnId;
+  let url, key, targetId, btnId;
   if (section === 'sec') {
     url = document.getElementById('sec-url').value.trim();
     key = document.getElementById('sec-key').value.trim();
-    targetList = 'sec-models-list';
+    targetId = 'sec-model';
     btnId = 'sec-status';
   } else {
     const row = document.getElementById('up-row-'+section);
     if (!row) { toast('Provider row not found', 'err'); return; }
     url = row.querySelector('.up-url-inp')?.value.trim() || '';
     key = row.querySelector('.up-key-inp')?.value.trim() || '';
-    targetList = 'up-models-list-'+section;
+    targetId = null; // will find in row
     btnId = 'up-status';
   }
   if (!url || !key) { toast('请先填写 Base URL 和 API Key', 'err'); return; }
-  // show spinner
   const statusEl = document.getElementById(btnId);
   if (statusEl) statusEl.innerHTML = '<span class="spinner"></span> 正在拉取模型列表...';
-  // disable all fetch buttons
   document.querySelectorAll('.btn-fetch').forEach(b => { b.disabled = true; b.classList.add('btn-fetching'); });
   try {
     const r = await callAdmin('POST', '/admin/fetch-models', {base_url: url, api_key: key});
     if (r.models && r.models.length) {
-      const dl = document.getElementById(targetList);
-      if (dl) dl.innerHTML = r.models.map(m => `<option value="${m}">`).join('');
+      if (targetId) {
+        // replace input with select
+        const inp = document.getElementById(targetId);
+        if (inp) {
+          const sel = document.createElement('select');
+          sel.id = targetId;
+          sel.style.cssText = inp.style.cssText;
+          sel.innerHTML = r.models.map(m => `<option value="${m}">${m}</option>`).join('');
+          inp.parentNode.replaceChild(sel, inp);
+        }
+      } else {
+        // upstream row: find model input and replace with select
+        const row = document.getElementById('up-row-'+section);
+        if (row) {
+          const inp = row.querySelector('.up-model-inp');
+          if (inp) {
+            const sel = document.createElement('select');
+            sel.className = 'up-model-inp';
+            sel.style.cssText = inp.style.cssText;
+            sel.innerHTML = r.models.map(m => `<option value="${m}">${m}</option>`).join('');
+            inp.parentNode.replaceChild(sel, inp);
+          }
+        }
+      }
       toast(`${r.models.length} 个模型已加载`, 'ok');
       if (statusEl) statusEl.innerHTML = `<span class="ok">✓ 已加载 ${r.models.length} 个模型</span>`;
     } else {
