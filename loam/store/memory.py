@@ -94,10 +94,18 @@ CREATE TABLE IF NOT EXISTS traits (
     pending        REAL    NOT NULL DEFAULT 0.0,
     -- 动态门槛等级：每次发生质变后递增。
     gate_level     INTEGER NOT NULL DEFAULT 0,
+    -- 快态与惯性：允许心电图式波动，但不覆盖长期稳态。
+    transient      REAL    NOT NULL DEFAULT 0.0,
+    momentum       REAL    NOT NULL DEFAULT 0.0,
+    -- 生命周期：静默多久、是否还在暖启动。
+    inactive_cycles  INTEGER NOT NULL DEFAULT 0,
+    warmup_remaining INTEGER NOT NULL DEFAULT 0,
     -- 已提交的来历
     evidence       TEXT    NOT NULL DEFAULT '[]',
     -- 蓄水池里攒着但还没质变的来历。不能丢。
     staged         TEXT    NOT NULL DEFAULT '[]',
+    -- 低置信/高歧义、尚未被独立印证的证据池。
+    uncertain      TEXT    NOT NULL DEFAULT '[]',
     reinforced     INTEGER NOT NULL DEFAULT 0,
     contradicted   INTEGER NOT NULL DEFAULT 0,
     expressed      INTEGER NOT NULL DEFAULT 0,
@@ -106,6 +114,10 @@ CREATE TABLE IF NOT EXISTS traits (
     last_commit_at TEXT,
     -- 来自角色卡的种子特质。土壤，全程保留。
     from_seed      INTEGER NOT NULL DEFAULT 0,
+    -- 运行期调节项：有界随机、置信闸门、蛰伏阈值。
+    fuzziness        REAL    NOT NULL DEFAULT 0.0,
+    uncertainty_gate REAL    NOT NULL DEFAULT 0.55,
+    dormancy_after   INTEGER NOT NULL DEFAULT 24,
     retired        INTEGER NOT NULL DEFAULT 0
 );
 
@@ -254,11 +266,20 @@ class Memory:
 
     def _ensure_schema_compat(self) -> None:
         """向后兼容旧库：按需补齐新字段。"""
-        self._ensure_column(
-            "traits",
-            "gate_level",
-            "gate_level INTEGER NOT NULL DEFAULT 0",
-        )
+        trait_columns = [
+            ("gate_level", "gate_level INTEGER NOT NULL DEFAULT 0"),
+            ("transient", "transient REAL NOT NULL DEFAULT 0.0"),
+            ("momentum", "momentum REAL NOT NULL DEFAULT 0.0"),
+            ("inactive_cycles", "inactive_cycles INTEGER NOT NULL DEFAULT 0"),
+            ("warmup_remaining", "warmup_remaining INTEGER NOT NULL DEFAULT 0"),
+            ("uncertain", "uncertain TEXT NOT NULL DEFAULT '[]'"),
+            ("fuzziness", "fuzziness REAL NOT NULL DEFAULT 0.0"),
+            ("uncertainty_gate", "uncertainty_gate REAL NOT NULL DEFAULT 0.55"),
+            ("dormancy_after", "dormancy_after INTEGER NOT NULL DEFAULT 24"),
+            ("from_seed", "from_seed INTEGER NOT NULL DEFAULT 0"),
+        ]
+        for col, ddl in trait_columns:
+            self._ensure_column("traits", col, ddl)
 
     def _ensure_column(self, table: str, column: str, ddl: str) -> None:
         cols = {
@@ -581,50 +602,84 @@ class Memory:
             t = Trait(
                 id=r["id"],
                 text=r["text"],
-                strength=r["strength"],
-                pending=r["pending"],
+                strength=float(r["strength"] or 0.0),
+                pending=float(r["pending"] or 0.0),
                 gate_level=int(r["gate_level"] or 0),
-                evidence=json.loads(r["evidence"]),
-                reinforced=r["reinforced"],
-                contradicted=r["contradicted"],
-                expressed=r["expressed"],
-                opportunities=r["opportunities"],
+                transient=float(r["transient"] or 0.0),
+                momentum=float(r["momentum"] or 0.0),
+                inactive_cycles=int(r["inactive_cycles"] or 0),
+                warmup_remaining=int(r["warmup_remaining"] or 0),
+                from_seed=bool(r["from_seed"]),
+                fuzziness=float(r["fuzziness"] or 0.0),
+                uncertainty_gate=float(r["uncertainty_gate"] or 0.55),
+                dormancy_after=int(r["dormancy_after"] or 24),
+                evidence=json.loads(r["evidence"] or "[]"),
+                reinforced=int(r["reinforced"] or 0),
+                contradicted=int(r["contradicted"] or 0),
+                expressed=int(r["expressed"] or 0),
+                opportunities=int(r["opportunities"] or 0),
                 formed_at=r["formed_at"],
                 last_commit_at=r["last_commit_at"],
             )
             # 蓄水池里攒着的来历必须还原，否则质变时指不回去
-            t._staged = json.loads(r["staged"])
+            try:
+                t._staged = json.loads(r["staged"] or "[]")
+            except (TypeError, ValueError):
+                t._staged = []
+            try:
+                raw_uncertain = json.loads(r["uncertain"] or "[]")
+                t._uncertain = raw_uncertain if isinstance(raw_uncertain, list) else []
+            except (TypeError, ValueError):
+                t._uncertain = []
             out.append(t)
         return out
 
     def save_trait(self, trait: Trait, from_seed: bool = False) -> None:
+        seed_flag = int(bool(from_seed or trait.from_seed))
         self._db.execute(
-            "INSERT INTO traits (id, text, strength, pending, gate_level, evidence, staged,"
+            "INSERT INTO traits ("
+            " id, text, strength, pending, gate_level, transient, momentum,"
+            " inactive_cycles, warmup_remaining, evidence, staged, uncertain,"
             " reinforced, contradicted, expressed, opportunities,"
-            " formed_at, last_commit_at, from_seed)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            " formed_at, last_commit_at, from_seed,"
+            " fuzziness, uncertainty_gate, dormancy_after"
+            ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT(id) DO UPDATE SET"
             "   text=excluded.text, strength=excluded.strength,"
             "   pending=excluded.pending, gate_level=excluded.gate_level,"
-            "   evidence=excluded.evidence, staged=excluded.staged,"
+            "   transient=excluded.transient, momentum=excluded.momentum,"
+            "   inactive_cycles=excluded.inactive_cycles, warmup_remaining=excluded.warmup_remaining,"
+            "   evidence=excluded.evidence, staged=excluded.staged, uncertain=excluded.uncertain,"
             "   reinforced=excluded.reinforced, contradicted=excluded.contradicted,"
             "   expressed=excluded.expressed, opportunities=excluded.opportunities,"
-            "   formed_at=excluded.formed_at, last_commit_at=excluded.last_commit_at",
+            "   formed_at=excluded.formed_at, last_commit_at=excluded.last_commit_at,"
+            "   from_seed=MAX(traits.from_seed, excluded.from_seed),"
+            "   fuzziness=excluded.fuzziness,"
+            "   uncertainty_gate=excluded.uncertainty_gate,"
+            "   dormancy_after=excluded.dormancy_after",
             (
                 trait.id,
                 trait.text,
-                trait.strength,
-                trait.pending,
+                float(trait.strength),
+                float(trait.pending),
                 int(trait.gate_level),
-                json.dumps(trait.evidence),
-                json.dumps(trait._staged),
-                trait.reinforced,
-                trait.contradicted,
-                trait.expressed,
-                trait.opportunities,
+                float(trait.transient),
+                float(trait.momentum),
+                int(trait.inactive_cycles),
+                int(trait.warmup_remaining),
+                json.dumps(trait.evidence, ensure_ascii=False),
+                json.dumps(trait._staged, ensure_ascii=False),
+                json.dumps(trait._uncertain, ensure_ascii=False),
+                int(trait.reinforced),
+                int(trait.contradicted),
+                int(trait.expressed),
+                int(trait.opportunities),
                 trait.formed_at,
                 trait.last_commit_at,
-                int(from_seed),
+                seed_flag,
+                float(trait.fuzziness),
+                float(trait.uncertainty_gate),
+                int(trait.dormancy_after),
             ),
         )
         self._db.commit()

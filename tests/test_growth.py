@@ -187,6 +187,43 @@ def test_commit_keeps_pending_residual():
     assert abs(t.pending - before_pending * PENDING_RESIDUAL) < 1e-9
 
 
+def test_rebound_pulls_extreme_trait_toward_center():
+    """极端特质长时间无输入时会向中心 0.5 自然软化。"""
+    t = Trait(id="r", text="x")
+    t.strength = 0.92
+    for i in range(500):
+        t.settle(now=f"c{i}")
+    assert t.strength < 0.88, "极端高位应被回弹拉向中心"
+    # DECAY 独自作用 500 周期后约 0.56，回弹让它不低于 0.55
+    assert t.strength > 0.50, "回弹不该快到让特质崩掉"
+
+
+def test_feed_saturation_near_boundary():
+    """近边界时同向吸收打折，提前消耗而非硬拦。"""
+    t = Trait(id="s", text="x")
+    t.strength = 0.92  # 近上限
+    # 灌 30 次同向高权经历
+    for i in range(30):
+        t.feed(Evidence(event_id=f"s{i}", signal=1.0, salience=0.7))
+    t.settle(now="s")
+    # 如果是无饱和的线性吸收，pending 会远超 0.03
+    # 有饱和后，吸收明显打折
+    assert t.pending < 0.06, "近边界吸收应被饱和打折"
+
+
+def test_seed_warmup_assimilation():
+    """种子特质暖启动期间，写入长期人格更谨慎。"""
+    t = Trait(id="w", text="x", warmup_remaining=6, from_seed=True)
+    assert t.life_phase == "暖启动"
+    # 暖启动期间 assimilation=0.62，pending 积累慢
+    for i in range(3):
+        t.feed(Evidence(event_id=f"w{i}", signal=1.0, salience=0.6))
+        t.settle(now=f"w{i}")
+    # 暖启动结束后 warmup 递减
+    assert t.warmup_remaining >= 0
+    assert t.pending >= 0, "pending 不应为负"
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

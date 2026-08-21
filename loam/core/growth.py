@@ -28,9 +28,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import math
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 # ---------------------------------------------------------------- 常量
 
@@ -88,6 +89,26 @@ CALIBRATION_TOLERANCE = 0.15
 #: 强度本身的极缓慢衰减（每个完全无输入的周期）。
 DECAY = 0.999
 
+#: 快态衰减。快态像心电图，会先响应，再逐渐回到稳态附近。
+FAST_DECAY = 0.72
+
+#: 快态最大偏移，防止一件事把表层反应推到失控。
+FAST_LIMIT = 0.28
+
+#: 低于该置信度的解释只进入待确认池，不进入长期蓄水池。
+UNCERTAINTY_GATE = 0.55
+
+#: 默认多少个无输入周期后进入蛰伏。
+DORMANCY_AFTER = 24
+
+#: 质变越接近边界，实际吸收越弱；硬边界仍由 CEILING 兜底。
+SATURATION_START = 0.88
+
+#: 回弹力。极端特质长期无输入时，自然向中心 0.5 缓慢回归。
+#: 不是"遗忘"，而是"没有持续印证时，极端立场会慢慢软化"。
+#: 公式：回弹量 = REBOUND * (|S-0.5|/0.5) * sign(S-0.5)，方向向中心。
+REBOUND = 0.001
+
 
 # ---------------------------------------------------------------- 数据结构
 
@@ -106,17 +127,24 @@ class Evidence:
     event_id: str
     signal: float
     salience: float = 0.5
+    #: 对“当前解释是否可靠”的认识论置信度，不等于事实真伪。
+    confidence: float = 1.0
+    #: 字面与真实意图可能不一致的程度。系统不读心，只降低承诺。
+    ambiguity: float = 0.0
 
     def __post_init__(self) -> None:
         if not self.event_id:
             raise ValueError("证据必须指向一个具体事件（event_id 不可为空）")
         self.signal = _clamp(self.signal, -1.0, 1.0)
         self.salience = _clamp(self.salience, 0.0, 1.0)
+        self.confidence = _clamp(self.confidence, 0.0, 1.0)
+        self.ambiguity = _clamp(self.ambiguity, 0.0, 1.0)
 
     @property
     def force(self) -> float:
-        """这次经历的有效推力。"""
-        return self.signal * self.salience
+        """有效推力：重要度之外，还受解释置信度与歧义抑制。"""
+        epistemic = self.confidence * (1.0 - 0.65 * self.ambiguity)
+        return self.signal * self.salience * epistemic
 
 
 @dataclass
@@ -136,9 +164,22 @@ class Trait:
     #: 动态门槛等级。每发生一次质变就提升一级，使下一次更难。
     gate_level: int = 0
 
+    #: 快态与惯性：先在表层起波动，长期稳态仍由 strength 表示。
+    transient: float = 0.0
+    momentum: float = 0.0
+
+    #: 生命周期与人格暖启动。
+    inactive_cycles: int = 0
+    warmup_remaining: int = 0
+    from_seed: bool = False
+
+    #: 运行期调节项（由 runtime config 注入，不需要成为历史真值）。
+    fuzziness: float = 0.0
+    uncertainty_gate: float = UNCERTAINTY_GATE
+    dormancy_after: int = DORMANCY_AFTER
+
     #: 来历。每个提交过的变化都留下它依据的事件。
     evidence: List[str] = field(default_factory=list)
-
 
     reinforced: int = 0
     contradicted: int = 0
@@ -183,25 +224,108 @@ class Trait:
         return s * room
 
     def feed(self, ev: Evidence) -> None:
-        """吸收一次经历。只进蓄水池，不直接改强度。"""
-        force = ev.force
+        """吸收一次经历：先起快态，再过认识论内门，最后进入长期蓄水池。
+
+        高歧义/低置信度并不会被当成“反话真相”。它只留下暂态反应并
+        进入待确认池；之后出现同方向、较可靠的独立经历时才折价吸收。
+        """
+        jitter = _stable_jitter(self.id, ev.event_id, self.fuzziness)
+        force = ev.force * jitter
         delta = PLASTICITY * self._capacity() * force
 
-        # 极重大的事件可以绕过固化阻力
+        # 极重大的事件可以绕过固化阻力，但仍受解释置信度约束。
         if ev.salience >= BREAKTHROUGH:
-            delta += BREAKTHROUGH_GAIN * ev.signal * (ev.salience - BREAKTHROUGH)
+            delta += (
+                BREAKTHROUGH_GAIN
+                * ev.signal
+                * (ev.salience - BREAKTHROUGH)
+                * ev.confidence
+                * (1.0 - 0.65 * ev.ambiguity)
+            )
 
-        self.pending += delta
+        # 快态不等于人格提交：它允许短期不认同、犹疑、回摆。
+        self.transient = _clamp(self.transient + delta * 1.35, -FAST_LIMIT, FAST_LIMIT)
+        self.momentum = _clamp(self.momentum * 0.68 + force * 0.32, -1.0, 1.0)
+        self._fed = True
+        self.inactive_cycles = 0
+
+        epistemic = ev.confidence * (1.0 - ev.ambiguity)
+        if epistemic < self.uncertainty_gate:
+            self._uncertain.append(
+                {
+                    "event_id": ev.event_id,
+                    "signal": ev.signal,
+                    "salience": ev.salience,
+                    "confidence": ev.confidence,
+                    "ambiguity": ev.ambiguity,
+                }
+            )
+            self._uncertain = self._uncertain[-32:]
+            return
+
+        # 较可靠的新经历可确认同方向的旧疑点；旧疑点只折价进入长期层。
+        promoted = 0.0
+        kept: List[Dict[str, object]] = []
+        for old in self._uncertain:
+            old_signal = float(old.get("signal", 0.0) or 0.0)
+            if old_signal * ev.signal > 0.0 and str(old.get("event_id", "")) != ev.event_id:
+                old_force = (
+                    old_signal
+                    * float(old.get("salience", 0.0) or 0.0)
+                    * float(old.get("confidence", 0.0) or 0.0)
+                    * (1.0 - float(old.get("ambiguity", 0.0) or 0.0))
+                )
+                promoted += PLASTICITY * self._capacity() * old_force * 0.35
+                old_id = str(old.get("event_id", ""))
+                if old_id and old_id not in self._staged:
+                    self._staged.append(old_id)
+            else:
+                kept.append(old)
+        self._uncertain = kept
+
+        # 角色卡种子处于暖启动：快态照常响应，写入长期人格则更谨慎。
+        assimilation = 0.62 if self.warmup_remaining > 0 else 1.0
+        if self.life_phase == "蛰伏":
+            assimilation *= 0.35
+        elif self.life_phase == "复苏":
+            assimilation *= 0.68
+
+        # 吸收饱和：近边界时同向吸收打折，提前消耗而非硬拦。
+        if (delta > 0.0 and self.strength > SATURATION_START) or (
+            delta < 0.0 and self.strength < (1.0 - SATURATION_START)
+        ):
+            edge = max(self.strength, 1.0 - self.strength)
+            feed_resistance = _clamp(1.0 - (edge - SATURATION_START) / 0.18, 0.25, 1.0)
+            delta *= feed_resistance
+
+        self.pending += (delta + promoted) * assimilation
+
         if force >= 0:
             self.reinforced += 1
         else:
             self.contradicted += 1
-        self._staged.append(ev.event_id)
+        if ev.event_id not in self._staged:
+            self._staged.append(ev.event_id)
+
+    def absorb_relation(self, amount: float, event_id: str) -> None:
+        """吸收一跳特质关系传播；只进快态/蓄水池，不在同轮级联提交。"""
+        if not event_id or abs(amount) < 1e-12:
+            return
+        amount = _clamp(amount, -0.12, 0.12)
+        self.transient = _clamp(self.transient + amount, -FAST_LIMIT, FAST_LIMIT)
+        self.pending += amount
+        self.momentum = _clamp(self.momentum * 0.8 + math.copysign(0.2, amount), -1.0, 1.0)
         self._fed = True
+        self.inactive_cycles = 0
+        if event_id not in self._staged:
+            self._staged.append(event_id)
 
     #: 尚未提交的证据 id。跨周期保留 —— 蓄水池里攒着的每一分变化
     #: 都必须能指回它的来历，所以未提交前不允许丢弃。
     _staged: List[str] = field(default_factory=list, repr=False)
+
+    #: 解释不确定、尚未获独立印证的证据。
+    _uncertain: List[Dict[str, object]] = field(default_factory=list, repr=False)
 
     #: 本周期是否有经历进来。
     _fed: bool = field(default=False, repr=False)
@@ -214,6 +338,17 @@ class Trait:
         """
         had_input, self._fed = self._fed, False
 
+        if had_input:
+            self.inactive_cycles = 0
+            if self.warmup_remaining > 0:
+                self.warmup_remaining -= 1
+        else:
+            self.inactive_cycles += 1
+
+        # 快态会回落，惯性更慢；因此可有小波折，但不会取代稳态人格。
+        self.transient *= FAST_DECAY if had_input else 0.82
+        self.momentum *= 0.86 if had_input else 0.72
+
         # 行为校准：让强度向实际表现频率靠拢
         self.pending += self._calibration()
 
@@ -221,6 +356,13 @@ class Trait:
         if abs(self.pending) >= self.gate:
             before = self.strength
             applied = self.pending * (1.0 - PENDING_RESIDUAL)
+            # 物极必反的软饱和：接近两端时继续同向会越来越难。
+            if (applied > 0.0 and self.strength > SATURATION_START) or (
+                applied < 0.0 and self.strength < (CEILING - SATURATION_START)
+            ):
+                edge = max(self.strength, CEILING - self.strength)
+                resistance = _clamp(1.0 - (edge - SATURATION_START) / 0.18, 0.15, 1.0)
+                applied *= resistance
             self.strength = _clamp(self.strength + applied, 0.0, CEILING)
             moved = self.strength - before
             # 质变发生，把攒到现在的全部来历记进去
@@ -248,6 +390,11 @@ class Trait:
         # 被持续印证的特质不该因为"还没攒够下一次质变"而倒退。
         if not had_input:
             self.strength *= DECAY
+            # 回弹：极端特质无输入时自然向中心 0.5 软化。
+            # 离中心越远、回弹越强，但总量很小，需要很多周期才显著。
+            if abs(self.strength - 0.5) > 0.25:
+                rebound = REBOUND * (abs(self.strength - 0.5) / 0.5) * (self.strength - 0.5)
+                self.strength = _clamp(self.strength - rebound, 0.0, CEILING)
         return moved
 
     def _calibration(self) -> float:
@@ -280,8 +427,26 @@ class Trait:
     # ------------------------------------------------------------ 状态
 
     @property
+    def effective_strength(self) -> float:
+        """对话时可见的瞬时倾向；稳态不被短期波动直接覆盖。"""
+        return _clamp(self.strength + self.transient, 0.0, CEILING)
+
+    @property
+    def life_phase(self) -> str:
+        """生命周期：暖启动、活跃、收敛、蛰伏与复苏。"""
+        if self.warmup_remaining > 0:
+            return "暖启动"
+        if self.inactive_cycles >= max(1, int(self.dormancy_after)):
+            return "蛰伏"
+        if self.inactive_cycles >= max(1, int(self.dormancy_after) // 2):
+            return "收敛"
+        if self.inactive_cycles > 0 and abs(self.transient) > 0.015:
+            return "复苏"
+        return "活跃"
+
+    @property
     def phase(self) -> str:
-        """当前所处阶段，仅用于人看。"""
+        """长期强度所处阶段，仅用于人看。"""
         if self.strength < 0.25:
             return "萌芽"
         if self.strength < 0.65:
@@ -305,9 +470,26 @@ class Trait:
 def _clamp(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, x))
 
-
 def half_life_to_decay(half_life_cycles: float) -> float:
     """把"多少周期衰减一半"换算成每周期的衰减系数。"""
     if half_life_cycles <= 0:
         raise ValueError("半衰期必须为正")
     return math.pow(0.5, 1.0 / half_life_cycles)
+
+
+def _stable_jitter(trait_id: str, event_id: str, fuzziness: float) -> float:
+    """稳定扰动：同一 trait+event 在不同重跑里得到同一个微扰系数。
+
+    目的不是掷骰子，而是让曲线脱离“机械直线”；同时保持可复现，
+    避免同一份原始证据每次重算都长成不一样的人。
+    """
+    span = _clamp(float(fuzziness or 0.0), 0.0, 0.45)
+    if span <= 1e-12:
+        return 1.0
+
+    raw = f"{trait_id}\x00{event_id}".encode("utf-8")
+    h = hashlib.sha256(raw).digest()
+    u = int.from_bytes(h[:8], "big") / float((1 << 64) - 1)
+    signed = (u * 2.0) - 1.0  # [-1, 1]
+    return _clamp(1.0 + signed * span, 1.0 - span, 1.0 + span)
+

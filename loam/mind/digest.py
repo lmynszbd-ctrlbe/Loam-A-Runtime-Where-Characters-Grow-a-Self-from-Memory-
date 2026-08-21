@@ -130,6 +130,33 @@ class Digester:
         self.job_adapter = job_adapter
         self.trait_adapter = trait_adapter
 
+        # 生长运行期开关（由服务层 runtime config 注入）。
+        self.growth_fuzziness = 0.08
+        self.growth_uncertainty_gate = 0.55
+        self.growth_dormancy_after = 24
+        self.growth_seed_warmup_cycles = 6
+        self.relation_spread = 0.10
+        self.relation_learn_rate = 0.08
+        self.relation_min_abs = 0.22
+
+    def apply_growth_runtime(self, cfg: Dict[str, object]) -> None:
+        """同步运行期生长参数。只影响未来行为，不改历史真值。"""
+        self.growth_fuzziness = _num(cfg.get("growth.fuzziness"), self.growth_fuzziness, 0.0, 0.45)
+        self.growth_uncertainty_gate = _num(
+            cfg.get("growth.uncertainty_gate"), self.growth_uncertainty_gate, 0.0, 1.0
+        )
+        self.growth_dormancy_after = int(
+            _num(cfg.get("growth.dormancy_after"), float(self.growth_dormancy_after), 1.0, 365.0)
+        )
+        self.growth_seed_warmup_cycles = int(
+            _num(cfg.get("growth.seed_warmup_cycles"), float(self.growth_seed_warmup_cycles), 0.0, 120.0)
+        )
+        self.relation_spread = _num(cfg.get("growth.relation.spread"), self.relation_spread, 0.0, 0.6)
+        self.relation_learn_rate = _num(
+            cfg.get("growth.relation.learn_rate"), self.relation_learn_rate, 0.0, 0.4
+        )
+        self.relation_min_abs = _num(cfg.get("growth.relation.min_abs"), self.relation_min_abs, 0.0, 1.0)
+
     # ------------------------------------------------------------ 入口
 
     def pending_count(self) -> int:
@@ -428,7 +455,15 @@ class Digester:
             tid = _trait_id(text, cycle, born)
             if tid in trait_map:
                 continue
-            trait = Trait(id=tid, text=text)
+            trait = Trait(
+                id=tid,
+                text=text,
+                warmup_remaining=self.growth_seed_warmup_cycles,
+                from_seed=True,
+                fuzziness=self.growth_fuzziness,
+                uncertainty_gate=self.growth_uncertainty_gate,
+                dormancy_after=self.growth_dormancy_after,
+            )
             for eid in sorted(set(eids)):
                 trait.feed(Evidence(event_id=eid, signal=0.5, salience=by_id[eid].salience))
             trait_map[tid] = trait
