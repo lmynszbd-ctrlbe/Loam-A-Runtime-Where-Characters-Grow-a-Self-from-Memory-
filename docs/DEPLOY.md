@@ -1,9 +1,6 @@
 # loam Deployment Guide
 
 
-> 🚀 **One-click**: `git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git && cd loam && bash scripts/setup.sh` — auto-detects OS, installs everything, opens admin panel.
-=======
-<<<<<<< HEAD
 > 🚀 **One-click**: `cd ~ && git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git loam && cd loam && bash scripts/setup.sh` — auto-detects OS, installs everything, opens admin panel.
 ---
 
