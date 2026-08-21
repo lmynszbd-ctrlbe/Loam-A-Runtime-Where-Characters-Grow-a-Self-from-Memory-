@@ -232,6 +232,7 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
       <div class="card">
         <h3>🔑 API Key</h3>
         <div style="font-family:monospace;font-size:15px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">local-key</div>
+        <p class="muted" style="font-size:11px;margin-top:4px">填什么都行。loam 在你本地运行，不需要真正鉴权——真正的鉴权由上游 API 提供商处理。</p>
       </div>
       <div class="card">
         <h3>🤖 Model</h3>
@@ -261,7 +262,7 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
           <input id="sec-model" placeholder="deepseek-chat" list="sec-models-list">
           <datalist id="sec-models-list"></datalist>
         </div>
-        <button class="btn btn-sm btn-outline" style="height:38px;align-self:end" onclick="fetchModels('sec')" title="Fetch available models from provider">📋 Fetch</button>
+        <button class="btn btn-sm btn-outline" style="height:38px;align-self:end" onclick="fetchModels('sec')" title="从提供商拉取可用模型列表">拉取</button>
         <button class="btn btn-ok" style="height:38px;align-self:end" onclick="saveSecrets()">💾 Save</button>
       </div>
       <div id="sec-status" style="margin-top:8px;font-size:12px" class="muted"></div>
@@ -581,7 +582,7 @@ function renderUpstreamRows(defName) {
         <input class="up-model-inp" value="${escAttr(p.default_model||'')}" placeholder="deepseek-chat" list="up-models-list-${escAttr(name)}">
         <datalist id="up-models-list-${escAttr(name)}"></datalist>
       </div>
-      <button class="btn btn-sm btn-outline" style="height:38px;align-self:end" onclick="fetchModels('${escAttr(name)}')" title="Fetch available models">📋</button>
+      <button class="btn btn-sm btn-outline" style="height:38px;align-self:end" onclick="fetchModels('${escAttr(name)}')" title="拉取模型列表">拉取</button>
       <button class="btn btn-sm btn-danger" style="height:38px;align-self:end" onclick="removeUpstreamRow('${escAttr(name)}')">✕</button>
     </div>`;
   }).join('');
