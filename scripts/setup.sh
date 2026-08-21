@@ -157,6 +157,22 @@ except Exception as e:
         fi
     else
         say "secrets.json already exists"
+        # Auto-heal: if base_url ends with /v1, fix it (loam Brain appends /v1/chat/completions)
+        python3 -c "
+import json
+p = '$HOME/.loam/secrets.json'
+try:
+    d = json.load(open(p))
+    url = d.get('base_url','')
+    if url.endswith('/v1'):
+        d['base_url'] = url[:-3].rstrip('/')
+        json.dump(d, open(p,'w'), indent=2, ensure_ascii=False)
+        print('FIXED')
+    else:
+        print('OK')
+except Exception as e:
+    print(f'ERR: {e}')
+" 2>/dev/null && say "secrets.json checked" || true
     fi
 
     # upstreams.json
