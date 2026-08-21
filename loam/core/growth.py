@@ -98,6 +98,10 @@ FAST_LIMIT = 0.28
 #: 低于该置信度的解释只进入待确认池，不进入长期蓄水池。
 UNCERTAINTY_GATE = 0.55
 
+#: 反话阈值。歧义度超过此值，字面信号被反转，模拟"说反话"。
+#: 例："你真是太聪明了"（歧义 0.7）→ signal 反转，按动摇处理。
+SARCASTIC_AMBIGUITY = 0.65
+
 #: 默认多少个无输入周期后进入蛰伏。
 DORMANCY_AFTER = 24
 
@@ -150,9 +154,115 @@ class Evidence:
 
     @property
     def force(self) -> float:
-        """有效推力：重要度之外，还受解释置信度与歧义抑制。"""
+        """有效推力：重要度之外，还受解释置信度与歧义抑制。
+
+        反话：歧义度 >= SARCASTIC_AMBIGUITY 时，字面信号反转 ——
+        把"你这人真聪明"（歧义 0.7）按"你在否定我"来处理。
+        但反话下的置信度也被打折，所以效应比直接否定更弱。
+        """
         epistemic = self.confidence * (1.0 - 0.65 * self.ambiguity)
-        return self.signal * self.salience * epistemic
+        signal = self.signal
+        if self.ambiguity >= SARCASTIC_AMBIGUITY:
+            signal = -signal
+            epistemic *= 0.55  # 反话解释天然不确定，再打折
+        return signal * self.salience * epistemic
+
+
+@dataclass
+class TraitRelation:
+    """两条特质之间的关联。
+
+    权重正 = 同涨同消（如"勇敢"和"自信"互相支撑）
+    权重负 = 此消彼长（如"安全感"升高则"警惕度"降低）
+    """
+
+    a: str  # 特质 id
+    b: str  # 特质 id
+    weight: float = 0.0  # [-1, 1]，正值=同向，负值=反向
+    strength: float = 0.0  # 这条关系的强度，由共现次数积累
+    evidence_count: int = 0
+
+    def __post_init__(self) -> None:
+        self.weight = _clamp(self.weight, -1.0, 1.0)
+        self.strength = _clamp(self.strength, 0.0, 1.0)
+
+
+class TraitGraph:
+    """特质关系网。
+
+    牵一发动全身：当一条特质发生质变时，通过关系网向关联特质
+    传播一个微小的信号。不是即时联动，而是"涟漪"—— 幅度小、
+    传播慢，但长期积累后形成稳定的性格结构。
+    """
+
+    RELATION_CAP = 0.20
+
+    def __init__(self) -> None:
+        self._edges: Dict[tuple[str, str], TraitRelation] = {}
+
+    def set(self, a: str, b: str, weight: float, strength: float = 0.0, evidence_count: int = 0) -> None:
+        key = self._key(a, b)
+        self._edges[key] = TraitRelation(a=a, b=b, weight=weight, strength=strength, evidence_count=evidence_count)
+
+    def get(self, a: str, b: str) -> Optional[TraitRelation]:
+        return self._edges.get(self._key(a, b))
+
+    def edges_for(self, trait_id: str) -> List[TraitRelation]:
+        out: List[TraitRelation] = []
+        for (a, b), rel in self._edges.items():
+            if a == trait_id or b == trait_id:
+                out.append(rel)
+        return out
+
+    def spread(self, source_id: str, amount: float, traits: Dict[str, "Trait"], event_id: str) -> int:
+        """从源特质向所有关联特质传播一次涟漪。
+
+        amount: 源特质本次质变量（可正可负）
+        返回: 实际传播到的特质数
+        """
+        if abs(amount) < 1e-9:
+            return 0
+
+        spread_count = 0
+        for rel in self.edges_for(source_id):
+            if abs(rel.strength) < 0.15:
+                continue
+            other_id = rel.b if rel.a == source_id else rel.a
+            other = traits.get(other_id)
+            if other is None:
+                continue
+            # 传播量 = 源质变 × 关系权重 × 关系强度 × 传播上限
+            ripple = amount * rel.weight * rel.strength * self.RELATION_CAP
+            ripple = _clamp(ripple, -0.12, 0.12)
+            other.absorb_relation(ripple, event_id)
+            spread_count += 1
+        return spread_count
+
+    def learn(self, a: str, b: str, co_occurred: bool, opposite: bool = False) -> None:
+        """从共现中学习关系。同向共现 → 加强正向权重；反向共现 → 加强负向权重。"""
+        key = self._key(a, b)
+        rel = self._edges.get(key)
+        if rel is None:
+            rel = TraitRelation(a=a, b=b)
+        delta = 0.0
+        if opposite:
+            delta = -0.08
+        elif co_occurred:
+            delta = 0.06
+        rel.weight = _clamp(rel.weight + delta, -1.0, 1.0)
+        rel.strength = _clamp(rel.strength + 0.04, 0.0, 1.0)
+        rel.evidence_count += 1
+        self._edges[key] = rel
+
+    def remove(self, a: str, b: str) -> None:
+        self._edges.pop(self._key(a, b), None)
+
+    def all_edges(self) -> List[TraitRelation]:
+        return list(self._edges.values())
+
+    @staticmethod
+    def _key(a: str, b: str) -> tuple[str, str]:
+        return (a, b) if a <= b else (b, a)
 
 
 @dataclass

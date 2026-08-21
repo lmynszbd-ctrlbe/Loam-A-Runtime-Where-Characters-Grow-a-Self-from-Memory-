@@ -257,9 +257,59 @@ def test_freeze_wakeup_on_input():
     t = Trait(id="wake", text="x", strength=0.80)
     t.inactive_cycles = int(FREEZE_AFTER) + 5
     assert t.life_phase == "冻结"
-    # 外部唤醒：服务层收到用户消息后手动重置
     t.inactive_cycles = 0
     assert t.life_phase != "冻结", "重置 inactive_cycles 后应解除冻结"
+
+
+def test_sarcasm_reverses_signal():
+    """反话：高歧义度自动反转字面信号。"""
+    from loam.core.growth import SARCASTIC_AMBIGUITY
+    # "你真是太聪明了"（歧义 0.7）→ 应该按动摇处理
+    sarcastic = Evidence(event_id="s1", signal=1.0, salience=0.6, ambiguity=SARCASTIC_AMBIGUITY)
+    assert sarcastic.force < 0, "反话应反转为正信号 → 负力"
+    # 同样歧义度的直接否定
+    direct = Evidence(event_id="s2", signal=-1.0, salience=0.6, ambiguity=0.1)
+    assert direct.force < 0, "直接否定应为负力"
+    # 反话的力比直接否定更弱（额外打折 0.55）
+    assert abs(sarcastic.force) < abs(direct.force), "反话效应应弱于直接否定"
+
+
+def test_trait_graph_positive_relation():
+    """正权重关系：A 涨，B 也涨（涟漪）。"""
+    from loam.core.growth import TraitGraph
+    g = TraitGraph()
+    g.set("brave", "confident", weight=0.8, strength=0.6)
+    brave = Trait(id="brave", text="勇敢")
+    confident = Trait(id="confident", text="自信")
+    traits = {"brave": brave, "confident": confident}
+    # brave 发生质变 +0.1
+    n = g.spread("brave", 0.1, traits, "ev1")
+    assert n == 1, "应传播到1条关联特质"
+    assert confident.pending > 0, "关联特质应有涟漪"
+
+
+def test_trait_graph_negative_relation():
+    """负权重关系：A 涨，B 跌（此消彼长）。"""
+    from loam.core.growth import TraitGraph
+    g = TraitGraph()
+    g.set("safety", "vigilance", weight=-0.7, strength=0.5)
+    safety = Trait(id="safety", text="安全感")
+    vigilance = Trait(id="vigilance", text="警惕度")
+    traits = {"safety": safety, "vigilance": vigilance}
+    # safety 升高 +0.1 → vigilance 应下降
+    n = g.spread("safety", 0.1, traits, "ev2")
+    assert n == 1
+    assert vigilance.pending < 0, "负权重关系应使关联特质反向移动"
+
+
+def test_trait_graph_learn():
+    """关系网从共现中学习权重。"""
+    from loam.core.growth import TraitGraph
+    g = TraitGraph()
+    g.learn("a", "b", co_occurred=True)
+    rel = g.get("a", "b")
+    assert rel is not None
+    assert rel.weight > 0, "同向共现应产生正权重"
 
 
 if __name__ == "__main__":
