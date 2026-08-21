@@ -273,9 +273,9 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
         <p class="muted" style="font-size:11px;margin-top:4px">填什么都行。loam 跑在你本地，不需要真正鉴权——真正的密钥在下面配置。</p>
       </div>
       <div class="card">
-        <h3>🤖 填到聊天软件的 Model</h3>
-        <div style="font-family:monospace;font-size:13px;text-align:center;padding:6px;background:var(--bg);border-radius:4px"><code>provider/model</code></div>
-        <p class="muted" style="font-size:11px;margin-top:4px">格式：<code>提供商名/模型名</code>。会自动匹配下面配置的 Chat 上游 API。</p>
+        <h3>🤖 聊天软件选什么供应商？</h3>
+        <div style="font-family:monospace;font-size:14px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">OpenAI 兼容</div>
+        <p class="muted" style="font-size:11px;margin-top:4px">loam 的 proxy 是 OpenAI 兼容接口。聊天软件里选 <b>OpenAI / OpenAI 兼容</b> 即可，模型列表会自动从下面配置的上游 API 拉取。</p>
       </div>
     </div>
 
@@ -311,10 +311,10 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
     <!-- SECTION 2: chat upstream APIs — 用于生成聊天回复 -->
     <div class="card" style="border-left:3px solid var(--ok)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <h3 style="margin:0">💬 聊天回复模型 <span class="muted" style="font-weight:400;font-size:11px">— 你聊天时实际生成回复的模型，可以配多个随时切换</span></h3>
+        <h3 style="margin:0">💬 聊天回复模型 API <span class="muted" style="font-weight:400;font-size:11px">— 你聊天时实际生成回复的模型，可以配多个随时切换</span></h3>
         <button class="btn btn-sm btn-outline" onclick="addUpstreamRow()">+ 添加提供商</button>
       </div>
-      <p class="muted" style="font-size:11px;margin-bottom:10px">填好 Base URL 和 API Key 后点「拉取」，会从提供商拉取<b>完整模型列表</b>。你的聊天软件选 <code>提供商名/模型名</code>（如 <code>relayA/deepseek-chat</code>）。<br>DeepSeek 填 <code>https://api.deepseek.com</code>，OpenAI 填 <code>https://api.openai.com</code>，其他 OpenAI 兼容 API 填对应地址。</p>
+      <p class="muted" style="font-size:11px;margin-bottom:10px">填 Base URL 和 API Key，点「拉取」获取完整模型列表，然后点「💾 保存全部」。<br>DeepSeek → <code>https://api.deepseek.com</code> &nbsp;|&nbsp; OpenAI → <code>https://api.openai.com</code> &nbsp;|&nbsp; 其他兼容 API 填对应地址。</p>
       <div id="upstream-rows"></div>
       <div style="display:flex;align-items:end;gap:12px;margin-top:10px">
         <div class="form-group" style="margin:0">
