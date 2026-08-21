@@ -419,11 +419,13 @@ class Handler(BaseHTTPRequestHandler):
         try:
             req = self._read_json()
             req_model = str(req.get("model") or "")
-            print(f"[proxy] POST /v1/chat/completions model={req_model} stream={req.get('stream')} messages={len(req.get('messages', []))}", flush=True)
-            # For now loam does not support streaming, but many clients default to
-            # stream=true. We silently fall back to non-streaming so those clients
-            # work without modification.
-            if bool(req.get("stream")):
+            wants_stream = bool(req.get("stream"))
+            print(f"[proxy] POST /v1/chat/completions model={req_model} stream={wants_stream} messages={len(req.get('messages', []))}", flush=True)
+            # loam needs the full assistant text to ingest, so we always call the
+            # upstream in non-streaming mode. If the client asked for stream=true,
+            # we re-emit the final answer as SSE chunks below so streaming clients
+            # (e.g. Operit) don't time out waiting for the first byte.
+            if wants_stream:
                 req["stream"] = False
 
             messages = req.get("messages")
@@ -491,7 +493,10 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as exc:
                     print(f"[proxy] ingest failed: {type(exc).__name__}: {exc}")
 
-            self._send(200, up_resp)
+            if wants_stream:
+                self._send_stream(up_resp, exposed_model)
+            else:
+                self._send(200, up_resp)
         except ValueError as e:
             self._send(400, {"error": {"message": str(e)}})
         except urllib.error.HTTPError as e:
@@ -557,11 +562,50 @@ class Handler(BaseHTTPRequestHandler):
 
     def _send(self, code: int, payload: Dict[str, Any]) -> None:
         b = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(b)))
-        self.end_headers()
-        self.wfile.write(b)
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(b)))
+            self.end_headers()
+            self.wfile.write(b)
+        except (BrokenPipeError, ConnectionResetError):
+            # Client (e.g. Operit) gave up / closed the socket before we replied.
+            print("[proxy] client disconnected before response was sent", flush=True)
+
+    def _send_stream(self, up_resp: Dict[str, Any], model: str) -> None:
+        """Re-emit a non-streamed upstream answer as OpenAI SSE chunks.
+
+        Streaming clients (Operit) expect text/event-stream. We already have the
+        full answer, so we send it as one content delta followed by [DONE].
+        """
+        text = _assistant_text(up_resp)
+        created = int(time.time())
+        cid = str(up_resp.get("id") or f"chatcmpl-{secrets.token_hex(8)}")
+
+        def chunk(delta: Dict[str, Any], finish: Optional[str] = None) -> bytes:
+            payload = {
+                "id": cid,
+                "object": "chat.completion.chunk",
+                "created": created,
+                "model": model,
+                "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
+            }
+            return ("data: " + json.dumps(payload, ensure_ascii=False) + "\n\n").encode("utf-8")
+
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(chunk({"role": "assistant"}))
+            if text:
+                self.wfile.write(chunk({"content": text}))
+            self.wfile.write(chunk({}, finish="stop"))
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            print("[proxy] client disconnected during stream", flush=True)
 
     def log_message(self, fmt: str, *args: Any) -> None:  # noqa: A003
         return
