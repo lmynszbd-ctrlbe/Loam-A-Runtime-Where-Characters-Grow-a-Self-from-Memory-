@@ -187,14 +187,16 @@ start_services() {
     # Start proxy
     # IMPORTANT: on Android the proxy may run as a system service with HOME=/,
     # so force it to read the same ~/.loam directory that the user sees.
+    export LOAM_HOME="${HOME}/.loam"
+
     if [ -f bridge/forced_flow_proxy.py ]; then
-        PROXY_NO_AUTH=1 UPSTREAMS_CONFIG="${HOME}/.loam/upstreams.json" nohup python3 bridge/forced_flow_proxy.py > /dev/null 2>&1 &
+        PROXY_NO_AUTH=1 nohup python3 bridge/forced_flow_proxy.py > /dev/null 2>&1 &
         say "proxy started (port 8781)"
     fi
 
     # Start admin panel
     if [ -f scripts/admin.py ]; then
-        LOAM_SECRETS_HOME="${HOME}/.loam" nohup python3 scripts/admin.py > /dev/null 2>&1 &
+        nohup python3 scripts/admin.py > /dev/null 2>&1 &
         say "admin panel started (port 8900)"
     elif [ -f scripts/dashboard.py ]; then
         nohup python3 scripts/dashboard.py > /dev/null 2>&1 &

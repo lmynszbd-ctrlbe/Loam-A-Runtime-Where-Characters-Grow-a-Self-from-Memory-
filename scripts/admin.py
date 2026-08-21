@@ -19,8 +19,10 @@ from pathlib import Path
 LOAM = os.environ.get("LOAM_URL", "http://127.0.0.1:8765").rstrip("/")
 PORT = int(os.environ.get("ADMIN_PORT", "8900"))
 def _loam_home() -> Path:
-    """Return the correct ~/.loam directory, with Termux fallback on Android."""
-    p = Path(os.environ.get("LOAM_SECRETS_HOME", "~/.loam")).expanduser()
+    """Return the loam config directory, with LOAM_HOME/Termux fallbacks."""
+    if "LOAM_HOME" in os.environ:
+        return Path(os.environ["LOAM_HOME"])
+    p = Path("~/.loam").expanduser()
     if not p.exists() and os.name != "nt":
         termux = Path("/data/data/com.termux/files/home/.loam")
         if termux.exists():
