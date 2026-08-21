@@ -181,6 +181,7 @@ def _json_post_stream(
     created = 0
     role = "assistant"
     content_parts: List[str] = []
+    reasoning_parts: List[str] = []
     finish = "stop"
     for line in raw.split("\n"):
         line = line.strip()
@@ -197,6 +198,9 @@ def _json_post_stream(
                         continue
                     delta = choice.get("delta", {}) or {}
                     role = str(delta.get("role") or role)
+                    r = delta.get("reasoning_content")
+                    if r:
+                        reasoning_parts.append(str(r))
                     c = delta.get("content")
                     if c:
                         content_parts.append(str(c))
@@ -204,6 +208,9 @@ def _json_post_stream(
                         finish = str(choice.get("finish_reason"))
             except json.JSONDecodeError:
                 continue
+    msg: Dict[str, Any] = {"role": role, "content": "".join(content_parts)}
+    if reasoning_parts:
+        msg["reasoning_content"] = "".join(reasoning_parts)
     return {
         "id": cid or f"chatcmpl-{secrets.token_hex(8)}",
         "object": "chat.completion",
@@ -211,7 +218,7 @@ def _json_post_stream(
         "model": model,
         "choices": [{
             "index": 0,
-            "message": {"role": role, "content": "".join(content_parts)},
+            "message": msg,
             "finish_reason": finish,
         }],
     }
@@ -255,7 +262,14 @@ def _last_user(messages: List[Dict[str, Any]]) -> str:
 def _assistant_text(resp: Dict[str, Any]) -> str:
     try:
         msg = resp["choices"][0]["message"]
-        return _extract_text(msg.get("content", "")).strip()
+        parts: List[str] = []
+        reasoning = (msg.get("reasoning_content") or "").strip()
+        if reasoning:
+            parts.append(f"【思考过程】\n{reasoning}")
+        content = _extract_text(msg.get("content", "")).strip()
+        if content:
+            parts.append(content)
+        return "\n\n".join(parts)
     except Exception:
         return ""
 
@@ -656,6 +670,12 @@ class Handler(BaseHTTPRequestHandler):
         text = _assistant_text(up_resp)
         created = int(time.time())
         cid = str(up_resp.get("id") or f"chatcmpl-{secrets.token_hex(8)}")
+        try:
+            msg = up_resp["choices"][0]["message"]
+        except Exception:
+            msg = {}
+        reasoning = (msg.get("reasoning_content") or "").strip()
+        content = _extract_text(msg.get("content", "")).strip()
 
         def chunk(delta: Dict[str, Any], finish: Optional[str] = None) -> bytes:
             payload = {
@@ -674,8 +694,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Connection", "close")
             self.end_headers()
             self.wfile.write(chunk({"role": "assistant"}))
-            if text:
-                self.wfile.write(chunk({"content": text}))
+            if reasoning:
+                self.wfile.write(chunk({"reasoning_content": reasoning}))
+            if content:
+                self.wfile.write(chunk({"content": content}))
             self.wfile.write(chunk({}, finish="stop"))
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush()
