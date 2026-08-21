@@ -1,5 +1,4 @@
 # loam
-
 A memory runtime where identity grows from immutable dialogue history through gated growth dynamics, Hebbian associative networks, and auditable reconstruction.
 
 ## What it is
@@ -8,6 +7,10 @@ loam is two cooperating processes that run locally:
 
 1. **loam** (port 8765) — stores raw dialogue turns, digests them into structured memory (events, traits, a Hebbian network, and a self-narrative), and serves retrieval via `/context`.
 2. **forced proxy** (port 8780) — an OpenAI-compatible gateway that enforces the pipeline `context -> upstream LLM -> ingest` on every turn, so memory writes don't depend on host tool-calling reliability.
+
+Optional extras:
+- **dashboard** (port 8899) — single-page HTML status board with trait evolution, event timeline, and changelog.
+- **watchdog** — keeps both processes alive, auto-restarts on crash.
 
 Your client connects to `http://127.0.0.1:8780/v1`. The proxy routes to whichever upstream provider you configured, then writes the turn back to loam. The growth model digests accumulated turns asynchronously.
 
@@ -25,6 +28,9 @@ Similarity search alone can't jump from "I'm nervous about tomorrow" to "the las
 ### Chat model ≠ growth model
 The model that generates replies is decoupled from the model that digests memory. You can use a fast model for chat and a more capable model for digestion, or vice versa. They are configured independently in `upstreams.json`.
 
+### Audit trail, not black box
+Every trait change is logged with the specific events that caused it (`changelog` table). Every constant is documented with its intuition and tuning range (`loam/core/constants.py`, 287 lines). You can trace any trait value back to the exact conversation turns that shaped it.
+
 ## Growth mechanics
 
 Trait dynamics follow S-shaped capacity:
@@ -36,6 +42,7 @@ gate     = max(0.004, 0.5 * capacity) * 1.1^gate_level
 ```
 
 Key mechanisms:
+
 - **Pending -> commit**: evidence accumulates in a buffer; qualitative change only after crossing the dynamic gate.
 - **Expression feedback**: claimed-but-never-expressed traits are pulled down; consistently-expressed-but-unclaimed traits are pushed up.
 - **Saturation**: absorption rate decays near boundaries (strength >= 0.88).
@@ -44,6 +51,11 @@ Key mechanisms:
 - **Sarcasm reversal**: ambiguity >= 0.65 inverts the literal signal and discounts it.
 - **Trait graph**: when one trait shifts, a ripple propagates through the relation network to connected traits.
 - **Lifecycle**: warmup -> active -> converging -> dormant -> frozen -> recovering.
+- **State/Trait separation**: transient states (tired, excited) marked `is_state` — they fade naturally without clogging the trait space.
+- **Polarization spiral damping**: when a trait is already extreme (>0.85 or <0.15) and pushed further in the same direction, consecutive pushes get progressively damped — prevents "runaway certainty."
+- **Anti-sycophancy prompt**: the digestion LLM is explicitly instructed to be cautious when a trait is already extreme, requiring stronger evidence for same-direction signals.
+
+All constants are extracted to `loam/core/constants.py` with full provenance annotations (intuition source, tuning range, what happens if you change it).
 
 Tests: `python tests/test_growth.py` (25/25 pass).
 
@@ -59,7 +71,11 @@ spread:     energy(dst) = Σ energy(src) * edge_weight * 0.75
 - **Lived co-occurrence** (same experience) seeds edges at 0.22; recalled co-occurrence at 0.05.
 - **Spreading activation** (max 4 hops) enables multi-step causal recall across semantically dissimilar but causally linked events.
 - **Edge decay** (0.995/cycle) and pruning (< 0.015) handle forgetting.
+- **Hub penalty**: nodes with degree > 20 get their spread energy damped by `1/(degree/20)^2` — prevents high-frequency concepts from dominating the network.
+- **Memory consolidation**: after 3 idle cycles, related events about the same entity are merged into a higher-level summary — reducing fragmentation.
 - **Anchor nodes** (always-on) and **tiering** (hot/warm/cold) control retrieval scope.
+
+Topology endpoint: `GET /network` returns full node + edge JSON for visualization.
 
 ## Quick start
 
@@ -74,8 +90,8 @@ nano ~/.loam/secrets.json       # fill in api_key, base_url, model
 cp bridge/upstreams.example.json ~/.loam/upstreams.json
 nano ~/.loam/upstreams.json     # fill in provider info
 
-# 2. Start loam + proxy
-bash scripts/termux/final_start_all.sh
+# 2. Start loam + proxy (with watchdog)
+bash scripts/watchdog.sh &
 
 # 3. Verify
 curl -s http://127.0.0.1:8765/health
@@ -85,9 +101,46 @@ curl -s http://127.0.0.1:8780/v1/models
 
 Client: Base URL `http://127.0.0.1:8780/v1`, model `provider/model` (e.g. `relayA/deepseek-chat`).
 
+The proxy now requires `Authorization: Bearer <token>` (token printed at startup or set via `PROXY_AUTH_TOKEN` env var). For local development, set `PROXY_NO_AUTH=1` to disable.
+
+## API endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Liveness check |
+| `/healthz` | GET | Health + stats |
+| `/stats` | GET | Full statistics |
+| `/dashboard` | GET | Time-windowed activity data |
+| `/context` | GET/POST | Build memory context for a query |
+| `/ingest` | POST | Submit raw dialogue turns |
+| `/digest` | POST | Trigger one digestion cycle |
+| `/drain` | POST | Process all queued turns |
+| `/narrative` | GET | Current self-narrative |
+| `/network` | GET | Network topology (nodes + edges JSON) |
+| `/config` | GET | Runtime configuration |
+| `/config/update` | POST | Update runtime config |
+| `/config/rollback` | POST | Rollback config to previous version |
+| `/grower/start` | POST | Start background growth thread |
+| `/grower/stop` | POST | Stop background growth thread |
+| `/explain` | GET | Explain recent trait changes |
+| `/recompute/history` | GET | Recompute run history |
+| `/experiments` | GET | Experiment history |
+| `/experiments/flags` | GET/POST | Experiment flags |
+
+## CLI
+
+```bash
+python -m loam run              # Start HTTP server
+python -m loam stats            # Print current state
+python -m loam digest-once      # Manual digestion
+python -m loam context "query"  # Build context
+python -m loam snapshot -o ~/my-character  # Export living character card
+python -m loam init-secrets     # Generate secrets.json template
+```
+
 ## Deployment
 
-See `docs/DEPLOY.md` for all platforms (Termux, Windows, macOS, Linux, Docker) and extras (MCP, systemd).
+See `docs/DEPLOY.md` for all platforms (Termux, Windows, macOS, Linux, Docker) and extras (MCP, systemd, watchdog, dashboard).
 
 Additional references: `docs/RELEASE.md` `docs/MIGRATION_RUNBOOK.md` `docs/BACKUP_RESTORE_RUNBOOK.md` `docs/OPS_SOP.md`
 
@@ -97,9 +150,13 @@ Additional references: `docs/RELEASE.md` `docs/MIGRATION_RUNBOOK.md` `docs/BACKU
 - SQLite (WAL mode, FTS5 with custom bigram tokenizer for Chinese)
 - ThreadingHTTPServer (process-internal)
 - Model-agnostic LLM backend (OpenAI-compatible API)
+- Dashboard: single-file HTML served on port 8899
+
+## Self-benchmark
+
+`scripts/benchmark.py` runs a comparison of loam's recall against a naive keyword baseline on a synthetic dataset. Outputs precision, recall, and a verdict.
 
 ## Contributing
-
 
 1. Fork and create a feature branch.
 2. Keep changes minimal: code + tests + docs.
