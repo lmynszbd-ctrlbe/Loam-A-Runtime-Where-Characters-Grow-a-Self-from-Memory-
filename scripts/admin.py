@@ -846,8 +846,7 @@ function toggleTheme(){
 loadStatus();
 // show keep-running banner
 document.getElementById('keep-running-banner').style.display = 'flex';
-// check for updates
-checkVersion();
+// check for updates — disabled (uses curl, skipped if network fails)
 </script>
 </body>
 </html>"""
