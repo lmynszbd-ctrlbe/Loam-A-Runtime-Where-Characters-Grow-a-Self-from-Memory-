@@ -14,6 +14,7 @@ import urllib.request
 import urllib.error
 import os
 import time
+import socket
 from pathlib import Path
 
 LOAM = os.environ.get("LOAM_URL", "http://127.0.0.1:8765").rstrip("/")
@@ -276,8 +277,9 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
     <div class="grid" style="grid-template-columns:repeat(3, 1fr); margin-bottom:20px">
       <div class="card">
         <h3>🔗 填到聊天软件的 Base URL</h3>
-        <div style="font-family:monospace;font-size:14px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">http://127.0.0.1:8781/v1</div>
-        <p class="muted" style="font-size:11px;margin-top:4px">复制到 SillyTavern / Open WebUI 等第三方软件的 API 地址栏。</p>
+        <div id="client-base-url" style="font-family:monospace;font-size:14px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">http://127.0.0.1:8781/v1</div>
+        <div id="client-base-url-alt" style="font-family:monospace;font-size:12px;text-align:center;padding:4px;background:var(--bg);border-radius:4px;margin-top:4px;color:var(--accent);min-height:1.5em"></div>
+        <p class="muted" style="font-size:11px;margin-top:4px">同一环境用 127.0.0.1；Operit 等独立 App 请用下面带 IP 的地址。</p>
       </div>
       <div class="card">
         <h3>🔑 填到聊天软件的 API Key</h3>
@@ -607,9 +609,24 @@ async function loadApiConfig() {
     const defName = u.default || '';
     if (cfg.home) document.getElementById('cfg-home').textContent = cfg.home;
     renderUpstreamRows(defName);
+    // update base URL display with local network addresses
+    updateBaseUrlDisplay();
     // upstream model values are fetched from API, no need to restore
   } catch(e) {
     toast('Could not load config: ' + e.message, 'err');
+  }
+}
+
+async function updateBaseUrlDisplay() {
+  try {
+    const addrs = await callAdmin('GET', '/admin/addresses');
+    if (addrs.local && addrs.local.length) {
+      const primary = addrs.local[0];
+      document.getElementById('client-base-url').textContent = `http://${addrs.loopback}:8781/v1`;
+      document.getElementById('client-base-url-alt').textContent = `跨 App 用：http://${primary}:8781/v1`;
+    }
+  } catch(e) {
+    // ignore
   }
 }
 
@@ -874,6 +891,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(self._version_info())
         elif self.path == "/admin/constants":
             self._json(self._read_constants_local())
+        elif self.path == "/admin/addresses":
+            self._json(self._local_addresses())
         elif self.path.startswith("/api/proxy"):
             self._proxy("GET")
         else:
@@ -896,6 +915,34 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, "not found")
 
     # ---- config file handlers (admin owns these, not the loam backend) ----
+    def _local_addresses(self):
+        """Return non-loopback local IPs and loopback for same-machine use."""
+        addrs = {"loopback": "127.0.0.1", "local": []}
+        try:
+            # primary loopback is always valid for same-process clients
+            hostname = socket.gethostname()
+            addrs["hostname"] = hostname
+            try:
+                ip = socket.getaddrinfo(hostname, None, socket.AF_INET)[0][4][0]
+                if ip and ip != "127.0.0.1":
+                    addrs["local"].append(ip)
+            except Exception:
+                pass
+            # try to enumerate interfaces via getaddrinfo on common names
+            seen = set(addrs["local"])
+            for name in (hostname, "localhost"):
+                try:
+                    for info in socket.getaddrinfo(name, None, socket.AF_INET):
+                        ip = info[4][0]
+                        if ip and not ip.startswith("127.") and ip not in seen:
+                            seen.add(ip)
+                            addrs["local"].append(ip)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return addrs
+
     def _read_body(self):
         cl = int(self.headers.get("Content-Length", 0))
         if not cl:

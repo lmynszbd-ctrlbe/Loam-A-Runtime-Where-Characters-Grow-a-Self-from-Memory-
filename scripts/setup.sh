@@ -188,6 +188,8 @@ start_services() {
     # IMPORTANT: on Android the proxy may run as a system service with HOME=/,
     # so force it to read the same ~/.loam directory that the user sees.
     export LOAM_HOME="${HOME}/.loam"
+    # Listen on all interfaces so other apps (e.g. Operit on Android) can reach proxy.
+    export PROXY_HOST="0.0.0.0"
 
     if [ -f bridge/forced_flow_proxy.py ]; then
         PROXY_NO_AUTH=1 nohup python3 bridge/forced_flow_proxy.py > /dev/null 2>&1 &
