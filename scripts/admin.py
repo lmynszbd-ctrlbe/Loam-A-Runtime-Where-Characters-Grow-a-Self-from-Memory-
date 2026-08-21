@@ -314,7 +314,7 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
         <h3 style="margin:0">💬 聊天回复模型 API <span class="muted" style="font-weight:400;font-size:11px">— 你聊天时实际生成回复的模型，可以配多个随时切换</span></h3>
         <button class="btn btn-sm btn-outline" onclick="addUpstreamRow()">+ 添加提供商</button>
       </div>
-      <p class="muted" style="font-size:11px;margin-bottom:10px">填 Base URL 和 API Key，点「拉取」获取完整模型列表，然后点「💾 保存全部」。<br>DeepSeek → <code>https://api.deepseek.com</code> &nbsp;|&nbsp; OpenAI → <code>https://api.openai.com</code> &nbsp;|&nbsp; 其他兼容 API 填对应地址。</p>
+      <p class="muted" style="font-size:11px;margin-bottom:10px">填 Base URL 和 API Key，点「拉取」获取完整模型列表，然后点「💾 保存全部」。</p>
       <div id="upstream-rows"></div>
       <div style="display:flex;align-items:end;gap:12px;margin-top:10px">
         <div class="form-group" style="margin:0">
