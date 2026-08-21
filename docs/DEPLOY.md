@@ -1,14 +1,11 @@
 # loam Deployment Guide
 
-## One-command setup (recommended)
+> 🚀 **One-click**: `bash scripts/setup.sh` — auto-detects OS, installs everything, opens admin panel.
+> 📖 **Manual**: follow the per-platform commands below for step-by-step control.
 
-```bash
-bash scripts/setup.sh
-```
+---
 
-Detects OS, installs prerequisites, clones, configures, starts everything, opens admin panel at `http://127.0.0.1:8899`. Works on Termux, macOS, Linux, WSL, Windows.
-
-The sections below are per-platform manual commands if you need them.
+## Quick overview
 
 ---
 
@@ -57,7 +54,9 @@ Optional `low_cost_*` fields route cheaper extraction phases to a smaller model.
 
 ---
 
-## Platform commands
+## Manual setup (per platform)
+
+If you prefer full control over each step, pick your platform below. Otherwise, `bash scripts/setup.sh` handles all of this automatically.
 
 ### Android (Termux)
 
