@@ -19,7 +19,7 @@ cd ~ && git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Charac
 cd ~/loam && git pull && bash scripts/setup.sh
 ```
 
-`setup.sh` auto-detects your OS, installs prerequisites, walks you through the API keys, starts all three processes, and opens the admin panel at `http://127.0.0.1:8899`.
+`setup.sh` auto-detects your OS, installs prerequisites, walks you through the API keys, starts all three processes, and opens the admin panel at `http://127.0.0.1:8900`.
 
 > 📖 Prefer to do it by hand? See **Manual setup** below for per-platform commands.
 
@@ -30,10 +30,10 @@ cd ~/loam && git pull && bash scripts/setup.sh
 | Process | Port | Purpose |
 |---------|------|---------|
 | loam server | 8765 | Memory storage, digestion, trait growth |
-| forced proxy | 8780 | OpenAI-compatible gateway, routes to your LLM provider |
-| admin panel | 8899 | Web UI: Status, Traits, Memory, Config, Constants, Connect, Actions |
+| forced proxy | 8781 | OpenAI-compatible gateway, routes to your LLM provider |
+| admin panel | 8900 | Web UI: Status, Traits, Memory, Config, Constants, Connect, Actions |
 
-Client connects to `http://127.0.0.1:8780/v1`
+Client connects to `http://127.0.0.1:8781/v1`
 Model name: `provider/model` (e.g. `relayA/deepseek-chat`, configured in the Connect tab)
 
 > ⚠️ **ALL THREE processes must keep running.**
@@ -278,6 +278,27 @@ curl -s http://127.0.0.1:8780/v1/models
 
 ---
 
+## Connecting from another app (e.g. Operit on Android)
+
+If your client is a **separate Android app** (not running inside Termux), it cannot reach `127.0.0.1` that Termux uses. Use the phone's LAN IP instead.
+
+1. Make sure proxy listens on all interfaces:
+
+```bash
+PROXY_NO_AUTH=1 PROXY_HOST=0.0.0.0 bash scripts/setup.sh
+```
+
+2. Find your LAN IP:
+
+```bash
+ifconfig 2>/dev/null | grep 'inet ' | head -3
+# Example: 10.104.36.176
+```
+
+3. In the client, use: `http://<LAN_IP>:8781/v1`
+
+> **Note:** `127.0.0.1` only works when the client and loam are in the same process/environment. Different Android apps are sandboxed, so use the LAN IP.
+
 ## Troubleshooting
 
 | Symptom | Fix |
@@ -288,6 +309,8 @@ curl -s http://127.0.0.1:8780/v1/models
 | `Models list empty` | `base_url` in `upstreams.json` must be API endpoint, not homepage |
 | Proxy exits immediately | Check `~/.loam/run/forced_proxy.log` for typos in `upstreams.json` |
 | `No module named loam` | `cd ~/loam` first |
+| Client app can't fetch models | Client and proxy are in different sandboxes; use the phone's LAN IP instead of `127.0.0.1` |
+| Base URL with `/v1` gives errors | Supported since v0.x; proxy now tolerates `https://host/v1` and `https://host` |
 
 ## Security
 
