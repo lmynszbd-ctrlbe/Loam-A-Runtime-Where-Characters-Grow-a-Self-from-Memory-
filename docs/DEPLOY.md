@@ -17,7 +17,7 @@ Model name: `relayA/deepseek-chat` (or whatever you configured in upstreams.json
 
 ---
 
-## Manual setup (per platform)
+## If you want to Manual setup (Not recommended)
 
 ### Android (Termux)
 
