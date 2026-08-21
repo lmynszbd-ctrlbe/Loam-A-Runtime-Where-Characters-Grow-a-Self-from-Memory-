@@ -1,5 +1,9 @@
 # loam
-A memory runtime where identity grows from immutable dialogue history through gated growth dynamics, Hebbian associative networks, and auditable reconstruction.
+This is not a memory that simply accumulates tokens in your context window—it's a permanent, ever-growing memory that any API-compatible client can tap into.
+
+I've built a gating mechanism that controls the pace of change—traits don't shift abruptly; they slowly sink in and settle into a foundational personality, while new layers gradually form on top of that base. A Hebbian network weaves a web of connections between traits, linking emotions and dispositions together—when a sense of security rises, vigilance naturally dials down. A Yin-Yang balance acts as an auto-correcting rudder, preventing any single trait from spiraling off into extremes. And seasonal cycles bring natural rhythms of dormancy and bloom—there are times when the system seems quiet and times when it surges with growth.
+
+All of this technology serves one purpose: to turn AI from a tool that forgets you every time you open it, into a presence that grows alongside you, developing its own unique character over time.
 
 ## What it is
 
