@@ -146,14 +146,75 @@ _UPSTREAM_ALLOWED_FIELDS = {
 }
 
 
-def _clean_upstream_payload(req: Dict[str, Any]) -> Dict[str, Any]:
+def _clean_upstream_payload(req: Dict[str, Any], stream: Optional[bool] = None) -> Dict[str, Any]:
     """Keep only standard fields the upstream understands."""
     out: Dict[str, Any] = {}
     for k, v in req.items():
         if k in _UPSTREAM_ALLOWED_FIELDS and v is not None:
             out[k] = v
-    out["stream"] = False
+    if stream is not None:
+        out["stream"] = stream
     return out
+
+
+def _json_post_stream(
+    url: str,
+    payload: Dict[str, Any],
+    headers: Optional[Dict[str, str]] = None,
+    timeout: float = 120.0,
+) -> Dict[str, Any]:
+    """Call upstream with stream=True, parse SSE chunks into a non-stream JSON.
+
+    Some models only support streaming. We collect all SSE deltas and assemble
+    a complete OpenAI chat.completion response for loam ingest.
+    """
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    hs = {"Content-Type": "application/json"}
+    if headers:
+        hs.update(headers)
+    req = urllib.request.Request(url, data=body, headers=hs, method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        raw = r.read().decode("utf-8")
+    # Parse SSE: each line that starts with "data: " followed by JSON
+    cid = ""
+    model = ""
+    created = 0
+    role = "assistant"
+    content_parts: List[str] = []
+    finish = "stop"
+    for line in raw.split("\n"):
+        line = line.strip()
+        if not line or line == "data: [DONE]":
+            continue
+        if line.startswith("data: "):
+            try:
+                obj = json.loads(line[6:])
+                cid = str(obj.get("id") or cid)
+                model = str(obj.get("model") or model)
+                created = int(obj.get("created") or created)
+                for choice in obj.get("choices", []):
+                    if not isinstance(choice, dict):
+                        continue
+                    delta = choice.get("delta", {}) or {}
+                    role = str(delta.get("role") or role)
+                    c = delta.get("content")
+                    if c:
+                        content_parts.append(str(c))
+                    if choice.get("finish_reason"):
+                        finish = str(choice.get("finish_reason"))
+            except json.JSONDecodeError:
+                continue
+    return {
+        "id": cid or f"chatcmpl-{secrets.token_hex(8)}",
+        "object": "chat.completion",
+        "created": created or int(time.time()),
+        "model": model,
+        "choices": [{
+            "index": 0,
+            "message": {"role": role, "content": "".join(content_parts)},
+            "finish_reason": finish,
+        }],
+    }
 
 
 def _json_get(
@@ -458,16 +519,30 @@ class Handler(BaseHTTPRequestHandler):
             hdr_up = str(headers_low.get("x-upstream") or "").strip()
             provider, upstream_model, exposed_model = _pick_upstream(req_model, hdr_up)
 
-            up_payload = _clean_upstream_payload(req)
+            up_payload = _clean_upstream_payload(req, stream=False)
             up_payload["model"] = upstream_model
             up_payload["messages"] = _trim_messages(merged)
 
-            up_resp = _json_post(
-                f"{_provider_api_base(provider)}/v1/chat/completions",
-                up_payload,
-                headers=_provider_headers(provider),
-            )
-            print(f"[proxy] POST {_provider_api_base(provider)}/v1/chat/completions → model={upstream_model} → OK", flush=True)
+            up_url = f"{_provider_api_base(provider)}/v1/chat/completions"
+            up_headers = _provider_headers(provider)
+
+            # Try non-streaming first (loam needs full text for ingest).
+            # If the upstream rejects it (400) with a hint about streaming,
+            # automatically fall back to streaming and reassemble the SSE.
+            up_resp: Dict[str, Any]
+            used_stream = False
+            try:
+                up_resp = _json_post(up_url, up_payload, headers=up_headers)
+            except urllib.error.HTTPError as e:
+                raw = e.read().decode("utf-8", errors="replace")
+                if e.code == 400 and ("stream" in raw.lower() or "streaming" in raw.lower()):
+                    print(f"[proxy] upstream rejected non-stream, falling back to stream=true", flush=True)
+                    up_payload["stream"] = True
+                    up_resp = _json_post_stream(up_url, up_payload, headers=up_headers)
+                    used_stream = True
+                else:
+                    raise
+            print(f"[proxy] POST {up_url} → model={upstream_model} → OK{' (stream)' if used_stream else ''}", flush=True)
 
             # 3) 强制落本轮原文到 loam
             assistant = _assistant_text(up_resp)
