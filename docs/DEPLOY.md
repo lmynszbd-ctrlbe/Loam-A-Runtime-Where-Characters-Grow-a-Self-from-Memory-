@@ -1,6 +1,10 @@
 # loam Deployment Guide
 
 > 🚀 **Fastest path — two steps.** Step 1 installs loam (skip it if you already have the folder), Step 2 launches everything.
+>
+>
+>
+>
 > （If you are connecting to loam running inside Termux using a standalone Android app (such as Operit), do not use  127.0.0.1 . Run  bash scripts/setup.sh  to enable listening on all interfaces, open the Connect tab at  http://127.0.0.1:8900 , copy the second‑line LAN‑based URL under Base‑URL and paste it into your client. You may use any value for the API Key, for example  local‑key . Cross‑device access requires the same‑WiFi local‑network environment. If your phone has no network, no LAN IP will be available; in this scenario the client has to run inside Termux.）
 > 
 
