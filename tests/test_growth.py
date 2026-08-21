@@ -142,13 +142,15 @@ def test_understated_strength_gets_pushed_up():
 
 
 def test_unused_trait_fades():
-    """长期无人问津的特质会淡出（但不会归零消失）。"""
+    """长期无人问津的特质会淡出（但冻结后保留，不会归零消失）。"""
     t = Trait(id="k", text="x")
     t.strength = 0.70
     for i in range(2000):
         t.settle(now=f"c{i}")
-    assert t.strength < 0.20, "该淡出"
-    assert t.strength > 0.0, "但不该被彻底抹掉"
+    # 冻结后不再衰减，但冻结前（48周期）已有 DECAY 衰减
+    assert t.strength < 0.68, "冻结前的衰减应生效"
+    assert t.strength > 0.60, "冻结后应保留，不该被彻底抹掉"
+    assert t.life_phase == "冻结", "长期无输入应进入冻结态"
 
 
 def test_active_trait_does_not_decay():
@@ -222,6 +224,42 @@ def test_seed_warmup_assimilation():
     # 暖启动结束后 warmup 递减
     assert t.warmup_remaining >= 0
     assert t.pending >= 0, "pending 不应为负"
+
+
+def test_freeze_phase_preserves_strength():
+    """冻结态：完全不衰减、不回弹、不吸收新经历。"""
+    from loam.core.growth import FREEZE_AFTER
+    t = Trait(id="fz", text="x", strength=0.80)
+    t.inactive_cycles = int(FREEZE_AFTER) + 5
+    assert t.life_phase == "冻结"
+    before = t.strength
+    t.feed(Evidence(event_id="fz0", signal=1.0, salience=0.9))
+    t.settle(now="fz0")
+    assert t.strength == before, "冻结态强度不应变"
+    assert t.life_phase == "冻结", "冻结不应自动解除"
+
+
+def test_autonomous_drift_is_bounded():
+    """蛰伏态自主漂移幅度极小，不会大幅改变特质。"""
+    from loam.core.growth import DORMANCY_AFTER
+    t = Trait(id="ad", text="x", strength=0.60)
+    t.inactive_cycles = int(DORMANCY_AFTER) + 1
+    assert t.life_phase == "蛰伏"
+    before = t.strength
+    for i in range(100):
+        t.settle(now=f"ad{i}")
+    assert abs(t.strength - before) < 0.05, "自主漂移不应大幅改变特质"
+
+
+def test_freeze_wakeup_on_input():
+    """冻结态收到外部唤醒后恢复正常活跃。"""
+    from loam.core.growth import FREEZE_AFTER
+    t = Trait(id="wake", text="x", strength=0.80)
+    t.inactive_cycles = int(FREEZE_AFTER) + 5
+    assert t.life_phase == "冻结"
+    # 外部唤醒：服务层收到用户消息后手动重置
+    t.inactive_cycles = 0
+    assert t.life_phase != "冻结", "重置 inactive_cycles 后应解除冻结"
 
 
 if __name__ == "__main__":

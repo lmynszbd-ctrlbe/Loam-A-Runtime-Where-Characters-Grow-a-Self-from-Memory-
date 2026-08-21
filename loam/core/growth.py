@@ -109,6 +109,14 @@ SATURATION_START = 0.88
 #: 公式：回弹量 = REBOUND * (|S-0.5|/0.5) * sign(S-0.5)，方向向中心。
 REBOUND = 0.001
 
+#: 冻结阈值。超过此周期的完全无输入，特质进入冻结态：不吸收、不衰减、
+#: 不回弹，像冰封一样保留原样。唤醒后恢复活跃。
+FREEZE_AFTER = 48
+
+#: 自主微调。蛰伏/收敛态无输入时，极小的自发漂移，模拟"无事时也会
+#: 自己想一想"。方向随机，幅度极小，相当于"梦里的微调"。
+AUTONOMOUS_DRIFT = 0.0002
+
 
 # ---------------------------------------------------------------- 数据结构
 
@@ -246,6 +254,18 @@ class Trait:
         # 快态不等于人格提交：它允许短期不认同、犹疑、回摆。
         self.transient = _clamp(self.transient + delta * 1.35, -FAST_LIMIT, FAST_LIMIT)
         self.momentum = _clamp(self.momentum * 0.68 + force * 0.32, -1.0, 1.0)
+
+        # 冻结态：只记录经历、更新快态，完全不写入长期蓄水池。
+        # 必须在 inactive_cycles 重置之前检查，否则冻结会被误解除。
+        if self.life_phase == "冻结":
+            if force >= 0:
+                self.reinforced += 1
+            else:
+                self.contradicted += 1
+            if ev.event_id not in self._staged:
+                self._staged.append(ev.event_id)
+            return
+
         self._fed = True
         self.inactive_cycles = 0
 
@@ -386,12 +406,16 @@ class Trait:
             # 否则弱信号永远够不到阈值，"量变到质变"就断在了半路。
             self.pending *= LEAK
 
-        # 只有完全没被激活的周期才衰减。
-        # 被持续印证的特质不该因为"还没攒够下一次质变"而倒退。
-        if not had_input:
+        # 冻结态：不衰减、不回弹、不自主微调，完全冰封。
+        if not had_input and self.life_phase == "冻结":
+            pass  # 冻结态什么都不做，强度不变
+        elif not had_input:
+            # 蛰伏/收敛态：微小的自主漂移，相当于"无事时自己想一想"。
+            if self.life_phase in ("蛰伏", "收敛"):
+                drift = AUTONOMOUS_DRIFT * (1.0 - 2.0 * (hash(self.id + str(self.inactive_cycles)) % 10000) / 10000.0)
+                self.strength = _clamp(self.strength + drift, 0.0, CEILING)
             self.strength *= DECAY
             # 回弹：极端特质无输入时自然向中心 0.5 软化。
-            # 离中心越远、回弹越强，但总量很小，需要很多周期才显著。
             if abs(self.strength - 0.5) > 0.25:
                 rebound = REBOUND * (abs(self.strength - 0.5) / 0.5) * (self.strength - 0.5)
                 self.strength = _clamp(self.strength - rebound, 0.0, CEILING)
@@ -433,9 +457,11 @@ class Trait:
 
     @property
     def life_phase(self) -> str:
-        """生命周期：暖启动、活跃、收敛、蛰伏与复苏。"""
+        """生命周期：暖启动、活跃、收敛、蛰伏、冻结、复苏。"""
         if self.warmup_remaining > 0:
             return "暖启动"
+        if self.inactive_cycles >= max(1, int(FREEZE_AFTER)):
+            return "冻结"
         if self.inactive_cycles >= max(1, int(self.dormancy_after)):
             return "蛰伏"
         if self.inactive_cycles >= max(1, int(self.dormancy_after) // 2):
