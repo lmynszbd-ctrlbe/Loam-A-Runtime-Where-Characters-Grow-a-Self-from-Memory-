@@ -195,6 +195,22 @@ def _build_messages_with_context(orig: List[Dict[str, Any]], ctx_text: str) -> L
     return [mem] + orig
 
 
+def _trim_messages(messages: List[Dict[str, Any]], max_messages: int = 50) -> List[Dict[str, Any]]:
+    """Truncate message history to avoid overwhelming upstream APIs.
+
+    Keeps the first system message (if any) and the most recent messages.
+    Many clients send hundreds of messages; most upstreams can't handle that.
+    """
+    if len(messages) <= max_messages:
+        return messages
+    first = messages[0] if messages and messages[0].get("role") == "system" else None
+    rest = messages[1:] if first else messages
+    trimmed = rest[-(max_messages - (1 if first else 0)):]
+    if first:
+        return [first] + trimmed
+    return trimmed
+
+
 def _load_upstreams() -> Tuple[Dict[str, Dict[str, str]], str]:
     providers: Dict[str, Dict[str, str]] = {}
     cfg_default = ""
@@ -403,7 +419,7 @@ class Handler(BaseHTTPRequestHandler):
 
             up_payload = dict(req)
             up_payload["model"] = upstream_model
-            up_payload["messages"] = merged
+            up_payload["messages"] = _trim_messages(merged)
 
             up_resp = _json_post(
                 f"{_provider_api_base(provider)}/v1/chat/completions",
