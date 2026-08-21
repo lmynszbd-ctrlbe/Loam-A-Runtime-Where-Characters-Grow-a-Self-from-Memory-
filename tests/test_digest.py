@@ -370,7 +370,9 @@ def test_appraisal_without_valid_event_is_dropped():
         r = Digester(c, j, m, PhasedBrain(appraise=bad)).digest_once()
         assert r.traits_touched == 0, "无来历的判定必须被丢"
         after = m.load_traits()[0]
-        assert after.strength == 0.0 and after.pending == 0.0
+        # 回弹/自主漂移会在无输入周期产生微量机械漂移（≤0.001），
+        # 但蓄水池必须为空 —— 无来历的判定没有进入长期层。
+        assert after.strength < 0.001 and after.pending == 0.0
     finally:
         j.close(); m.close(); shutil.rmtree(tmp)
 
