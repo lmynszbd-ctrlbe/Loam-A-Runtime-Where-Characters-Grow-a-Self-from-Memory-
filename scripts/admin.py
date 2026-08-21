@@ -700,23 +700,25 @@ async function saveSecrets() {
 
 async function saveUpstreams() {
   const providers = collectUpstreamFromDOM();
-  if (!Object.keys(providers).length) { toast('Add at least one provider', 'err'); return; }
-  // validate
+  if (!Object.keys(providers).length) { toast('请至少添加一个提供商', 'err'); return; }
   for (const [name, p] of Object.entries(providers)) {
     if (!p.base_url || !p.api_key || !p.default_model) {
-      toast('Provider "'+name+'": fill in all fields', 'err'); return;
+      toast('提供商 "'+name+'": 请填写所有字段', 'err'); return;
     }
   }
   const defName = document.getElementById('up-default').value;
   const body = {providers};
   if (defName && providers[defName]) body.default = defName;
-  const r = await callAdmin('POST', '/admin/upstreams', body);
   const el = document.getElementById('up-status');
+  el.innerHTML = '<span class="spinner"></span> 正在保存并重启 proxy...';
+  const r = await callAdmin('POST', '/admin/upstreams', body);
   if (r.ok) {
     _upstreamData = providers;
-    el.innerHTML = '<span class="ok">✓ saved — restart proxy to apply</span>';
-    toast('Chat APIs saved', 'ok');
-  } else { el.innerHTML = '<span class="err">'+esc(r.error||'failed')+'</span>'; toast('save failed', 'err'); }
+    // 自动重启 proxy 让它加载新配置
+    try { await callAdmin('POST', '/admin/restart-proxy'); } catch(e) {}
+    el.innerHTML = '<span class="ok">✓ 已保存并重启 proxy — 现在可以拉取模型了</span>';
+    toast('聊天 API 已保存，proxy 已重启', 'ok');
+  } else { el.innerHTML = '<span class="err">'+esc(r.error||'保存失败')+'</span>'; toast('保存失败', 'err'); }
 }
 
 function loadConnect() { loadApiConfig(); }
@@ -887,6 +889,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(self._save_upstreams())
         elif self.path == "/admin/fetch-models":
             self._json(self._fetch_models())
+        elif self.path == "/admin/restart-proxy":
+            self._json(self._restart_proxy())
         elif self.path == "/admin/update":
             self._json(self._run_update())
         elif self.path.startswith("/api/proxy"):
@@ -1016,6 +1020,26 @@ class Handler(BaseHTTPRequestHandler):
         descriptions = getattr(C, 'DESCRIPTIONS', {})
         return {"constants": all_consts, "overrides": {}, "descriptions": descriptions}
 
+    def _restart_proxy(self):
+        """Kill and restart the forced proxy process so it picks up new upstreams.json."""
+        repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        try:
+            subprocess.run(["pkill", "-f", "forced_flow_proxy"], timeout=5)
+        except Exception:
+            pass
+        import time
+        time.sleep(1)
+        try:
+            subprocess.Popen(
+                ["python3", "bridge/forced_flow_proxy.py"],
+                cwd=repo_dir,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                env={**os.environ, "PROXY_NO_AUTH": "1"}
+            )
+            return {"ok": True, "message": "proxy restarted"}
+        except Exception as e:
+            return {"error": str(e)}
+
     def _fetch_models(self):
         """Proxy a /v1/models call to a provider. Body: {base_url, api_key}."""
         body = self._read_body()
@@ -1023,10 +1047,7 @@ class Handler(BaseHTTPRequestHandler):
         key = (body.get("api_key") or "").strip()
         if not url or not key:
             return {"error": "base_url and api_key are required"}
-        # normalize URL
         url = url.rstrip("/")
-        if not url.endswith("/v1"):
-            url += "/v1"
         try:
             req = urllib.request.Request(f"{url}/models")
             req.add_header("Authorization", f"Bearer {key}")
