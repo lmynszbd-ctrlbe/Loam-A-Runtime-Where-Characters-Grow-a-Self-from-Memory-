@@ -23,6 +23,33 @@ cd ~/loam && git pull && bash scripts/setup.sh
 
 > 📖 Prefer to do it by hand? See **Manual setup** below for per-platform commands.
 
+
+markdown
+  
+## Connecting from another app (e.g. Operit on Android)
+
+If your client is a **separate Android app** (not running inside Termux), it cannot reach `127.0.0.1` that Termux uses. Use the phone's LAN IP instead.
+
+1. Make sure proxy listens on all interfaces. `setup.sh` now does this by default:
+
+```bash
+bash scripts/setup.sh
+ 
+ 
+2. Open the admin panel at  http://127.0.0.1:8900  → Connect tab.
+3. Under Base URL, wait for the second‑line URL to appear. Copy that URL.
+4. Paste it into the third‑party client (e.g. Operit). API Key can be anything, e.g.  local‑key .
+ 
+Note:  127.0.0.1  only works when the client and loam are in the same process/environment. Different Android apps are sandboxed, so use the LAN IP.
+ 
+Same WiFi / same local network rule
+ 
+If you want a different device (laptop, another phone, etc.) to use loam running on this phone, both devices must be on the same WiFi / same local network.
+ 
+If the phone has no network (no WiFi, no mobile data), it will not have a LAN IP, and other apps/devices cannot connect. In that case you must either:
+ 
+- connect the phone to a network, or
+- run the client inside the same Termux environment where loam runs.
 ---
 
 ## Quick overview
