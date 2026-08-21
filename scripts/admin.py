@@ -343,33 +343,85 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
     </div>
   </div>
 
-  <!-- ACTIONS -->
+  <!-- ACTIONS → GROWTH -->
   <div id="panel-actions" class="panel">
-    <h1>▶ Actions</h1>
-    <div class="sub">Manual operations</div>
+    <h1>🌱 记忆生长</h1>
+    <div class="sub">loam 后台自动消化对话，提炼特质和记忆。你也可以手动触发。</div>
+
+    <!-- 机制说明 -->
+    <div class="card" style="margin-bottom:16px; border-left:3px solid var(--accent)">
+      <h3>⚙️ 生长机制（不费钱）</h3>
+      <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px">
+        <div style="text-align:center;padding:8px">
+          <div style="font-size:24px">📦</div>
+          <div style="font-weight:600;font-size:14px">攒够 <span id="growth-batch">20</span> 轮对话</div>
+          <div class="muted" style="font-size:11px">才消化一次，不是每轮都消化</div>
+        </div>
+        <div style="text-align:center;padding:8px">
+          <div style="font-size:24px">⏳</div>
+          <div style="font-weight:600;font-size:14px">或 <span id="growth-idle">15</span> 分钟无新对话</div>
+          <div class="muted" style="font-size:11px">聊完一段就自动消化</div>
+        </div>
+        <div style="text-align:center;padding:8px">
+          <div style="font-size:24px">💰</div>
+          <div style="font-weight:600;font-size:14px">每 20 轮 ≈ 1~3 次 API</div>
+          <div class="muted" style="font-size:11px">比你聊天消耗的 API 少得多</div>
+        </div>
+      </div>
+      <p class="muted" style="font-size:11px;margin-top:8px">🔍 loam 每 <b>60 秒</b> 检查一次是否满足条件，不是每 60 秒调一次 API。</p>
+    </div>
+
+    <!-- 可调参数 -->
+    <div class="card" style="margin-bottom:16px">
+      <h3>🎛️ 消化参数</h3>
+      <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px">
+        <div class="form-group">
+          <label>触发回合数（攒够多少轮就消化）</label>
+          <input id="grow-batch" type="number" min="5" max="200" value="20" style="width:100px">
+          <span class="muted" style="font-size:10px;display:block">建议 15~30，太小会频繁调用 API</span>
+        </div>
+        <div class="form-group">
+          <label>空闲等待（秒，无新对话后多久消化）</label>
+          <input id="grow-idle" type="number" min="60" max="3600" value="900" style="width:100px">
+          <span class="muted" style="font-size:10px;display:block">建议 600~900（10~15 分钟）</span>
+        </div>
+        <div class="form-group">
+          <label>检查间隔（秒，多久看一眼要不要消化）</label>
+          <input id="grow-interval" type="number" min="10" max="600" value="60" style="width:100px">
+          <span class="muted" style="font-size:10px;display:block">建议 30~60，只是检查频率不是调用频率</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+        <button class="btn btn-ok" onclick="saveGrowthSettings()">💾 保存设置</button>
+        <span class="muted" style="font-size:11px">⚠️ 建议使用默认值，修改后需重启 loam 生效</span>
+      </div>
+      <div id="growth-settings-status" style="margin-top:8px;font-size:12px"></div>
+    </div>
+
+    <!-- 手动操作 -->
     <div class="grid">
       <div class="card">
-        <h3>🧪 Digest</h3>
-        <p class="muted" style="font-size:12px;margin-bottom:8px">Run one digestion cycle</p>
-        <button class="btn" onclick="doAction('digest')">Run Digest</button>
+        <h3>🧪 手动消化</h3>
+        <p class="muted" style="font-size:12px;margin-bottom:8px">立即消化当前攒下的所有对话</p>
+        <button class="btn" onclick="doAction('digest')">🫕 立即消化</button>
         <div id="digest-result" style="margin-top:8px;font-size:12px"></div>
       </div>
       <div class="card">
-        <h3>🚰 Drain</h3>
-        <p class="muted" style="font-size:12px;margin-bottom:8px">Process all queued turns</p>
-        <button class="btn" onclick="doAction('drain')">Run Drain</button>
+        <h3>🚰 全部清空</h3>
+        <p class="muted" style="font-size:12px;margin-bottom:8px">处理所有队列中的对话（可能较慢）</p>
+        <button class="btn" onclick="doAction('drain')">🚿 全部处理</button>
         <div id="drain-result" style="margin-top:8px;font-size:12px"></div>
       </div>
       <div class="card">
-        <h3>📸 Snapshot</h3>
-        <p class="muted" style="font-size:12px;margin-bottom:8px">Export living character card</p>
-        <button class="btn" onclick="doAction('snapshot')">Export</button>
+        <h3>📸 导出角色卡</h3>
+        <p class="muted" style="font-size:12px;margin-bottom:8px">导出当前所有记忆和特质</p>
+        <button class="btn" onclick="doAction('snapshot')">📦 导出</button>
         <div id="snapshot-result" style="margin-top:8px;font-size:12px"></div>
       </div>
       <div class="card">
-        <h3>🔄 Recompute</h3>
-        <p class="muted" style="font-size:12px;margin-bottom:8px">Rebuild from journal</p>
-        <button class="btn btn-danger" onclick="doAction('recompute')">Recompute</button>
+        <h3>🔄 重建记忆</h3>
+        <p class="muted" style="font-size:12px;margin-bottom:8px">从原始对话重新构建所有记忆</p>
+        <button class="btn btn-danger" onclick="doAction('recompute')">⚠️ 重建</button>
         <div id="recompute-result" style="margin-top:8px;font-size:12px"></div>
       </div>
     </div>
@@ -885,6 +937,36 @@ loadStatus();
 document.getElementById('keep-running-banner').style.display = 'flex';
 // // check for updates
 // checkVersion();
+async function saveGrowthSettings() {
+  const statusEl = document.getElementById('growth-settings-status');
+  const batch = parseInt(document.getElementById('grow-batch').value) || 20;
+  const idle = parseInt(document.getElementById('grow-idle').value) || 900;
+  const interval = parseInt(document.getElementById('grow-interval').value) || 60;
+  statusEl.innerHTML = '<span class="spinner"></span> 正在保存...';
+  try {
+    const r = await callAdmin('POST', '/admin/growth-settings', {batch_turns: batch, idle_seconds: idle, grow_interval: interval});
+    if (r.ok) {
+      statusEl.innerHTML = '<span class="ok">✅ 已保存。重启 loam 后生效。</span>';
+      document.getElementById('growth-batch').textContent = batch;
+      document.getElementById('growth-idle').textContent = Math.round(idle/60);
+    } else {
+      statusEl.innerHTML = '<span class="err">❌ ' + (r.error||'保存失败') + '</span>';
+    }
+  } catch(e) {
+    statusEl.innerHTML = '<span class="err">❌ ' + e.message + '</span>';
+  }
+}
+
+async function loadActions() {
+  try {
+    const data = await callAdmin('GET', '/admin/growth-settings');
+    if (data) {
+      if (data.batch_turns) { document.getElementById('grow-batch').value = data.batch_turns; document.getElementById('growth-batch').textContent = data.batch_turns; }
+      if (data.idle_seconds) { document.getElementById('grow-idle').value = data.idle_seconds; document.getElementById('growth-idle').textContent = Math.round(data.idle_seconds/60); }
+      if (data.grow_interval) { document.getElementById('grow-interval').value = data.grow_interval; }
+    }
+  } catch(e) { /* ignore */ }
+}
 </script>
 </body>
 </html>"""
