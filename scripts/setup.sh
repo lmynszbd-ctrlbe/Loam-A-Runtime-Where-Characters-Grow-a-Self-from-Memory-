@@ -187,7 +187,8 @@ start_services() {
     fi
 
     # Start loam
-    nohup python3 -m loam run --grow-interval 60 > /dev/null 2>&1 &
+    export LOAM_HOME="${HOME}/.loam"
+    nohup python3 -m loam run --grow-interval 60 --secrets-home "${LOAM_HOME}" > /dev/null 2>&1 &
     say "loam started (port 8765)"
 
     # Start proxy
