@@ -363,9 +363,11 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             req = self._read_json()
+            # For now loam does not support streaming, but many clients default to
+            # stream=true. We silently fall back to non-streaming so those clients
+            # work without modification.
             if bool(req.get("stream")):
-                self._send(400, {"error": {"message": "stream=true 暂不支持"}})
-                return
+                req["stream"] = False
 
             messages = req.get("messages")
             if not isinstance(messages, list) or not messages:
