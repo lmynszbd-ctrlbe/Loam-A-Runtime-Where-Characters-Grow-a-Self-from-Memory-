@@ -206,91 +206,66 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
 
   <!-- CONNECT -->
   <div id="panel-connect" class="panel">
-    <h1>🔌 Connect Your Client</h1>
-    <div class="sub">Paste these into any OpenAI-compatible chat app (SillyTavern, Open WebUI, etc.)</div>
-    <div class="grid">
+    <h1>🔌 Connect</h1>
+    <div class="sub">Client info + set your API keys below</div>
+
+    <!-- Client connect info (compact) -->
+    <div class="grid" style="grid-template-columns:repeat(3, 1fr); margin-bottom:20px">
       <div class="card">
-        <h3>🔗 API Endpoint</h3>
-        <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:16px;text-align:center;margin:8px 0">
-          http://127.0.0.1:8780/v1
-        </div>
-        <p class="muted" style="font-size:12px">This is your <strong>Base URL</strong> / <strong>API Host</strong> in the client settings.</p>
+        <h3>🔗 Base URL</h3>
+        <div style="font-family:monospace;font-size:15px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">http://127.0.0.1:8780/v1</div>
       </div>
       <div class="card">
         <h3>🔑 API Key</h3>
-        <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:16px;text-align:center;margin:8px 0">
-          local-key
-        </div>
-        <p class="muted" style="font-size:12px">Anything works. The real auth is handled by your upstream provider.</p>
+        <div style="font-family:monospace;font-size:15px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">local-key</div>
       </div>
       <div class="card">
-        <h3>🤖 Model Name</h3>
-        <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:16px;text-align:center;margin:8px 0">
-          relayA/deepseek-chat
-        </div>
-        <p class="muted" style="font-size:12px">Format: <code>provider/model</code>. Change based on your upstreams below.</p>
+        <h3>🤖 Model</h3>
+        <div style="font-family:monospace;font-size:14px;text-align:center;padding:6px;background:var(--bg);border-radius:4px"><code>provider/model</code></div>
       </div>
     </div>
 
-    <h2 style="margin-top:24px">🔧 Set Your API Keys</h2>
-    <div class="sub">loam uses <strong>two</strong> separate keys. Fill in both, click Save, then restart to apply.</div>
-    <div class="actions">
+    <div class="actions" style="margin-bottom:16px">
       <button class="btn btn-sm" onclick="loadApiConfig()">🔄 Reload from disk</button>
+      <span class="muted" style="font-size:11px;margin-left:8px">Saved to <code id="cfg-home">~/.loam</code> · restart after saving</span>
     </div>
 
-    <div class="grid" style="grid-template-columns:1fr 1fr">
-      <!-- secrets.json = loam digestion model -->
-      <div class="card">
-        <h3>💾 loam memory model — secrets.json</h3>
-        <p class="muted" style="font-size:12px;margin-bottom:8px">The model loam uses to <strong>digest conversations into memory</strong> (background work, cheaper model is fine).</p>
-        <div class="form-group">
-          <label>API Key</label>
-          <input id="sec-key" placeholder="sk-...">
-        </div>
-        <div class="form-group">
+    <!-- SECTION 1: loam memory API -->
+    <div class="card" style="margin-bottom:16px; border-left:3px solid var(--accent)">
+      <h3>🧠 loam Memory API <span class="muted" style="font-weight:400;font-size:11px">— digests conversations into memory</span></h3>
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:end">
+        <div class="form-group" style="margin:0">
           <label>Base URL</label>
           <input id="sec-url" placeholder="https://api.deepseek.com">
         </div>
-        <div class="form-group">
+        <div class="form-group" style="margin:0">
+          <label>API Key</label>
+          <input id="sec-key" placeholder="sk-..." type="password">
+        </div>
+        <div class="form-group" style="margin:0">
           <label>Model</label>
           <input id="sec-model" placeholder="deepseek-chat">
         </div>
-        <button class="btn btn-ok" onclick="saveSecrets()">💾 Save secrets.json</button>
-        <div id="sec-status" style="margin-top:8px;font-size:12px" class="muted"></div>
+        <button class="btn btn-ok" style="height:38px;align-self:end" onclick="saveSecrets()">💾 Save</button>
       </div>
-
-      <!-- upstreams.json = chat model -->
-      <div class="card">
-        <h3>💬 Chat model — upstreams.json</h3>
-        <p class="muted" style="font-size:12px;margin-bottom:8px">The model your chat client talks to (the <strong>replies you see</strong>). This is the "relayA" provider.</p>
-        <div class="form-group">
-          <label>Provider name</label>
-          <input id="up-name" placeholder="relayA" value="relayA">
-        </div>
-        <div class="form-group">
-          <label>API Key</label>
-          <input id="up-key" placeholder="sk-...">
-        </div>
-        <div class="form-group">
-          <label>Base URL</label>
-          <input id="up-url" placeholder="https://api.deepseek.com">
-        </div>
-        <div class="form-group">
-          <label>Default Model</label>
-          <input id="up-model" placeholder="deepseek-chat">
-        </div>
-        <button class="btn btn-ok" onclick="saveUpstream()">💾 Save upstreams.json</button>
-        <div id="up-status" style="margin-top:8px;font-size:12px" class="muted"></div>
-      </div>
+      <div id="sec-status" style="margin-top:8px;font-size:12px" class="muted"></div>
     </div>
-    <div class="card" style="margin-top:12px">
-      <p class="muted" style="font-size:12px">⚠ Changes are written to <code id="cfg-home">~/.loam</code>. loam reads these <strong>at startup</strong> — after saving, restart from the Actions tab or your terminal for them to take effect. Advanced multi-provider editing: edit <code>upstreams.json</code> directly (see raw view below).</p>
-      <div class="form-group" style="margin-top:8px">
-        <label>Raw upstreams.json (advanced — full multi-provider control)</label>
-        <textarea id="up-raw" style="min-height:140px"></textarea>
+
+    <!-- SECTION 2: chat upstream APIs -->
+    <div class="card" style="border-left:3px solid var(--ok)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h3 style="margin:0">💬 Chat Upstream APIs <span class="muted" style="font-weight:400;font-size:11px">— the models your chat client uses</span></h3>
+        <button class="btn btn-sm btn-outline" onclick="addUpstreamRow()">+ Add Provider</button>
       </div>
-      <button class="btn" onclick="saveUpstreamRaw()">💾 Save raw upstreams.json</button>
-      <div id="up-raw-status" style="margin-top:8px;font-size:12px" class="muted"></div>
+      <div id="upstream-rows"></div>
+      <div style="display:flex;align-items:end;gap:12px;margin-top:10px">
+        <div class="form-group" style="margin:0">
+          <label>Default provider</label>
+          <select id="up-default" style="width:auto;min-width:200px"></select>
+        </div>
+        <button class="btn btn-ok" style="height:38px" onclick="saveUpstreams()">💾 Save All</button>
+      </div>
+      <div id="up-status" style="margin-top:8px;font-size:12px" class="muted"></div>
     </div>
   </div>
 
@@ -529,9 +504,11 @@ async function applyConstants() {
 }
 
 // ---- CONNECT / API KEYS ----
+let _upstreamData = {};  // {name: {base_url, api_key, default_model}}
+
 async function loadApiConfig() {
   try {
-    const cfg = await call('GET', '/admin/config');  // served by admin panel itself
+    const cfg = await call('GET', '/admin/config');
     // secrets
     const s = cfg.secrets || {};
     document.getElementById('sec-key').value = s.api_key || '';
@@ -539,18 +516,80 @@ async function loadApiConfig() {
     document.getElementById('sec-model').value = s.model || '';
     // upstreams
     const u = cfg.upstreams || {};
-    const providers = u.providers || {};
-    const defName = u.default || Object.keys(providers)[0] || 'relayA';
-    const p = providers[defName] || {};
-    document.getElementById('up-name').value = defName;
-    document.getElementById('up-key').value = p.api_key || '';
-    document.getElementById('up-url').value = p.base_url || '';
-    document.getElementById('up-model').value = p.default_model || '';
-    document.getElementById('up-raw').value = Object.keys(u).length ? JSON.stringify(u, null, 2) : '';
+    _upstreamData = u.providers || {};
+    const defName = u.default || '';
     if (cfg.home) document.getElementById('cfg-home').textContent = cfg.home;
+    renderUpstreamRows(defName);
   } catch(e) {
     toast('Could not load config: ' + e.message, 'err');
   }
+}
+
+function renderUpstreamRows(defName) {
+  const container = document.getElementById('upstream-rows');
+  const select = document.getElementById('up-default');
+  const names = Object.keys(_upstreamData);
+  if (!names.length) { _upstreamData = {}; }
+  const sorted = Object.keys(_upstreamData).sort();
+
+  container.innerHTML = sorted.map(name => {
+    const p = _upstreamData[name] || {};
+    return `<div class="upstream-row" style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:8px;align-items:end;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div class="form-group" style="margin:0">
+        <label>Name</label>
+        <input class="up-name-inp" value="${escAttr(name)}" placeholder="relayA" style="font-weight:600">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Base URL</label>
+        <input class="up-url-inp" value="${escAttr(p.base_url||'')}" placeholder="https://api.deepseek.com">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>API Key</label>
+        <input class="up-key-inp" type="password" value="${escAttr(p.api_key||'')}" placeholder="sk-...">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Model</label>
+        <input class="up-model-inp" value="${escAttr(p.default_model||'')}" placeholder="deepseek-chat">
+      </div>
+      <button class="btn btn-sm btn-danger" style="height:38px;align-self:end" onclick="removeUpstreamRow('${escAttr(name)}')">✕</button>
+    </div>`;
+  }).join('');
+
+  // default select
+  select.innerHTML = sorted.map(n => `<option value="${escAttr(n)}" ${n===defName?'selected':''}>${esc(n)}</option>`).join('');
+  if (!sorted.length) select.innerHTML = '<option value="">— no providers —</option>';
+}
+
+function addUpstreamRow(name) {
+  name = (name || '').trim();
+  if (!name) {
+    // generate a unique name
+    let i = 1;
+    while (_upstreamData['relay'+i]) i++;
+    name = 'relay'+i;
+  }
+  if (!_upstreamData[name]) _upstreamData[name] = {base_url:'', api_key:'', default_model:''};
+  renderUpstreamRows(document.getElementById('up-default').value);
+}
+
+function removeUpstreamRow(name) {
+  delete _upstreamData[name];
+  renderUpstreamRows(document.getElementById('up-default').value);
+}
+
+function collectUpstreamFromDOM() {
+  const rows = document.querySelectorAll('#upstream-rows .upstream-row');
+  const data = {};
+  rows.forEach(row => {
+    const name = (row.querySelector('.up-name-inp')?.value || '').trim();
+    if (!name) return;
+    data[name] = {
+      base_url: (row.querySelector('.up-url-inp')?.value || '').trim(),
+      api_key: (row.querySelector('.up-key-inp')?.value || '').trim(),
+      default_model: (row.querySelector('.up-model-inp')?.value || '').trim(),
+    };
+  });
+  return data;
 }
 
 async function saveSecrets() {
@@ -560,45 +599,35 @@ async function saveSecrets() {
     model: document.getElementById('sec-model').value.trim(),
   };
   if (!body.api_key || !body.base_url || !body.model) {
-    toast('Fill in all three fields', 'err'); return;
+    toast('Fill in all three fields for loam Memory API', 'err'); return;
   }
   const r = await call('POST', '/admin/secrets', body);
   const el = document.getElementById('sec-status');
-  if (r.ok) { el.innerHTML = '<span class="ok">✓ saved to '+esc(r.path)+' — restart loam to apply</span>'; toast('secrets.json saved', 'ok'); }
+  if (r.ok) { el.innerHTML = '<span class="ok">✓ saved — restart loam to apply</span>'; toast('Memory API saved', 'ok'); }
   else { el.innerHTML = '<span class="err">'+esc(r.error||'failed')+'</span>'; toast('save failed', 'err'); }
 }
 
-async function saveUpstream() {
-  const name = document.getElementById('up-name').value.trim() || 'relayA';
-  const body = {
-    name,
-    api_key: document.getElementById('up-key').value.trim(),
-    base_url: document.getElementById('up-url').value.trim(),
-    default_model: document.getElementById('up-model').value.trim(),
-  };
-  if (!body.api_key || !body.base_url || !body.default_model) {
-    toast('Fill in all fields', 'err'); return;
+async function saveUpstreams() {
+  const providers = collectUpstreamFromDOM();
+  if (!Object.keys(providers).length) { toast('Add at least one provider', 'err'); return; }
+  // validate
+  for (const [name, p] of Object.entries(providers)) {
+    if (!p.base_url || !p.api_key || !p.default_model) {
+      toast('Provider "'+name+'": fill in all fields', 'err'); return;
+    }
   }
-  const r = await call('POST', '/admin/upstream', body);
+  const defName = document.getElementById('up-default').value;
+  const body = {providers};
+  if (defName && providers[defName]) body.default = defName;
+  const r = await call('POST', '/admin/upstreams', body);
   const el = document.getElementById('up-status');
   if (r.ok) {
-    el.innerHTML = '<span class="ok">✓ saved to '+esc(r.path)+' — restart proxy to apply</span>';
-    toast('upstreams.json saved', 'ok');
-    loadApiConfig();
+    _upstreamData = providers;
+    el.innerHTML = '<span class="ok">✓ saved — restart proxy to apply</span>';
+    toast('Chat APIs saved', 'ok');
   } else { el.innerHTML = '<span class="err">'+esc(r.error||'failed')+'</span>'; toast('save failed', 'err'); }
 }
 
-async function saveUpstreamRaw() {
-  let parsed;
-  try { parsed = JSON.parse(document.getElementById('up-raw').value); }
-  catch(e) { toast('Invalid JSON: ' + e.message, 'err'); return; }
-  const r = await call('POST', '/admin/upstream-raw', parsed);
-  const el = document.getElementById('up-raw-status');
-  if (r.ok) { el.innerHTML = '<span class="ok">✓ saved to '+esc(r.path)+' — restart proxy to apply</span>'; toast('upstreams.json saved', 'ok'); loadApiConfig(); }
-  else { el.innerHTML = '<span class="err">'+esc(r.error||'failed')+'</span>'; toast('save failed', 'err'); }
-}
-
-// alias so nav auto-loader (loadConnect) works when the tab opens
 function loadConnect() { loadApiConfig(); }
 
 // ---- ACTIONS ----
@@ -626,6 +655,7 @@ async function doAction(action) {
 }
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'"').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // ---- init ----
 loadStatus();
@@ -647,10 +677,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == "/admin/secrets":
             self._json(self._save_secrets())
-        elif self.path == "/admin/upstream":
-            self._json(self._save_upstream())
-        elif self.path == "/admin/upstream-raw":
-            self._json(self._save_upstream_raw())
+        elif self.path == "/admin/upstreams":
+            self._json(self._save_upstreams())
         elif self.path.startswith("/api/proxy"):
             self._proxy("POST")
         else:
@@ -687,35 +715,25 @@ class Handler(BaseHTTPRequestHandler):
             return {"error": "api_key, base_url and model are all required"}
         return write_json_file(SECRETS_FILE, data)
 
-    def _save_upstream(self):
-        """Merge/update a single provider inside upstreams.json, preserving others."""
+    def _save_upstreams(self):
+        """Save the full providers map + default to upstreams.json."""
         body = self._read_body()
-        name = (body.get("name") or "relayA").strip() or "relayA"
-        provider = {
-            "base_url": (body.get("base_url") or "").strip(),
-            "api_key": (body.get("api_key") or "").strip(),
-            "default_model": (body.get("default_model") or "").strip(),
-        }
-        if not (provider["base_url"] and provider["api_key"] and provider["default_model"]):
-            return {"error": "base_url, api_key and default_model are all required"}
-        current = read_json_file(UPSTREAMS_FILE)
-        if not isinstance(current, dict) or "_error" in current:
-            current = {}
-        providers = current.get("providers")
-        if not isinstance(providers, dict):
-            providers = {}
-        providers[name] = provider
-        current["providers"] = providers
-        current.setdefault("default", name)
-        return write_json_file(UPSTREAMS_FILE, current)
-
-    def _save_upstream_raw(self):
-        body = self._read_body()
-        if not isinstance(body, dict) or not body:
-            return {"error": "expected a non-empty JSON object"}
-        if "providers" not in body or not isinstance(body.get("providers"), dict):
-            return {"error": "upstreams.json must contain a 'providers' object"}
-        return write_json_file(UPSTREAMS_FILE, body)
+        providers = body.get("providers")
+        if not isinstance(providers, dict) or not providers:
+            return {"error": "expected a 'providers' object with at least one entry"}
+        # validate
+        for name, p in providers.items():
+            if not isinstance(p, dict):
+                return {"error": f"provider '{name}' must be an object"}
+            if not (p.get("base_url") and p.get("api_key") and p.get("default_model")):
+                return {"error": f"provider '{name}': base_url, api_key, default_model are all required"}
+        data = {"providers": providers}
+        default = (body.get("default") or "").strip()
+        if default and providers.get(default):
+            data["default"] = default
+        elif providers:
+            data["default"] = list(providers.keys())[0]
+        return write_json_file(UPSTREAMS_FILE, data)
 
     def _proxy(self, method):
         path = self.path.replace("/api/proxy", "")
