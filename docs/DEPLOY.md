@@ -406,11 +406,45 @@ Then in your chat client, choose models by prefix:
 
 ---
 
-## Using loam as MCP tool
+## Using loam as an MCP tool
 
-The proxy exposes a standard OpenAI-compatible API at `http://127.0.0.1:8780/v1`. Any MCP client that supports `openai-compatible` providers can connect directly.
+MCP (Model Context Protocol) lets AI assistants like Claude Desktop or Continue use external tools. Since loam's proxy speaks standard OpenAI API, any MCP client that supports OpenAI-compatible providers can use loam as a memory backend.
 
-MCP configuration example (for clients like Claude Desktop, Continue, etc.):
+### What this gives you
+
+When an MCP client connects to loam, every conversation is automatically logged, digested, and turned into long-term memory — traits, events, narratives — without any extra setup. The AI assistant gets a growing self across sessions.
+
+### Step-by-step: connect loam to your MCP client
+
+**Step 1: Make sure loam is running**
+
+Before configuring any MCP client, loam must be running. Pick your platform from the sections above (A through E), start both loam and proxy, and verify:
+
+```bash
+curl -s http://127.0.0.1:8765/health
+curl -s http://127.0.0.1:8780/health
+```
+
+Both must return `{"status":"ok"}`.
+
+**Step 2: Find your MCP client's config file**
+
+Different clients store their config in different places. Here are the most common ones:
+
+| MCP Client | Config file location |
+|------------|---------------------|
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows) |
+| Continue (VS Code) | `~/.continue/config.json` |
+| Cursor | `~/.cursor/mcp.json` |
+| Cline (VS Code) | `~/.cline/mcp_settings.json` |
+| Operit (Android) | Settings -> MCP Servers -> Add Server |
+
+If your client isn't listed, search its documentation for "MCP server configuration" or "OpenAI-compatible provider".
+
+**Step 3: Add loam to the config**
+
+Open the config file and add a `loam` entry under `mcpServers`. Here is the exact JSON to add:
+
 ```json
 {
   "mcpServers": {
@@ -424,7 +458,29 @@ MCP configuration example (for clients like Claude Desktop, Continue, etc.):
 }
 ```
 
-The exact configuration format depends on your MCP client. Check your client's documentation for "OpenAI-compatible provider" setup.
+What each field means:
+- `type`: tells the client this is an OpenAI-compatible API (not a custom MCP server)
+- `baseURL`: the address of loam's proxy — always `http://127.0.0.1:8780/v1`
+- `apiKey`: anything non-empty works (e.g. `local-key`); authentication is handled by the upstream provider
+- `model`: the model name in `provider/model` format. Change `relayA` to match your upstreams.json default, and `deepseek-chat` to your actual model
+
+**Step 4: Restart your MCP client**
+
+Close and reopen the client app. It should pick up the new config. In some clients, you may need to manually enable the loam server in settings.
+
+**Step 5: Verify it works**
+
+Send a message through your MCP client. Then check loam's memory:
+
+```bash
+curl -s http://127.0.0.1:8765/context
+```
+
+If you see events and traits accumulating, the connection is working. Every conversation is now being digested into long-term memory.
+
+### Multiple MCP clients
+
+You can connect multiple MCP clients to the same loam instance. Each client gets its own character (configured via the `--character` flag when starting loam). This lets different assistants develop different personalities from different conversations, all stored in the same loam database.
 
 ---
 
