@@ -14,7 +14,7 @@ Optional extras:
 
 ## Getting started
 
-> 🚀 **One-click**: `git clone <repo> && cd loam && bash scripts/setup.sh` — auto-detects OS, installs everything, opens admin panel.
+> 🚀 **One-click**: `git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git && cd loam && bash scripts/setup.sh` — auto-detects OS, installs everything, opens admin panel.
 > 📖 **Manual**: follow [docs/DEPLOY.md](docs/DEPLOY.md) for per-platform step-by-step commands.
 
 After setup, open `http://127.0.0.1:8899` — the admin panel lets you view traits, browse memory, hot-tune constants, trigger digest, and more.
