@@ -168,26 +168,17 @@ EOF
 start_services() {
     heading "Starting loam"
 
-    # Kill any existing instances — aggressive port-based kill for Android
-    say "Stopping old processes..."
-    # Kill all matching processes first; on Android pkill may not catch everything,
-    pkill -f "loam.__main__" 2>/dev/null || true
-    pkill -f "forced_flow_proxy" 2>/dev/null || true
-    pkill -f "scripts/admin.py" 2>/dev/null || true
-    pkill -f "dashboard.py" 2>/dev/null || true
-    # Aggressive: kill anything on loam ports (Android stubborn processes)
-    fuser -k 8765/tcp 2>/dev/null || true
-    fuser -k 8781/tcp 2>/dev/null || true
-    fuser -k 8900/tcp 2>/dev/null || true
-    # Extra aggressive: wait and re-kill any remaining listeners
-    sleep 2
-    for port in 8765 8781 8900; do
-      for pid in $(ss -tlnp 2>/dev/null | grep ":$port " | sed 's/.*pid=\([0-9]*\).*/\1/'); do
-        kill -9 "$pid" 2>/dev/null || true
-      done
-      fuser -k "${port}/tcp" 2>/dev/null || true
-    done
-    sleep 1
+    # Use the dedicated reset helper to free ports and kill old processes.
+    # On Android, zombie listeners can block setup.sh; reset.sh is extra aggressive.
+    if [ -f scripts/reset.sh ]; then
+        bash scripts/reset.sh
+    else
+        pkill -f "loam.__main__" 2>/dev/null || true
+        pkill -f "forced_flow_proxy" 2>/dev/null || true
+        pkill -f "scripts/admin.py" 2>/dev/null || true
+        pkill -f "dashboard.py" 2>/dev/null || true
+        sleep 2
+    fi
 
     # Start loam
     nohup python3 -m loam run --grow-interval 60 > /dev/null 2>&1 &
