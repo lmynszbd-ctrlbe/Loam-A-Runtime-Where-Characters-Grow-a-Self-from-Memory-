@@ -14,10 +14,25 @@ Optional extras:
 
 ## Getting started
 
-> 🚀 **One-click**: `cd ~ && git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git loam && cd loam && bash scripts/setup.sh` — auto-detects OS, installs everything, opens admin panel.
-> 📖 **Manual**: follow [docs/DEPLOY.md](docs/DEPLOY.md) for per-platform step-by-step commands.
+Two steps. Step 1 installs loam (skip it if you already have the folder); Step 2 launches everything.
 
-After setup, open `http://127.0.0.1:8899` — the admin panel lets you view traits, browse memory, hot-tune constants, trigger digest, and more.
+**Step 1 — Install loam** (skip if already installed)
+
+```bash
+cd ~ && git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git loam
+```
+
+> ✅ Already have the `~/loam` folder? Skip Step 1. (A `destination path 'loam' already exists` error just means it's already installed — go to Step 2.)
+
+**Step 2 — Set up & launch**
+
+```bash
+cd ~/loam && git pull && bash scripts/setup.sh
+```
+
+`setup.sh` auto-detects your OS, installs prerequisites, walks you through the API keys, starts all three processes, and opens the admin panel.
+
+After setup, open `http://127.0.0.1:8899` — the admin panel lets you view traits, browse memory, hot-tune constants, trigger digest, and set both API keys (see the **Connect / Config** tabs). Prefer per-platform manual commands? See [docs/DEPLOY.md](docs/DEPLOY.md).
 
 Client: Base URL `http://127.0.0.1:8780/v1`, model `provider/model` (e.g. `relayA/deepseek-chat`).
 

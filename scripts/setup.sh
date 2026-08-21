@@ -10,9 +10,9 @@
 # This script:
 #   1. Detects your OS (Termux/macOS/Linux/Windows)
 #   2. Installs prerequisites if missing
-#   3. Clones loam
+#   3. If ~/loam doesn't exist, clones it; otherwise pulls latest
 #   4. Walks you through configuration (API key, model)
-#   5. Starts loam + proxy + watchdog
+#   5. Starts loam + proxy + admin panel
 #   6. Opens the admin panel in your browser
 # ============================================================
 

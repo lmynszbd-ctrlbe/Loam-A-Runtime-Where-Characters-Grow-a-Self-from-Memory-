@@ -5,16 +5,47 @@ Usage:
   python scripts/admin.py
   → http://127.0.0.1:8899
 """
-
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import urllib.request
 import urllib.error
 import os
 import time
+from pathlib import Path
 
 LOAM = os.environ.get("LOAM_URL", "http://127.0.0.1:8765").rstrip("/")
 PORT = int(os.environ.get("ADMIN_PORT", "8899"))
+SECRETS_HOME = Path(os.environ.get("LOAM_SECRETS_HOME", "~/.loam")).expanduser()
+SECRETS_FILE = SECRETS_HOME / "secrets.json"
+UPSTREAMS_FILE = SECRETS_HOME / "upstreams.json"
+
+
+def read_json_file(path):
+    """Read a config file. Returns {} if missing, {"_error": ...} on parse error."""
+    try:
+        if not path.exists():
+            return {}
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        return {"_error": str(e)}
+
+
+def write_json_file(path, data):
+    """Write a config file atomically, creating the directory + secure perms."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, path)
+        try:
+            os.chmod(path, 0o600)
+        except Exception:
+            pass
+        return {"ok": True, "path": str(path)}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 
 def api(path, method="GET", body=None):
     try:
@@ -197,28 +228,73 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
         <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:16px;text-align:center;margin:8px 0">
           relayA/deepseek-chat
         </div>
-        <p class="muted" style="font-size:12px">Format: <code>provider/model</code>. Change based on your upstreams.json.</p>
+        <p class="muted" style="font-size:12px">Format: <code>provider/model</code>. Change based on your upstreams below.</p>
+      </div>
+    </div>
+
+    <h2 style="margin-top:24px">🔧 Set Your API Keys</h2>
+    <div class="sub">loam uses <strong>two</strong> separate keys. Fill in both, click Save, then restart to apply.</div>
+    <div class="actions">
+      <button class="btn btn-sm" onclick="loadApiConfig()">🔄 Reload from disk</button>
+    </div>
+
+    <div class="grid" style="grid-template-columns:1fr 1fr">
+      <!-- secrets.json = loam digestion model -->
+      <div class="card">
+        <h3>💾 loam memory model — secrets.json</h3>
+        <p class="muted" style="font-size:12px;margin-bottom:8px">The model loam uses to <strong>digest conversations into memory</strong> (background work, cheaper model is fine).</p>
+        <div class="form-group">
+          <label>API Key</label>
+          <input id="sec-key" placeholder="sk-...">
+        </div>
+        <div class="form-group">
+          <label>Base URL</label>
+          <input id="sec-url" placeholder="https://api.deepseek.com">
+        </div>
+        <div class="form-group">
+          <label>Model</label>
+          <input id="sec-model" placeholder="deepseek-chat">
+        </div>
+        <button class="btn btn-ok" onclick="saveSecrets()">💾 Save secrets.json</button>
+        <div id="sec-status" style="margin-top:8px;font-size:12px" class="muted"></div>
+      </div>
+
+      <!-- upstreams.json = chat model -->
+      <div class="card">
+        <h3>💬 Chat model — upstreams.json</h3>
+        <p class="muted" style="font-size:12px;margin-bottom:8px">The model your chat client talks to (the <strong>replies you see</strong>). This is the "relayA" provider.</p>
+        <div class="form-group">
+          <label>Provider name</label>
+          <input id="up-name" placeholder="relayA" value="relayA">
+        </div>
+        <div class="form-group">
+          <label>API Key</label>
+          <input id="up-key" placeholder="sk-...">
+        </div>
+        <div class="form-group">
+          <label>Base URL</label>
+          <input id="up-url" placeholder="https://api.deepseek.com">
+        </div>
+        <div class="form-group">
+          <label>Default Model</label>
+          <input id="up-model" placeholder="deepseek-chat">
+        </div>
+        <button class="btn btn-ok" onclick="saveUpstream()">💾 Save upstreams.json</button>
+        <div id="up-status" style="margin-top:8px;font-size:12px" class="muted"></div>
       </div>
     </div>
     <div class="card" style="margin-top:12px">
-      <h3>⚙ Two Config Files</h3>
-      <div class="grid" style="grid-template-columns:1fr 1fr">
-        <div>
-          <p style="font-size:12px;color:var(--accent);margin-bottom:4px">~/.loam/secrets.json</p>
-          <p class="muted" style="font-size:11px">For loam itself — the model that digests conversations into memory.</p>
-          <pre style="font-size:11px;background:var(--bg);padding:8px;border-radius:4px;overflow-x:auto">{"api_key":"sk-...","base_url":"https://api.deepseek.com","model":"deepseek-chat"}</pre>
-        </div>
-        <div>
-          <p style="font-size:12px;color:var(--accent);margin-bottom:4px">~/.loam/upstreams.json</p>
-          <p class="muted" style="font-size:11px">For the proxy — the models your chat client uses. Can have multiple providers.</p>
-          <pre style="font-size:11px;background:var(--bg);padding:8px;border-radius:4px;overflow-x:auto">{"default":"relayA","providers":{"relayA":{"base_url":"https://...","api_key":"sk-...","default_model":"deepseek-chat"}}}</pre>
-        </div>
+      <p class="muted" style="font-size:12px">⚠ Changes are written to <code id="cfg-home">~/.loam</code>. loam reads these <strong>at startup</strong> — after saving, restart from the Actions tab or your terminal for them to take effect. Advanced multi-provider editing: edit <code>upstreams.json</code> directly (see raw view below).</p>
+      <div class="form-group" style="margin-top:8px">
+        <label>Raw upstreams.json (advanced — full multi-provider control)</label>
+        <textarea id="up-raw" style="min-height:140px"></textarea>
       </div>
+      <button class="btn" onclick="saveUpstreamRaw()">💾 Save raw upstreams.json</button>
+      <div id="up-raw-status" style="margin-top:8px;font-size:12px" class="muted"></div>
     </div>
   </div>
 
   <!-- ACTIONS -->
-  <div id="panel-actions" class="panel">  <!-- ACTIONS -->
   <div id="panel-actions" class="panel">
     <h1>▶ Actions</h1>
     <div class="sub">Manual operations</div>
@@ -452,6 +528,79 @@ async function applyConstants() {
   loadConstants();
 }
 
+// ---- CONNECT / API KEYS ----
+async function loadApiConfig() {
+  try {
+    const cfg = await call('GET', '/admin/config');  // served by admin panel itself
+    // secrets
+    const s = cfg.secrets || {};
+    document.getElementById('sec-key').value = s.api_key || '';
+    document.getElementById('sec-url').value = s.base_url || '';
+    document.getElementById('sec-model').value = s.model || '';
+    // upstreams
+    const u = cfg.upstreams || {};
+    const providers = u.providers || {};
+    const defName = u.default || Object.keys(providers)[0] || 'relayA';
+    const p = providers[defName] || {};
+    document.getElementById('up-name').value = defName;
+    document.getElementById('up-key').value = p.api_key || '';
+    document.getElementById('up-url').value = p.base_url || '';
+    document.getElementById('up-model').value = p.default_model || '';
+    document.getElementById('up-raw').value = Object.keys(u).length ? JSON.stringify(u, null, 2) : '';
+    if (cfg.home) document.getElementById('cfg-home').textContent = cfg.home;
+  } catch(e) {
+    toast('Could not load config: ' + e.message, 'err');
+  }
+}
+
+async function saveSecrets() {
+  const body = {
+    api_key: document.getElementById('sec-key').value.trim(),
+    base_url: document.getElementById('sec-url').value.trim(),
+    model: document.getElementById('sec-model').value.trim(),
+  };
+  if (!body.api_key || !body.base_url || !body.model) {
+    toast('Fill in all three fields', 'err'); return;
+  }
+  const r = await call('POST', '/admin/secrets', body);
+  const el = document.getElementById('sec-status');
+  if (r.ok) { el.innerHTML = '<span class="ok">✓ saved to '+esc(r.path)+' — restart loam to apply</span>'; toast('secrets.json saved', 'ok'); }
+  else { el.innerHTML = '<span class="err">'+esc(r.error||'failed')+'</span>'; toast('save failed', 'err'); }
+}
+
+async function saveUpstream() {
+  const name = document.getElementById('up-name').value.trim() || 'relayA';
+  const body = {
+    name,
+    api_key: document.getElementById('up-key').value.trim(),
+    base_url: document.getElementById('up-url').value.trim(),
+    default_model: document.getElementById('up-model').value.trim(),
+  };
+  if (!body.api_key || !body.base_url || !body.default_model) {
+    toast('Fill in all fields', 'err'); return;
+  }
+  const r = await call('POST', '/admin/upstream', body);
+  const el = document.getElementById('up-status');
+  if (r.ok) {
+    el.innerHTML = '<span class="ok">✓ saved to '+esc(r.path)+' — restart proxy to apply</span>';
+    toast('upstreams.json saved', 'ok');
+    loadApiConfig();
+  } else { el.innerHTML = '<span class="err">'+esc(r.error||'failed')+'</span>'; toast('save failed', 'err'); }
+}
+
+async function saveUpstreamRaw() {
+  let parsed;
+  try { parsed = JSON.parse(document.getElementById('up-raw').value); }
+  catch(e) { toast('Invalid JSON: ' + e.message, 'err'); return; }
+  const r = await call('POST', '/admin/upstream-raw', parsed);
+  const el = document.getElementById('up-raw-status');
+  if (r.ok) { el.innerHTML = '<span class="ok">✓ saved to '+esc(r.path)+' — restart proxy to apply</span>'; toast('upstreams.json saved', 'ok'); loadApiConfig(); }
+  else { el.innerHTML = '<span class="err">'+esc(r.error||'failed')+'</span>'; toast('save failed', 'err'); }
+}
+
+// alias so nav auto-loader (loadConnect) works when the tab opens
+function loadConnect() { loadApiConfig(); }
+
 // ---- ACTIONS ----
 async function doAction(action) {
   const el = document.getElementById(action+'-result');
@@ -488,16 +637,85 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/" or self.path == "/index.html":
             self._html(HTML)
+        elif self.path == "/admin/config":
+            self._json(self._read_config())
         elif self.path.startswith("/api/proxy"):
             self._proxy("GET")
         else:
             self._send(404, "not found")
 
     def do_POST(self):
-        if self.path.startswith("/api/proxy"):
+        if self.path == "/admin/secrets":
+            self._json(self._save_secrets())
+        elif self.path == "/admin/upstream":
+            self._json(self._save_upstream())
+        elif self.path == "/admin/upstream-raw":
+            self._json(self._save_upstream_raw())
+        elif self.path.startswith("/api/proxy"):
             self._proxy("POST")
         else:
             self._send(404, "not found")
+
+    # ---- config file handlers (admin owns these, not the loam backend) ----
+    def _read_body(self):
+        cl = int(self.headers.get("Content-Length", 0))
+        if not cl:
+            return {}
+        try:
+            return json.loads(self.rfile.read(cl))
+        except Exception:
+            return {}
+
+    def _read_config(self):
+        secrets = read_json_file(SECRETS_FILE)
+        upstreams = read_json_file(UPSTREAMS_FILE)
+        # never surface a parse error as if it were config content
+        if isinstance(secrets, dict) and "_error" in secrets:
+            secrets = {}
+        if isinstance(upstreams, dict) and "_error" in upstreams:
+            upstreams = {}
+        return {"secrets": secrets, "upstreams": upstreams, "home": str(SECRETS_HOME)}
+
+    def _save_secrets(self):
+        body = self._read_body()
+        data = {
+            "api_key": (body.get("api_key") or "").strip(),
+            "base_url": (body.get("base_url") or "").strip(),
+            "model": (body.get("model") or "").strip(),
+        }
+        if not (data["api_key"] and data["base_url"] and data["model"]):
+            return {"error": "api_key, base_url and model are all required"}
+        return write_json_file(SECRETS_FILE, data)
+
+    def _save_upstream(self):
+        """Merge/update a single provider inside upstreams.json, preserving others."""
+        body = self._read_body()
+        name = (body.get("name") or "relayA").strip() or "relayA"
+        provider = {
+            "base_url": (body.get("base_url") or "").strip(),
+            "api_key": (body.get("api_key") or "").strip(),
+            "default_model": (body.get("default_model") or "").strip(),
+        }
+        if not (provider["base_url"] and provider["api_key"] and provider["default_model"]):
+            return {"error": "base_url, api_key and default_model are all required"}
+        current = read_json_file(UPSTREAMS_FILE)
+        if not isinstance(current, dict) or "_error" in current:
+            current = {}
+        providers = current.get("providers")
+        if not isinstance(providers, dict):
+            providers = {}
+        providers[name] = provider
+        current["providers"] = providers
+        current.setdefault("default", name)
+        return write_json_file(UPSTREAMS_FILE, current)
+
+    def _save_upstream_raw(self):
+        body = self._read_body()
+        if not isinstance(body, dict) or not body:
+            return {"error": "expected a non-empty JSON object"}
+        if "providers" not in body or not isinstance(body.get("providers"), dict):
+            return {"error": "upstreams.json must contain a 'providers' object"}
+        return write_json_file(UPSTREAMS_FILE, body)
 
     def _proxy(self, method):
         path = self.path.replace("/api/proxy", "")

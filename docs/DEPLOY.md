@@ -1,7 +1,28 @@
 # loam Deployment Guide
 
+> 🚀 **Fastest path — two steps.** Step 1 installs loam (skip it if you already have the folder), Step 2 launches everything.
 
-> 🚀 **One-click**: `cd ~ && git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git loam && cd loam && bash scripts/setup.sh` — auto-detects OS, installs everything, opens admin panel.
+### Step 1 — Install loam (skip if already installed)
+
+If you have **not** downloaded loam yet, run this once:
+
+```bash
+cd ~ && git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git loam
+```
+
+> ✅ **Already have the `~/loam` folder?** Skip Step 1 and go straight to Step 2.
+> (If a clone fails with `destination path 'loam' already exists`, that just means loam is already installed — jump to Step 2.)
+
+### Step 2 — Set up & launch
+
+```bash
+cd ~/loam && git pull && bash scripts/setup.sh
+```
+
+`setup.sh` auto-detects your OS, installs prerequisites, walks you through the API keys, starts all three processes, and opens the admin panel at `http://127.0.0.1:8899`.
+
+> 📖 Prefer to do it by hand? See **Manual setup** below for per-platform commands.
+
 ---
 
 ## Quick overview
@@ -17,7 +38,10 @@ Model name: `relayA/deepseek-chat` (or whatever you configured in upstreams.json
 
 ---
 
-## If you want to Manual setup (Not recommended)
+## Manual setup (per platform)
+
+Only needed if you skipped `scripts/setup.sh` and want to run each step yourself.
+For every platform: if you already cloned loam, skip the Clone step and start from Configure.
 
 ### Android (Termux)
 
@@ -148,9 +172,11 @@ Note: docker-compose only starts loam server (8765). Run proxy separately or add
 
 ## Configuration reference
 
-Two files in `~/.loam/`:
+You can set both API keys **visually in the admin panel** (open `http://127.0.0.1:8899` → **Connect** tab → *Set Your API Keys*), or edit these two files in `~/.loam/` by hand.
 
-### `secrets.json` — loam server (digestion model)
+loam uses **two** separate keys, one per file:
+
+### `secrets.json` — loam memory model (digestion)
 
 ```json
 {
