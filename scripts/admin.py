@@ -7,6 +7,7 @@ Usage:
 """
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import subprocess
 import urllib.request
 import urllib.error
 import os
@@ -116,15 +117,24 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
 .timeline{max-height:400px;overflow-y:auto}
 .changelog-entry{font-size:12px;padding:6px 0;border-bottom:1px solid var(--border)}
 .changelog-entry .ts{color:var(--muted);margin-right:8px}
-.const-row{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px}
-.const-name{width:200px;font-weight:600;color:var(--accent);flex-shrink:0}
-.const-val{width:80px;text-align:right;flex-shrink:0}
-.const-desc{flex:1;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.const-input{width:80px;text-align:right;flex-shrink:0;padding:2px 6px}
+.const-row{display:grid;grid-template-columns:180px 80px 120px 1fr;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px}
+.const-name{font-weight:600;color:var(--accent)}
+.const-val{text-align:right}
+.const-desc{color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.const-input{width:80px;text-align:right;padding:2px 6px}
 .panel{display:none}
 .panel.active{display:block}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
+.banner{background:rgba(210,153,34,0.12);border:1px solid var(--warn);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--warn);display:flex;align-items:center;gap:8px}
+.banner strong{color:#f0c040}
+.banner .banner-dismiss{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px;margin-left:auto;flex-shrink:0}
+.banner .banner-dismiss:hover{color:var(--fg)}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:9999}
+.modal-box{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:420px;width:90%;text-align:center}
+.modal-box h2{font-size:18px;margin-bottom:8px}
+.modal-box p{color:var(--muted);font-size:13px;margin-bottom:16px;line-height:1.6}
+.modal-box .modal-actions{display:flex;gap:8px;justify-content:center}
 </style>
 </head>
 <body>
@@ -140,6 +150,10 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
 </nav>
 <main>
   <div id="toast-container"></div>
+  <div class="banner" id="keep-running-banner" style="display:none">
+    <span>⚠️ <strong>Keep these processes running!</strong> Closing the terminal kills loam, proxy, and admin panel. <a href="https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/blob/main/docs/DEPLOY.md#keeping-processes-running" target="_blank" style="color:var(--accent)">Learn how →</a></span>
+    <button class="banner-dismiss" onclick="this.parentElement.style.display='none'" title="Dismiss">×</button>
+  </div>
 
   <!-- STATUS -->
   <div id="panel-status" class="panel active">
@@ -477,16 +491,18 @@ async function loadConstants() {
   const data = await call('GET', '/constants');
   const consts = data.constants||{};
   const overrides = data.overrides||{};
+  const descs = data.descriptions||{};
   const keys = Object.keys(consts).sort();
   document.getElementById('constants-list').innerHTML = keys.map(k => {
     const v = consts[k];
     const ov = overrides[k];
     const isOverridden = !!ov;
+    const desc = descs[k] || '';
     return `<div class="const-row" style="${isOverridden?'background:rgba(88,166,255,0.1)':''}">
-      <span class="const-name">${k}</span>
+      <span class="const-name" title="${escAttr(desc)}">${esc(k)}</span>
       <input class="const-input" data-name="${k}" value="${isOverridden?ov.override:v}" style="${isOverridden?'border-color:var(--accent)':''}">
       <span class="const-val">${isOverridden?`<span class="warn">${ov.original}→${ov.override}</span>`:v}</span>
-      <span class="const-desc">${isOverridden?'⚡ overridden':''}</span>
+      <span class="const-desc" title="${escAttr(desc)}">${isOverridden?'⚡ overridden':esc(desc)}</span>
     </div>`;
   }).join('');
 }
@@ -630,6 +646,43 @@ async function saveUpstreams() {
 
 function loadConnect() { loadApiConfig(); }
 
+// ---- UPDATE CHECK ----
+async function checkVersion() {
+  try {
+    const v = await call('GET', '/admin/version');
+    if (!v.has_update) return;
+    // show update modal
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `<div class="modal-box">
+      <h2>🔔 Update Available</h2>
+      <p>Your loam is at <code>${esc(v.local)}</code> — latest is <code style="color:var(--ok)">${esc(v.remote)}</code>.<br>Update now? (loam + proxy will restart)</p>
+      <div class="modal-actions">
+        <button class="btn btn-ok" id="update-btn-confirm">🔄 Update & Restart</button>
+        <button class="btn btn-outline" id="update-btn-cancel">Later</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('update-btn-cancel').onclick = () => overlay.remove();
+    document.getElementById('update-btn-confirm').onclick = async () => {
+      const btn = document.getElementById('update-btn-confirm');
+      btn.disabled = true; btn.textContent = '⏳ Updating...';
+      const r = await call('POST', '/admin/update');
+      if (r.ok) {
+        overlay.querySelector('h2').textContent = '✓ Updated';
+        overlay.querySelector('p').innerHTML = 'loam updated to <code>'+esc(v.remote)+'</code>. Restarting...<br>Page will reload in 5 seconds.';
+        overlay.querySelector('.modal-actions').innerHTML = '';
+        setTimeout(() => { location.reload(); }, 5000);
+      } else {
+        overlay.querySelector('p').innerHTML = '<span class="err">Update failed:</span> ' + esc(r.error||'unknown');
+        btn.disabled = false; btn.textContent = '🔄 Retry';
+      }
+    };
+    // auto-close after 60s if ignored
+    setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, 60000);
+  } catch(e) { /* network error — silently ignore */ }
+}
+
 // ---- ACTIONS ----
 async function doAction(action) {
   const el = document.getElementById(action+'-result');
@@ -659,6 +712,10 @@ function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'"').r
 
 // ---- init ----
 loadStatus();
+// show keep-running banner
+document.getElementById('keep-running-banner').style.display = 'flex';
+// check for updates
+checkVersion();
 </script>
 </body>
 </html>"""
@@ -669,6 +726,8 @@ class Handler(BaseHTTPRequestHandler):
             self._html(HTML)
         elif self.path == "/admin/config":
             self._json(self._read_config())
+        elif self.path == "/admin/version":
+            self._json(self._version_info())
         elif self.path.startswith("/api/proxy"):
             self._proxy("GET")
         else:
@@ -679,6 +738,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(self._save_secrets())
         elif self.path == "/admin/upstreams":
             self._json(self._save_upstreams())
+        elif self.path == "/admin/update":
+            self._json(self._run_update())
         elif self.path.startswith("/api/proxy"):
             self._proxy("POST")
         else:
@@ -721,7 +782,6 @@ class Handler(BaseHTTPRequestHandler):
         providers = body.get("providers")
         if not isinstance(providers, dict) or not providers:
             return {"error": "expected a 'providers' object with at least one entry"}
-        # validate
         for name, p in providers.items():
             if not isinstance(p, dict):
                 return {"error": f"provider '{name}' must be an object"}
@@ -734,6 +794,63 @@ class Handler(BaseHTTPRequestHandler):
         elif providers:
             data["default"] = list(providers.keys())[0]
         return write_json_file(UPSTREAMS_FILE, data)
+
+    def _version_info(self):
+        """Return local commit hash + fetch remote latest for comparison."""
+        import subprocess
+        local = ""
+        remote = ""
+        repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        try:
+            r = subprocess.run(["git", "-C", repo_dir, "rev-parse", "--short", "HEAD"],
+                              capture_output=True, text=True, timeout=10)
+            local = r.stdout.strip()
+        except Exception:
+            pass
+        try:
+            r = subprocess.run(["git", "-C", repo_dir, "ls-remote", "origin", "HEAD"],
+                              capture_output=True, text=True, timeout=15)
+            remote = r.stdout.strip().split()[0][:7] if r.stdout.strip() else ""
+        except Exception:
+            pass
+        has_update = bool(local and remote and local != remote)
+        return {"local": local, "remote": remote, "has_update": has_update}
+
+    def _run_update(self):
+        """Run git pull and restart loam + proxy."""
+        repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        try:
+            r = subprocess.run(["git", "-C", repo_dir, "pull", "--ff-only"],
+                              capture_output=True, text=True, timeout=30)
+            out = r.stdout.strip()
+            if r.returncode != 0:
+                out = (out + "\n" + r.stderr).strip()
+                return {"error": "git pull failed", "detail": out[:300]}
+            # restart loam + proxy
+            restart = []
+            for proc_name in ["loam.__main__", "forced_flow_proxy", "scripts/admin.py", "scripts/dashboard.py"]:
+                try:
+                    subprocess.run(["pkill", "-f", proc_name], timeout=5)
+                    restart.append(proc_name)
+                except Exception:
+                    pass
+            # restart loam
+            try:
+                subprocess.Popen(["python3", "-m", "loam", "run", "--grow-interval", "60"],
+                                cwd=repo_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                restart.append("loam-restarted")
+            except Exception:
+                pass
+            # restart proxy
+            try:
+                subprocess.Popen(["python3", "bridge/forced_flow_proxy.py"],
+                                cwd=repo_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                restart.append("proxy-restarted")
+            except Exception:
+                pass
+            return {"ok": True, "detail": out[:200], "restarted": restart}
+        except Exception as e:
+            return {"error": str(e)}
 
     def _proxy(self, method):
         path = self.path.replace("/api/proxy", "")

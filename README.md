@@ -32,9 +32,19 @@ cd ~/loam && git pull && bash scripts/setup.sh
 
 `setup.sh` auto-detects your OS, installs prerequisites, walks you through the API keys, starts all three processes, and opens the admin panel.
 
-After setup, open `http://127.0.0.1:8899` — the admin panel lets you view traits, browse memory, hot-tune constants, trigger digest, and set both API keys (see the **Connect / Config** tabs). Prefer per-platform manual commands? See [docs/DEPLOY.md](docs/DEPLOY.md).
+After setup, open `http://127.0.0.1:8899` — the admin panel lets you view traits, browse memory, hot-tune constants, trigger digest, and set both API keys (see the **Connect** tab). Prefer per-platform manual commands? See [docs/DEPLOY.md](docs/DEPLOY.md).
 
 Client: Base URL `http://127.0.0.1:8780/v1`, model `provider/model` (e.g. `relayA/deepseek-chat`).
+
+> ⚠️ **IMPORTANT — Keep the processes running!**
+> loam consists of three processes (loam server, proxy, admin panel). If you close the terminal, they all stop.
+> `setup.sh` starts them in the background, but for permanent setups use one of:
+> - **systemd** (Linux): see [docs/DEPLOY.md](docs/DEPLOY.md) for a `.service` file
+> - **tmux / screen**: keep them in a persistent session
+> - **Docker**: `docker compose up -d`
+> - **Termux**: use `termux-wake-lock` and keep the app open
+>
+> The admin panel itself must also stay running — it's a separate process, not a static page.
 
 ## Why the design decisions are what they are
 

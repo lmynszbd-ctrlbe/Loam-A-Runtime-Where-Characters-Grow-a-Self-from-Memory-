@@ -99,7 +99,11 @@ clone_repo() {
     if [ -d "$LOAM_DIR" ]; then
         say "loam already exists at ${LOAM_DIR}"
         cd "$LOAM_DIR"
-        git pull --ff-only 2>/dev/null || true
+        if git pull --ff-only 2>/dev/null; then
+            say "Pulled latest changes"
+        else
+            warn "Could not pull latest — you may have local changes. Continuing..."
+        fi
     else
         say "Cloning into ${LOAM_DIR}..."
         git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git "$LOAM_DIR"
@@ -213,6 +217,13 @@ open_browser() {
     echo ""
     echo "  Client base URL: ${BLUE}http://127.0.0.1:8780/v1${NC}"
     echo "  Model name:      ${BLUE}relayA/deepseek-chat${NC} (or whatever you configured)"
+    echo ""
+    echo -e "${BOLD}${YELLOW}⚠  IMPORTANT — Keep these processes running!${NC}"
+    echo "  If you close this terminal, loam stops. To keep it alive:"
+    echo "    • systemd:  sudo systemctl enable --now loam"
+    echo "    • tmux:     tmux new -s loam, run ./setup.sh, Ctrl+B D to detach"
+    echo "    • nohup:    nohup bash scripts/setup.sh &"
+    echo "    • Docker:   docker compose up -d"
     echo ""
     echo "  To stop:  kill \$(pgrep -f 'loam.__main__\|forced_flow_proxy\|dashboard\|admin')"
     echo ""

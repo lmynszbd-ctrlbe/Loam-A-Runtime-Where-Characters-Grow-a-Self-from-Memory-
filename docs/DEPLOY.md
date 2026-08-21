@@ -31,10 +31,29 @@ cd ~/loam && git pull && bash scripts/setup.sh
 |---------|------|---------|
 | loam server | 8765 | Memory storage, digestion, trait growth |
 | forced proxy | 8780 | OpenAI-compatible gateway, routes to your LLM provider |
-| admin panel | 8899 | Web UI: Status, Traits, Memory, Config, Constants, Actions |
+| admin panel | 8899 | Web UI: Status, Traits, Memory, Config, Constants, Connect, Actions |
 
 Client connects to `http://127.0.0.1:8780/v1`
-Model name: `relayA/deepseek-chat` (or whatever you configured in upstreams.json)
+Model name: `provider/model` (e.g. `relayA/deepseek-chat`, configured in the Connect tab)
+
+> ⚠️ **ALL THREE processes must keep running.**
+> Closing the terminal kills them. `setup.sh` backgrounds them, but for long-term use see [Keeping processes running](#keeping-processes-running) below.
+
+---
+
+## Keeping processes running
+
+loam is **not a static website** — it's three live processes. If you close the terminal, they all stop.
+
+| Method | Best for | Command |
+|--------|----------|---------|
+| **systemd** | Linux servers | `sudo systemctl enable --now loam` (see [systemd section](#systemd-server-auto-restart)) |
+| **tmux / screen** | Any platform | `tmux new -s loam` then run `bash scripts/setup.sh` inside, detach with `Ctrl+B D` |
+| **Docker** | Containers | `docker compose up -d` |
+| **Termux** | Android | `termux-wake-lock` + keep Termux app open |
+| **nohup** | Quick & dirty | `nohup bash scripts/setup.sh &` (won't survive reboot) |
+
+> 💡 The admin panel itself (port 8899) is also a process — it must stay running too. It's not a static HTML file. `setup.sh` starts it automatically.
 
 ---
 

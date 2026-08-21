@@ -958,7 +958,8 @@ class LoamHandler(BaseHTTPRequestHandler):
                         if isinstance(val, (int, float, bool, str)):
                             all_consts[name] = val
                 overrides = self.server.service._runtime_const_overrides if hasattr(self.server.service, '_runtime_const_overrides') else {}
-                self._send_json(200, {"constants": all_consts, "overrides": overrides})
+                descriptions = getattr(C, 'DESCRIPTIONS', {})
+                self._send_json(200, {"constants": all_consts, "overrides": overrides, "descriptions": descriptions})
                 return
             self._send_json(404, {"error": f"unknown route: {path}"})
         except ValueError as exc:
