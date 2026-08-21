@@ -1103,9 +1103,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    import socket
     print(f"loam admin panel → http://127.0.0.1:{PORT}")
     print(f"loam backend → {LOAM}")
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    srv.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

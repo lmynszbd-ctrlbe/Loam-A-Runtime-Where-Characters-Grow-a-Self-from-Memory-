@@ -452,7 +452,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> int:
+    import socket
     srv = ThreadingHTTPServer((PROXY_HOST, PROXY_PORT), Handler)
+    srv.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     print(f"forced-flow-proxy listening on http://{PROXY_HOST}:{PROXY_PORT}")
     if TOKEN_AUTH_REQUIRED:
         print(f"proxy token: {PROXY_TOKEN} (saved to {PROXY_TOKEN_FILE})")
