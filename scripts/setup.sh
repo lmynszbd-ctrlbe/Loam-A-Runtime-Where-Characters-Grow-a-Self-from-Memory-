@@ -123,31 +123,37 @@ configure() {
 
     mkdir -p ~/.loam
 
-    # secrets.json
+    # secrets.json (loam 后台记忆消化用)
+    # 优先自动从 upstreams.json 复制，解决用户配了 upstream 但记忆不长的常见问题
     if [ ! -f ~/.loam/secrets.json ]; then
-        python3 -m loam init-secrets --secrets-home ~/.loam 2>/dev/null || true
-        echo ""
-        info "You need an API key for the LLM provider (OpenAI, DeepSeek, etc.)"
-        echo -n "  API key (or press Enter to skip): "
-        read -r API_KEY
-        if [ -n "$API_KEY" ]; then
-            echo -n "  API base URL [https://api.openai.com/v1]: "
-            read -r BASE_URL
-            BASE_URL=${BASE_URL:-https://api.openai.com/v1}
-            echo -n "  Model name [gpt-4o-mini]: "
-            read -r MODEL
-            MODEL=${MODEL:-gpt-4o-mini}
-
-            cat > ~/.loam/secrets.json << EOF
-{
-  "api_key": "${API_KEY}",
-  "base_url": "${BASE_URL}",
-  "model": "${MODEL}"
-}
-EOF
-            say "secrets.json configured"
+        if [ -f ~/.loam/upstreams.json ]; then
+            python3 -c "
+import json, sys
+try:
+    cfg = json.load(open('$HOME/.loam/upstreams.json'))
+    providers = cfg.get('providers', {})
+    if providers:
+        first = list(providers.values())[0]
+        secrets = {
+            'api_key': first.get('api_key', ''),
+            'base_url': first.get('base_url', 'https://api.openai.com/v1'),
+            'model': first.get('default_model', first.get('model', 'gpt-4o-mini')),
+        }
+        json.dump(secrets, open('$HOME/.loam/secrets.json', 'w'), indent=2, ensure_ascii=False)
+        print('OK')
+    else:
+        print('NO_PROVIDERS')
+except Exception as e:
+    print(f'ERR: {e}')
+" 2>/dev/null
+            if [ -f ~/.loam/secrets.json ]; then
+                say "secrets.json auto-generated from upstreams.json (后台记忆消化用)"
+            else
+                warn "Could not auto-generate secrets.json — run 'python3 -m loam init-secrets' or create manually"
+            fi
         else
-            say "Skipped — edit ~/.loam/secrets.json later"
+            info "No upstreams.json yet. You can configure secrets.json later via the admin panel."
+            info "Or run: python3 -m loam init-secrets --secrets-home ~/.loam"
         fi
     else
         say "secrets.json already exists"
