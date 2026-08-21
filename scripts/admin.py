@@ -281,7 +281,7 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
 
     <div class="actions" style="margin-bottom:16px">
       <button class="btn btn-sm" onclick="loadApiConfig()">🔄 从磁盘重新加载</button>
-      <span class="muted" style="font-size:11px;margin-left:8px">保存位置：<code id="cfg-home">~/.loam</code> · 保存后需重启对应进程生效</span>
+      <span class="muted" style="font-size:11px;margin-left:8px">保存位置：<code id="cfg-home">~/.loam</code> · proxy 热加载，保存后立即生效</span>
     </div>
 
     <!-- SECTION 1: loam memory API — 用于消化记忆，生成角色特质 -->

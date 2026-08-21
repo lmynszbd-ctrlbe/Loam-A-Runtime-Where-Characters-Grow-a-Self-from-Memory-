@@ -227,7 +227,26 @@ def _load_upstreams() -> Tuple[Dict[str, Dict[str, str]], str]:
     return providers, default_name
 
 
+UPSTREAMS: Dict[str, Dict[str, str]] = {}
+DEFAULT_UPSTREAM: str = ""
+
+# 初始化加载
 UPSTREAMS, DEFAULT_UPSTREAM = _load_upstreams()
+# 记录配置文件的最后修改时间，用于热加载
+_upstreams_mtime: float = UPSTREAMS_CONFIG.stat().st_mtime if UPSTREAMS_CONFIG.exists() else 0
+
+
+def _maybe_reload_upstreams() -> None:
+    """如果 upstreams.json 被修改过，重新加载。"""
+    global UPSTREAMS, DEFAULT_UPSTREAM, _upstreams_mtime
+    try:
+        if UPSTREAMS_CONFIG.exists():
+            mtime = UPSTREAMS_CONFIG.stat().st_mtime
+            if mtime != _upstreams_mtime:
+                UPSTREAMS, DEFAULT_UPSTREAM = _load_upstreams()
+                _upstreams_mtime = mtime
+    except Exception:
+        pass  # 保持当前配置，不中断请求
 
 
 def _pick_upstream(req_model: str, header_upstream: str = "") -> Tuple[str, str, str]:
@@ -307,6 +326,7 @@ def _models_merged() -> Dict[str, Any]:
 
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
+        _maybe_reload_upstreams()
         if TOKEN_AUTH_REQUIRED and not self._check_token():
             self._send(401, {"error": {"message": "unauthorized: missing or invalid proxy token. Set PROXY_TOKEN env or check ~/.loam/proxy_token"}})
             return
@@ -398,6 +418,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(500, {"error": {"message": f"{type(e).__name__}: {e}"}})
 
     def do_GET(self) -> None:  # noqa: N802
+        _maybe_reload_upstreams()
         if self.path == "/health":
             self._send(
                 200,
