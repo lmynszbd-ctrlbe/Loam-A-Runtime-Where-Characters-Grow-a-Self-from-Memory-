@@ -182,6 +182,7 @@ def _json_post_stream(
     role = "assistant"
     content_parts: List[str] = []
     reasoning_parts: List[str] = []
+    _tc_collect: List[Dict[str, Any]] = []
     finish = "stop"
     for line in raw.split("\n"):
         line = line.strip()
@@ -201,6 +202,11 @@ def _json_post_stream(
                     r = delta.get("reasoning_content")
                     if r:
                         reasoning_parts.append(str(r))
+                    tc = delta.get("tool_calls")
+                    if tc and isinstance(tc, list):
+                        _tc = _tc_collect or []
+                        _tc.extend(tc)
+                        _tc_collect = _tc
                     c = delta.get("content")
                     if c:
                         content_parts.append(str(c))
@@ -211,6 +217,8 @@ def _json_post_stream(
     msg: Dict[str, Any] = {"role": role, "content": "".join(content_parts)}
     if reasoning_parts:
         msg["reasoning_content"] = "".join(reasoning_parts)
+    if _tc_collect:
+        msg["tool_calls"] = _tc_collect
     return {
         "id": cid or f"chatcmpl-{secrets.token_hex(8)}",
         "object": "chat.completion",
