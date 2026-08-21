@@ -531,6 +531,14 @@ class LoamService:
             },
         }
 
+    def narrative(self) -> Dict[str, Any]:
+        with self._lock:
+            n = self.memory.current_narrative()
+            return {
+                "text": str(n.get("text", "")) if n else "",
+                "cycle": int(n.get("cycle", 0)) if n else 0,
+            }
+
     def dashboard(self) -> Dict[str, Any]:
         with self._lock:
             return self._dashboard_unlocked()
