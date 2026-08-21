@@ -71,38 +71,33 @@ HTML = r"""<!DOCTYPE html>
 <title>loam · admin</title>
 <style>
 :root{--bg:#0d1117;--fg:#c9d1d9;--accent:#58a6ff;--warn:#d29922;--err:#f85149;--ok:#3fb950;--card:#161b22;--border:#30363d;--muted:#8b949e;--input-bg:#0d1117}
+.light{--bg:#f6f8fa;--fg:#24292f;--accent:#0969da;--warn:#9a6700;--err:#cf222e;--ok:#1a7f37;--card:#ffffff;--border:#d0d7de;--muted:#656d76;--input-bg:#ffffff}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font:13px/1.6 -apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--fg);display:flex;min-height:100vh}
-nav{width:220px;background:var(--card);border-right:1px solid var(--border);padding:16px 0;flex-shrink:0}
-nav .logo{font-size:16px;font-weight:700;color:var(--accent);padding:0 16px 16px;border-bottom:1px solid var(--border);margin-bottom:8px}
+nav{width:220px;background:var(--card);border-right:1px solid var(--border);padding:16px 0;flex-shrink:0;z-index:10}
+nav .logo{font-size:16px;font-weight:700;color:var(--accent);padding:0 16px 16px;border-bottom:1px solid var(--border);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+nav .logo .theme-btn{background:none;border:1px solid var(--border);color:var(--fg);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px}
+nav .logo .theme-btn:hover{background:var(--border)}
 nav a{display:block;padding:8px 16px;color:var(--fg);text-decoration:none;font-size:13px;transition:background 0.15s}
-nav a:hover,nav a.active{background:var(--border);color:#fff}
+nav a:hover,nav a.active{background:var(--border);color:var(--fg)}
 main{flex:1;padding:24px;overflow-y:auto;max-height:100vh}
 h1{font-size:20px;margin-bottom:4px}
 h2{font-size:16px;margin:20px 0 12px;color:var(--accent)}
 .sub{color:var(--muted);font-size:12px;margin-bottom:20px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:16px}
 .card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px}
-.card h3{font-size:12px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px}
+.card h3{font-size:12px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600}
 .stat{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:13px}
 .stat:last-child{border-bottom:none}
 .val{font-weight:600;font-variant-numeric:tabular-nums}
 .ok{color:var(--ok)}.warn{color:var(--warn)}.err{color:var(--err)}.muted{color:var(--muted)}
-.bar{height:6px;border-radius:3px;background:var(--border);margin:8px 0;overflow:hidden}
-.bar-fill{height:100%;border-radius:3px;transition:width 0.5s}
-.bar-fill.ok{background:var(--ok)}.bar-fill.warn{background:var(--warn)}.bar-fill.err{background:var(--err)}
-.trait{display:flex;align-items:center;gap:8px;padding:3px 0}
-.trait-name{flex:1;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
-.trait-bar{flex:2;height:8px;background:var(--border);border-radius:4px;overflow:hidden}
-.trait-fill{height:100%;background:var(--accent);border-radius:4px;transition:width 0.5s}
-.trait-val{font-size:11px;color:var(--muted);width:36px;text-align:right}
-.trait-phase{font-size:10px;color:var(--muted);width:50px;text-align:right}
-.btn{background:var(--accent);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;transition:opacity 0.15s}
+.btn{background:var(--accent);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;transition:opacity 0.15s;white-space:nowrap}
 .btn:hover{opacity:0.85}
+.btn:disabled{opacity:0.5;cursor:not-allowed}
 .btn-sm{font-size:11px;padding:4px 10px}
 .btn-danger{background:var(--err)}
 .btn-ok{background:var(--ok)}
-.btn-outline{background:transparent;border:1px solid var(--border)}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--fg)}
 .btn-outline:hover{background:var(--border)}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 input,textarea,select{background:var(--input-bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;width:100%}
@@ -113,6 +108,18 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
 .toast.ok{background:var(--ok);color:#000}
 .toast.err{background:var(--err);color:#fff}
 @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;vertical-align:middle}
+.btn-fetching{background:var(--border)!important;color:var(--muted)!important}
+.bar{height:6px;border-radius:3px;background:var(--border);margin:8px 0;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width 0.5s}
+.bar-fill.ok{background:var(--ok)}.bar-fill.warn{background:var(--warn)}.bar-fill.err{background:var(--err)}
+.trait{display:flex;align-items:center;gap:8px;padding:3px 0}
+.trait-name{flex:1;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.trait-bar{flex:2;height:8px;background:var(--border);border-radius:4px;overflow:hidden}
+.trait-fill{height:100%;background:var(--accent);border-radius:4px;transition:width 0.5s}
+.trait-val{font-size:11px;color:var(--muted);width:36px;text-align:right}
+.trait-phase{font-size:10px;color:var(--muted);width:50px;text-align:right}
 .event{font-size:12px;padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:6px}
 .event-dot{width:8px;height:8px;border-radius:50%;margin-top:4px;flex-shrink:0}
 .narrative{font-size:13px;line-height:1.7;white-space:pre-wrap;max-height:300px;overflow-y:auto}
@@ -126,8 +133,6 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
 .const-input{width:80px;text-align:right;padding:2px 6px}
 .panel{display:none}
 .panel.active{display:block}
-.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px}
-@keyframes spin{to{transform:rotate(360deg)}}
 .banner{background:rgba(210,153,34,0.12);border:1px solid var(--warn);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--warn);display:flex;align-items:center;gap:8px}
 .banner strong{color:#f0c040}
 .banner .banner-dismiss{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px;margin-left:auto;flex-shrink:0}
@@ -137,11 +142,30 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
 .modal-box h2{font-size:18px;margin-bottom:8px}
 .modal-box p{color:var(--muted);font-size:13px;margin-bottom:16px;line-height:1.6}
 .modal-box .modal-actions{display:flex;gap:8px;justify-content:center}
+/* mobile */
+#menu-toggle{display:none;background:none;border:none;color:var(--fg);font-size:20px;cursor:pointer;padding:4px 8px}
+@media(max-width:768px){
+  body{flex-direction:column}
+  nav{width:100%;padding:8px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;border-right:none;border-bottom:1px solid var(--border);position:sticky;top:0}
+  nav .logo{width:100%;border:none;margin:0;padding:4px 0}
+  nav a{font-size:11px;padding:4px 8px;border-radius:4px}
+  #menu-toggle{display:block}
+  nav .nav-links{display:none;width:100%;flex-direction:column}
+  nav .nav-links.open{display:flex}
+  main{padding:12px;max-height:none}
+  .grid{grid-template-columns:1fr}
+  .const-row{grid-template-columns:140px 60px 1fr;font-size:11px}
+  .const-desc{display:none}
+  .const-input{width:60px}
+  .upstream-row{grid-template-columns:1fr 1fr!important}
+}
 </style>
 </head>
 <body>
 <nav>
-  <div class="logo">🧠 loam admin</div>
+  <div class="logo">🧠 loam admin <button class="theme-btn" onclick="toggleTheme()" title="切换日间/夜间模式">☀️</button></div>
+  <button id="menu-toggle" onclick="this.nextElementSibling.classList.toggle('open')">☰</button>
+  <div class="nav-links">
   <a href="#status" class="nav-link active" data-panel="status">📊 Status</a>
   <a href="#traits" class="nav-link" data-panel="traits">🧬 Traits</a>
   <a href="#memory" class="nav-link" data-panel="memory">💾 Memory</a>
@@ -149,6 +173,7 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
   <a href="#constants" class="nav-link" data-panel="constants">🔧 Constants</a>
   <a href="#connect" class="nav-link" data-panel="connect">🔌 Connect</a>
   <a href="#actions" class="nav-link" data-panel="actions">▶ Actions</a>
+  </div>
 </nav>
 <main>
   <div id="toast-container"></div>
@@ -267,7 +292,7 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
           <input id="sec-model" placeholder="deepseek-chat" list="sec-models-list">
           <datalist id="sec-models-list"></datalist>
         </div>
-        <button class="btn btn-sm btn-outline" style="height:38px;align-self:end" onclick="fetchModels('sec')" title="从提供商拉取可用模型列表">拉取</button>
+        <button class="btn btn-sm btn-outline" style="height:38px;align-self:end" class="btn-fetch" onclick="fetchModels('sec')" title="从提供商拉取可用模型列表">拉取</button>
         <button class="btn btn-ok" style="height:38px;align-self:end" onclick="saveSecrets()">💾 保存</button>
       </div>
       <div id="sec-status" style="margin-top:8px;font-size:12px" class="muted"></div>
@@ -588,7 +613,7 @@ function renderUpstreamRows(defName) {
         <input class="up-model-inp" value="${escAttr(p.default_model||'')}" placeholder="deepseek-chat" list="up-models-list-${escAttr(name)}">
         <datalist id="up-models-list-${escAttr(name)}"></datalist>
       </div>
-      <button class="btn btn-sm btn-outline" style="height:38px;align-self:end" onclick="fetchModels('${escAttr(name)}')" title="拉取模型列表">拉取</button>
+      <button class="btn btn-sm btn-outline" style="height:38px;align-self:end" class="btn-fetch" onclick="fetchModels('${escAttr(name)}')" title="拉取模型列表">拉取</button>
       <button class="btn btn-sm btn-danger" style="height:38px;align-self:end" onclick="removeUpstreamRow('${escAttr(name)}')">✕</button>
     </div>`;
   }).join('');
@@ -670,28 +695,42 @@ function loadConnect() { loadApiConfig(); }
 
 // ---- FETCH MODELS ----
 async function fetchModels(section) {
-  let url, key, targetList;
+  let url, key, targetList, btnId;
   if (section === 'sec') {
     url = document.getElementById('sec-url').value.trim();
     key = document.getElementById('sec-key').value.trim();
     targetList = 'sec-models-list';
+    btnId = 'sec-status';
   } else {
-    // upstream row — section is the row index or name
     const row = document.getElementById('up-row-'+section);
     if (!row) { toast('Provider row not found', 'err'); return; }
     url = row.querySelector('.up-url-inp')?.value.trim() || '';
     key = row.querySelector('.up-key-inp')?.value.trim() || '';
     targetList = 'up-models-list-'+section;
+    btnId = 'up-status';
   }
-  if (!url || !key) { toast('Fill in Base URL and API Key first', 'err'); return; }
-  const btn = document.getElementById(section === 'sec' ? 'sec-status' : 'up-status');
-  const r = await callAdmin('POST', '/admin/fetch-models', {base_url: url, api_key: key});
-  if (r.models && r.models.length) {
-    const dl = document.getElementById(targetList);
-    if (dl) dl.innerHTML = r.models.map(m => `<option value="${m}">`).join('');
-    toast(`${r.models.length} models loaded`, 'ok');
-  } else {
-    toast('Fetch failed: ' + (r.error||'no models returned'), 'err');
+  if (!url || !key) { toast('请先填写 Base URL 和 API Key', 'err'); return; }
+  // show spinner
+  const statusEl = document.getElementById(btnId);
+  if (statusEl) statusEl.innerHTML = '<span class="spinner"></span> 正在拉取模型列表...';
+  // disable all fetch buttons
+  document.querySelectorAll('.btn-fetch').forEach(b => { b.disabled = true; b.classList.add('btn-fetching'); });
+  try {
+    const r = await callAdmin('POST', '/admin/fetch-models', {base_url: url, api_key: key});
+    if (r.models && r.models.length) {
+      const dl = document.getElementById(targetList);
+      if (dl) dl.innerHTML = r.models.map(m => `<option value="${m}">`).join('');
+      toast(`${r.models.length} 个模型已加载`, 'ok');
+      if (statusEl) statusEl.innerHTML = `<span class="ok">✓ 已加载 ${r.models.length} 个模型</span>`;
+    } else {
+      toast('拉取失败：' + (r.error||'未返回模型'), 'err');
+      if (statusEl) statusEl.innerHTML = `<span class="err">✗ ${r.error||'未返回模型'}</span>`;
+    }
+  } catch(e) {
+    toast('拉取出错：' + e.message, 'err');
+    if (statusEl) statusEl.innerHTML = `<span class="err">✗ ${e.message}</span>`;
+  } finally {
+    document.querySelectorAll('.btn-fetch').forEach(b => { b.disabled = false; b.classList.remove('btn-fetching'); });
   }
 }
 
@@ -759,6 +798,15 @@ async function doAction(action) {
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'"').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+// ---- theme ----
+(function(){ if(localStorage.getItem('loam-theme')==='light') document.documentElement.classList.add('light'); })();
+function toggleTheme(){
+  const isLight = document.documentElement.classList.toggle('light');
+  localStorage.setItem('loam-theme', isLight?'light':'dark');
+  document.querySelector('.theme-btn').textContent = isLight?'🌙':'☀️';
+}
+(function(){ document.querySelector('.theme-btn').textContent = document.documentElement.classList.contains('light')?'🌙':'☀️'; })();
+
 // ---- init ----
 loadStatus();
 // show keep-running banner
@@ -779,8 +827,6 @@ class Handler(BaseHTTPRequestHandler):
             self._json(self._version_info())
         elif self.path == "/admin/constants":
             self._json(self._read_constants_local())
-        elif self.path == "/admin/fetch-models":
-            self._json(self._fetch_models())
         elif self.path.startswith("/api/proxy"):
             self._proxy("GET")
         else:
@@ -791,6 +837,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(self._save_secrets())
         elif self.path == "/admin/upstreams":
             self._json(self._save_upstreams())
+        elif self.path == "/admin/fetch-models":
+            self._json(self._fetch_models())
         elif self.path == "/admin/update":
             self._json(self._run_update())
         elif self.path.startswith("/api/proxy"):
