@@ -1023,14 +1023,22 @@ class Handler(BaseHTTPRequestHandler):
     def _restart_proxy(self):
         """Kill and restart the forced proxy process so it picks up new upstreams.json."""
         repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # 先确保文件存在
+        if not UPSTREAMS_FILE.exists():
+            write_json_file(UPSTREAMS_FILE, {"default":"relayA","providers":{"relayA":{"base_url":"","api_key":"","default_model":""}}})
+        # 强杀端口占用
+        import subprocess as sp
         try:
-            subprocess.run(["pkill", "-f", "forced_flow_proxy"], timeout=5)
+            sp.run(["fuser", "-k", "8780/tcp"], timeout=5, capture_output=True)
         except Exception:
-            pass
+            try:
+                sp.run(["pkill", "-9", "-f", "forced_flow_proxy"], timeout=5)
+            except Exception:
+                pass
         import time
-        time.sleep(1)
+        time.sleep(2)
         try:
-            subprocess.Popen(
+            sp.Popen(
                 ["python3", "bridge/forced_flow_proxy.py"],
                 cwd=repo_dir,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
