@@ -951,7 +951,7 @@ class Handler(BaseHTTPRequestHandler):
                     out = sp.check_output(["ifconfig"], stderr=sp.DEVNULL, timeout=5).decode("utf-8", "ignore")
                 except Exception:  # noqa: BLE001
                     out = sp.check_output(["ip", "addr"], stderr=sp.DEVNULL, timeout=5).decode("utf-8", "ignore")
-                for m in re.finditer(r"inet\s+(\d+\.\d+\.\d+\.\d+)", out):
+                for m in re.finditer(r"inet\s+(?:addr:)?(\d+\.\d+\.\d+\.\d+)", out):
                     candidates.append(m.group(1))
             except Exception:
                 pass
