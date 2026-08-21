@@ -264,7 +264,7 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
     <div class="grid" style="grid-template-columns:repeat(3, 1fr); margin-bottom:20px">
       <div class="card">
         <h3>🔗 填到聊天软件的 Base URL</h3>
-        <div style="font-family:monospace;font-size:14px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">http://127.0.0.1:8780/v1</div>
+        <div style="font-family:monospace;font-size:14px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">http://127.0.0.1:8781/v1</div>
         <p class="muted" style="font-size:11px;margin-top:4px">复制到 SillyTavern / Open WebUI 等第三方软件的 API 地址栏。</p>
       </div>
       <div class="card">
@@ -1014,7 +1014,7 @@ class Handler(BaseHTTPRequestHandler):
         # 强杀端口占用
         import subprocess as sp
         try:
-            sp.run(["fuser", "-k", "8780/tcp"], timeout=5, capture_output=True)
+            sp.run(["fuser", "-k", "8781/tcp"], timeout=5, capture_output=True)
         except Exception:
             try:
                 sp.run(["pkill", "-9", "-f", "forced_flow_proxy"], timeout=5)

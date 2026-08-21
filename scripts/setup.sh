@@ -176,7 +176,7 @@ start_services() {
     pkill -f "dashboard.py" 2>/dev/null || true
     # Aggressive: kill anything on loam ports (Android stubborn processes)
     fuser -k 8765/tcp 2>/dev/null || true
-    fuser -k 8780/tcp 2>/dev/null || true
+    fuser -k 8781/tcp 2>/dev/null || true
     fuser -k 8899/tcp 2>/dev/null || true
     sleep 2
 
@@ -187,7 +187,7 @@ start_services() {
     # Start proxy
     if [ -f bridge/forced_flow_proxy.py ]; then
         PROXY_NO_AUTH=1 nohup python3 bridge/forced_flow_proxy.py > /dev/null 2>&1 &
-        say "proxy started (port 8780)"
+        say "proxy started (port 8781)"
     fi
 
     # Start admin panel
@@ -225,9 +225,9 @@ open_browser() {
     echo ""
     echo "  Admin panel:  ${BLUE}http://127.0.0.1:8899${NC}"
     echo "  API:          ${BLUE}http://127.0.0.1:8765${NC}"
-    echo "  Proxy:        ${BLUE}http://127.0.0.1:8780/v1${NC}"
+    echo "  Proxy:        ${BLUE}http://127.0.0.1:8781/v1${NC}"
     echo ""
-    echo "  Client base URL: ${BLUE}http://127.0.0.1:8780/v1${NC}"
+    echo "  Client base URL: ${BLUE}http://127.0.0.1:8781/v1${NC}"
     echo "  Model name:      ${BLUE}relayA/deepseek-chat${NC} (or whatever you configured)"
     echo ""
     echo -e "${BOLD}${YELLOW}⚠  IMPORTANT — Keep these processes running!${NC}"

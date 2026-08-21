@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 PROXY_HOST = os.environ.get("PROXY_HOST", "127.0.0.1")
-PROXY_PORT = int(os.environ.get("PROXY_PORT", "8780"))
+PROXY_PORT = int(os.environ.get("PROXY_PORT", "8781"))
 
 # Security: proxy requires a local token to prevent unauthorized access
 # from other processes or browser extensions on the same machine.
