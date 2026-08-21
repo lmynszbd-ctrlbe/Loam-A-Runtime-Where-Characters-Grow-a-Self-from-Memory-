@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 
 LOAM = os.environ.get("LOAM_URL", "http://127.0.0.1:8765").rstrip("/")
-PORT = int(os.environ.get("ADMIN_PORT", "8899"))
+PORT = int(os.environ.get("ADMIN_PORT", "8900"))
 SECRETS_HOME = Path(os.environ.get("LOAM_SECRETS_HOME", "~/.loam")).expanduser()
 SECRETS_FILE = SECRETS_HOME / "secrets.json"
 UPSTREAMS_FILE = SECRETS_HOME / "upstreams.json"
@@ -846,7 +846,8 @@ function toggleTheme(){
 loadStatus();
 // show keep-running banner
 document.getElementById('keep-running-banner').style.display = 'flex';
-// check for updates — disabled (uses curl, skipped if network fails)
+// check for updates (silent — only shows modal if new version found)
+checkVersion();
 </script>
 </body>
 </html>"""

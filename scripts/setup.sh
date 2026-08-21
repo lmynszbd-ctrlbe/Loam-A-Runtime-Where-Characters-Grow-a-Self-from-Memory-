@@ -177,7 +177,7 @@ start_services() {
     # Aggressive: kill anything on loam ports (Android stubborn processes)
     fuser -k 8765/tcp 2>/dev/null || true
     fuser -k 8781/tcp 2>/dev/null || true
-    fuser -k 8899/tcp 2>/dev/null || true
+    fuser -k 8900/tcp 2>/dev/null || true
     sleep 2
 
     # Start loam
@@ -193,10 +193,10 @@ start_services() {
     # Start admin panel
     if [ -f scripts/admin.py ]; then
         nohup python3 scripts/admin.py > /dev/null 2>&1 &
-        say "admin panel started (port 8899)"
+        say "admin panel started (port 8900)"
     elif [ -f scripts/dashboard.py ]; then
         nohup python3 scripts/dashboard.py > /dev/null 2>&1 &
-        say "dashboard started (port 8899)"
+        say "dashboard started (port 8900)"
     fi
 
     sleep 2
@@ -213,7 +213,7 @@ start_services() {
 open_browser() {
     heading "Opening admin panel"
 
-    URL="http://127.0.0.1:8899"
+    URL="http://127.0.0.1:8900"
     case $OS in
         macos)  open "$URL" ;;
         linux|wsl) xdg-open "$URL" 2>/dev/null || true ;;
@@ -223,7 +223,7 @@ open_browser() {
     echo ""
     echo -e "${BOLD}${GREEN}✓ loam is running!${NC}"
     echo ""
-    echo "  Admin panel:  ${BLUE}http://127.0.0.1:8899${NC}"
+    echo "  Admin panel:  ${BLUE}http://127.0.0.1:8900${NC}"
     echo "  API:          ${BLUE}http://127.0.0.1:8765${NC}"
     echo "  Proxy:        ${BLUE}http://127.0.0.1:8781/v1${NC}"
     echo ""
