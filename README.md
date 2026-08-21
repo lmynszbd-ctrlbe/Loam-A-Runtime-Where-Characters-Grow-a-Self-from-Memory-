@@ -34,29 +34,6 @@ cd ~/loam && git pull && bash scripts/setup.sh
 
 After setup, open `http://127.0.0.1:8900` — the admin panel lets you view traits, browse memory, hot-tune constants, trigger digest, and set both API keys (see the **Connect** tab). Prefer per-platform manual commands? See [docs/DEPLOY.md](docs/DEPLOY.md).
 
-Client: Base URL `http://127.0.0.1:8781/v1`, model `provider/model` (e.g. `relayA/deepseek-chat`).
-
-### ⚠️ Connecting another app on the same phone (e.g. Operit)?
-
-Each Android app runs in its own sandbox. `127.0.0.1` inside Termux is **not** the same `127.0.0.1` inside another app. To connect a separate app on the same phone:
-
-1. Make sure loam was started with proxy listening on all interfaces (`setup.sh` does this by default).
-2. In the admin **Connect** tab, copy the URL that shows your LAN IP, e.g. `http://10.104.36.176:8781/v1`.
-3. Paste that into the third-party client.
-4. The phone must have a network assigned (WiFi or mobile data) so it has a LAN IP.
-
-> **Same WiFi rule for different devices:** if you want a laptop/another phone to use the loam running on this phone, both devices must be on the **same WiFi / same local network**.
-
-> ⚠️ **IMPORTANT — Keep the processes running!**
-> loam consists of three processes (loam server, proxy, admin panel). If you close the terminal, they all stop.
-> `setup.sh` starts them in the background, but for permanent setups use one of:
-> - **systemd** (Linux): see [docs/DEPLOY.md](docs/DEPLOY.md) for a `.service` file
-> - **tmux / screen**: keep them in a persistent session
-> - **Docker**: `docker compose up -d`
-> - **Termux**: use `termux-wake-lock` and keep the app open
->
-> The admin panel itself must also stay running — it's a separate process, not a static page.
-
 ## Why the design decisions are what they are
 
 ### Immutable substrate
