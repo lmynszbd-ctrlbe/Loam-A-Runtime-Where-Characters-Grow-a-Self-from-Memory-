@@ -104,6 +104,7 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
   <a href="#memory" class="nav-link" data-panel="memory">💾 Memory</a>
   <a href="#config" class="nav-link" data-panel="config">⚙ Config</a>
   <a href="#constants" class="nav-link" data-panel="constants">🔧 Constants</a>
+  <a href="#connect" class="nav-link" data-panel="connect">🔌 Connect</a>
   <a href="#actions" class="nav-link" data-panel="actions">▶ Actions</a>
 </nav>
 <main>
@@ -172,7 +173,52 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
     <div class="card" id="constants-list"></div>
   </div>
 
+  <!-- CONNECT -->
+  <div id="panel-connect" class="panel">
+    <h1>🔌 Connect Your Client</h1>
+    <div class="sub">Paste these into any OpenAI-compatible chat app (SillyTavern, Open WebUI, etc.)</div>
+    <div class="grid">
+      <div class="card">
+        <h3>🔗 API Endpoint</h3>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:16px;text-align:center;margin:8px 0">
+          http://127.0.0.1:8780/v1
+        </div>
+        <p class="muted" style="font-size:12px">This is your <strong>Base URL</strong> / <strong>API Host</strong> in the client settings.</p>
+      </div>
+      <div class="card">
+        <h3>🔑 API Key</h3>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:16px;text-align:center;margin:8px 0">
+          local-key
+        </div>
+        <p class="muted" style="font-size:12px">Anything works. The real auth is handled by your upstream provider.</p>
+      </div>
+      <div class="card">
+        <h3>🤖 Model Name</h3>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:16px;text-align:center;margin:8px 0">
+          relayA/deepseek-chat
+        </div>
+        <p class="muted" style="font-size:12px">Format: <code>provider/model</code>. Change based on your upstreams.json.</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h3>⚙ Two Config Files</h3>
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div>
+          <p style="font-size:12px;color:var(--accent);margin-bottom:4px">~/.loam/secrets.json</p>
+          <p class="muted" style="font-size:11px">For loam itself — the model that digests conversations into memory.</p>
+          <pre style="font-size:11px;background:var(--bg);padding:8px;border-radius:4px;overflow-x:auto">{"api_key":"sk-...","base_url":"https://api.deepseek.com","model":"deepseek-chat"}</pre>
+        </div>
+        <div>
+          <p style="font-size:12px;color:var(--accent);margin-bottom:4px">~/.loam/upstreams.json</p>
+          <p class="muted" style="font-size:11px">For the proxy — the models your chat client uses. Can have multiple providers.</p>
+          <pre style="font-size:11px;background:var(--bg);padding:8px;border-radius:4px;overflow-x:auto">{"default":"relayA","providers":{"relayA":{"base_url":"https://...","api_key":"sk-...","default_model":"deepseek-chat"}}}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ACTIONS -->
+  <div id="panel-actions" class="panel">  <!-- ACTIONS -->
   <div id="panel-actions" class="panel">
     <h1>▶ Actions</h1>
     <div class="sub">Manual operations</div>

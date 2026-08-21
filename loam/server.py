@@ -775,6 +775,29 @@ class LoamService:
                 }
             return result
 
+    def override_constants(self, overrides: Dict[str, Any]) -> Dict[str, Any]:
+        """Hot-override constants in memory. Reset on restart."""
+        import loam.core.constants as C
+        if not hasattr(self, '_runtime_const_overrides'):
+            self._runtime_const_overrides = {}
+        applied = {}
+        rejected = {}
+        for name, val in overrides.items():
+            if not name.isupper() or name.startswith('_'):
+                rejected[name] = "invalid name"
+                continue
+            if not hasattr(C, name):
+                rejected[name] = "not found"
+                continue
+            orig = getattr(C, name)
+            if not isinstance(orig, type(val)):
+                rejected[name] = f"type mismatch: {type(orig).__name__} vs {type(val).__name__}"
+                continue
+            setattr(C, name, val)
+            self._runtime_const_overrides[name] = {"original": orig, "override": val}
+            applied[name] = {"from": orig, "to": val}
+        return {"applied": applied, "rejected": rejected, "total_overrides": len(self._runtime_const_overrides)}
+
     def stats(self) -> Dict[str, Any]:
         with self._lock:
             return {
@@ -974,6 +997,13 @@ class LoamHandler(BaseHTTPRequestHandler):
                 self._send_json(200, self.server.service.build_context(query, learn=learn, sync_grow=sync_grow))
                 return
 
+            if path == "/constants":
+                overrides = payload.get("overrides") or {}
+                if not isinstance(overrides, dict):
+                    raise ValueError("overrides must be a dict")
+                result = self.server.service.override_constants(overrides)
+                self._send_json(200, result)
+                return
             if path == "/grower/start":
                 self._send_json(200, self.server.service.start_grower())
                 return

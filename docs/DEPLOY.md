@@ -13,7 +13,8 @@
 | forced proxy | 8780 | OpenAI-compatible gateway, routes to your LLM provider |
 | admin panel | 8899 | Web UI: Status, Traits, Memory, Config, Constants, Actions |
 
-Client connects to `http://127.0.0.1:8780/v1`, model: `relayA/deepseek-chat`.
+Client connects to `http://127.0.0.1:8780/v1`
+Model name: `relayA/deepseek-chat` (or whatever you configured in upstreams.json)
 
 ---
 
