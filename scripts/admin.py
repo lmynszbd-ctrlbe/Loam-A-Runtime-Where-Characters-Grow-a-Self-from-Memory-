@@ -126,10 +126,10 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
 .timeline{max-height:400px;overflow-y:auto}
 .changelog-entry{font-size:12px;padding:6px 0;border-bottom:1px solid var(--border)}
 .changelog-entry .ts{color:var(--muted);margin-right:8px}
-.const-row{display:grid;grid-template-columns:180px 80px 120px 1fr;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px}
+.const-row{display:grid;grid-template-columns:180px 80px 120px;gap:4px 8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px}
 .const-name{font-weight:600;color:var(--accent)}
 .const-val{text-align:right}
-.const-desc{color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.const-desc{grid-column:1/-1;color:var(--muted);font-size:11px;line-height:1.5;padding:2px 0}
 .const-input{width:80px;text-align:right;padding:2px 6px}
 .panel{display:none}
 .panel.active{display:block}
@@ -155,7 +155,6 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
   main{padding:12px;max-height:none}
   .grid{grid-template-columns:1fr}
   .const-row{grid-template-columns:140px 60px 1fr;font-size:11px}
-  .const-desc{display:none}
   .const-input{width:60px}
   .upstream-row{grid-template-columns:1fr 1fr!important}
 }
