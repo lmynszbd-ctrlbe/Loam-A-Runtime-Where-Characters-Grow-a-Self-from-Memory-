@@ -98,7 +98,28 @@ Additional references: `docs/RELEASE.md` `docs/MIGRATION_RUNBOOK.md` `docs/BACKU
 - ThreadingHTTPServer (process-internal)
 - Model-agnostic LLM backend (OpenAI-compatible API)
 
+## Known limitations
+
+### Constants are heuristically tuned
+All parameters in `loam/core/constants.py` are tuned by hand, not derived from controlled experiments. Each constant is annotated with its source classification (`heuristically_tuned` / `theoretically_derived` / `safety_bound`) and the intuition behind it. A reproducible benchmark comparing loam against a simple baseline is planned but not yet available.
+
+### No A/B comparison with OpenAI Memory
+This project has not been benchmarked against OpenAI's built-in Memory feature or other memory systems. Claims about effectiveness are based on architectural design, not on controlled comparative data. If you have a dialogue dataset and would like to help run a comparison, please open an issue.
+
+### Chinese sarcasm detection is unreliable
+Pure-text Chinese sarcasm detection is inherently difficult. The sarcasm reversal mechanism uses a hard threshold on LLM-extracted ambiguity scores. The discount for reversed signals is deliberately low (0.35) to reduce harm from false positives, but false negatives remain possible.
+
+### No user interface
+loam is a pair of server processes with no GUI. Users must connect via an OpenAI-compatible chat client. A minimal single-page dashboard (`/dashboard`) is planned to visualize traits, events, and the self-narrative.
+
+### Resource requirements
+Running two Python processes plus LLM API calls on a phone (Termux) requires at least 4 GB RAM for comfortable use. On low-memory devices, consider disabling background digestion or running loam on a separate machine.
+
+### Proxy is a single point of failure
+If the forced proxy (port 8780) crashes, chat service is interrupted. A watchdog script (`scripts/watchdog.sh`) is available to auto-restart crashed processes.
+
 ## Contributing
+
 
 1. Fork and create a feature branch.
 2. Keep changes minimal: code + tests + docs.

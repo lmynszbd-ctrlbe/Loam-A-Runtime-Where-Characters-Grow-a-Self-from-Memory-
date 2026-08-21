@@ -33,43 +33,73 @@ import math
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
+from . import constants as C
+
+# Re-export constants for backward compatibility (tests import from here)
+# New code should import from loam.core.constants directly.
+PLASTICITY = C.PLASTICITY
+SEED_FLOOR = C.SEED_FLOOR
+CEILING = C.CEILING
+BREAKTHROUGH = C.BREAKTHROUGH
+BREAKTHROUGH_GAIN = C.BREAKTHROUGH_GAIN
+GATE_RATIO = C.GATE_RATIO
+GATE_FLOOR = C.GATE_FLOOR
+GATE_LEVEL_MULTIPLIER = C.GATE_LEVEL_MULTIPLIER
+GATE_LEVEL_CAP = C.GATE_LEVEL_CAP
+PENDING_RESIDUAL = C.PENDING_RESIDUAL
+LEAK = C.LEAK
+CALIBRATION = C.CALIBRATION
+CALIBRATION_TOLERANCE = C.CALIBRATION_TOLERANCE
+DECAY = C.DECAY
+FAST_DECAY = C.FAST_DECAY
+FAST_LIMIT = C.FAST_LIMIT
+UNCERTAINTY_GATE = C.UNCERTAINTY_GATE
+SARCASTIC_AMBIGUITY = C.SARCASTIC_AMBIGUITY
+SARCASTIC_DISCOUNT = C.SARCASTIC_DISCOUNT
+DORMANCY_AFTER = C.DORMANCY_AFTER
+SATURATION_START = C.SATURATION_START
+REBOUND = C.REBOUND
+FREEZE_AFTER = C.FREEZE_AFTER
+AUTONOMOUS_DRIFT = C.AUTONOMOUS_DRIFT
+
+
 # ---------------------------------------------------------------- 常量
 
 #: 基础可塑率。整个系统的"时间快慢"总旋钮。
-PLASTICITY = 0.35
+# C.PLASTICITY -> C.PLASTICITY
 
 #: 萌芽下限。让强度为 0 的新特质也能起步，否则 S*(1-S) 在 0 处永远不动。
-SEED_FLOOR = 0.06
+# C.SEED_FLOOR -> C.SEED_FLOOR
 
 #: 强度上限。永远留一点余地，不允许任何特质变成绝对。
-CEILING = 0.97
+# C.CEILING -> C.CEILING
 
 #: 突破阈值。单次证据强度超过这个值，可以绕过固化阻力。
 #: 对应"一件极其重大的事能一次改变一个人"。
-BREAKTHROUGH = 0.85
+# C.BREAKTHROUGH -> C.BREAKTHROUGH
 
 #: 突破时额外获得的推动力系数。
-BREAKTHROUGH_GAIN = 0.5
+# C.BREAKTHROUGH_GAIN -> C.BREAKTHROUGH_GAIN
 
 #: 蓄水池阈值相对于当前可塑量的比例。
 #: 用比例而不是绝对值，是为了保证阈值永远够得着：一条已经很硬的特质
 #: 可塑量小，它的阈值也跟着小，所以它仍然可以被长期的持续动摇改变 ——
 #: 只是需要攒很久。绝对阈值会让高强度特质变成永远无法撼动的死结。
-GATE_RATIO = 0.5
+# C.GATE_RATIO -> C.GATE_RATIO
 
 #: 蓄水池阈值下限。防止萌芽期的特质因为阈值趋零而抖动。
-GATE_FLOOR = 0.004
+# C.GATE_FLOOR -> C.GATE_FLOOR
 
 #: 动态门槛增益。每发生一次"质变提交"，下一次提交阈值按该倍率抬高。
 #: 用来实现边际递减：越往后，越难继续大幅跃迁。
-GATE_LEVEL_MULTIPLIER = 1.1
+# C.GATE_LEVEL_MULTIPLIER -> C.GATE_LEVEL_MULTIPLIER
 
 #: 动态门槛的最大放大倍数。防止阈值无限上升导致完全冻结。
-GATE_LEVEL_CAP = 1.5
+# C.GATE_LEVEL_CAP -> C.GATE_LEVEL_CAP
 
 #: 质变提交后保留的 pending 比例（惯性残留）。
 #: 不是把经历抹平，而是给下一轮一点连续性。
-PENDING_RESIDUAL = 0.2
+# C.PENDING_RESIDUAL -> C.PENDING_RESIDUAL
 
 #: 蓄水池的渗漏系数。只在完全没有输入的周期生效 ——
 #: 渗漏的意思是"长期不被印证的冲动自己淡掉"，不是"攒着的东西一律漏"。
@@ -78,48 +108,48 @@ PENDING_RESIDUAL = 0.2
 #: （delta / (1 - LEAK)），力度低于某个值的证据永远攒不过阈值 ——
 #: 无论重复多少次都不算。那等于说"小事再多也不构成人"，
 #: 跟"慢慢长出来"正好相反。水滴要能穿石，只是要很久。
-LEAK = 0.90
+# C.LEAK -> C.LEAK
 
 #: 行为校准系数。控制"强度向实际表现频率靠拢"的速度。
-CALIBRATION = 0.12
+# C.CALIBRATION -> C.CALIBRATION
 
 #: 行为校准的容差。表现频率和强度差在此范围内视为一致，不做校准。
-CALIBRATION_TOLERANCE = 0.15
+# C.CALIBRATION_TOLERANCE -> C.CALIBRATION_TOLERANCE
 
 #: 强度本身的极缓慢衰减（每个完全无输入的周期）。
-DECAY = 0.999
+# C.DECAY -> C.DECAY
 
 #: 快态衰减。快态像心电图，会先响应，再逐渐回到稳态附近。
-FAST_DECAY = 0.72
+# C.FAST_DECAY -> C.FAST_DECAY
 
 #: 快态最大偏移，防止一件事把表层反应推到失控。
-FAST_LIMIT = 0.28
+# C.FAST_LIMIT -> C.FAST_LIMIT
 
 #: 低于该置信度的解释只进入待确认池，不进入长期蓄水池。
-UNCERTAINTY_GATE = 0.55
+# C.UNCERTAINTY_GATE -> C.UNCERTAINTY_GATE
 
 #: 反话阈值。歧义度超过此值，字面信号被反转，模拟"说反话"。
 #: 例："你真是太聪明了"（歧义 0.7）→ signal 反转，按动摇处理。
-SARCASTIC_AMBIGUITY = 0.65
+SARCASTIC_AMBIGUITY = C.SARCASTIC_AMBIGUITY
 
 #: 默认多少个无输入周期后进入蛰伏。
-DORMANCY_AFTER = 24
+DORMANCY_AFTER = C.DORMANCY_AFTER
 
-#: 质变越接近边界，实际吸收越弱；硬边界仍由 CEILING 兜底。
-SATURATION_START = 0.88
+#: 质变越接近边界，实际吸收越弱；硬边界仍由 C.CEILING 兜底。
+# C.SATURATION_START -> C.SATURATION_START
 
 #: 回弹力。极端特质长期无输入时，自然向中心 0.5 缓慢回归。
 #: 不是"遗忘"，而是"没有持续印证时，极端立场会慢慢软化"。
-#: 公式：回弹量 = REBOUND * (|S-0.5|/0.5) * sign(S-0.5)，方向向中心。
-REBOUND = 0.001
+#: 公式：回弹量 = C.REBOUND * (|S-0.5|/0.5) * sign(S-0.5)，方向向中心。
+# C.REBOUND -> C.REBOUND
 
 #: 冻结阈值。超过此周期的完全无输入，特质进入冻结态：不吸收、不衰减、
 #: 不回弹，像冰封一样保留原样。唤醒后恢复活跃。
-FREEZE_AFTER = 48
+FREEZE_AFTER = C.FREEZE_AFTER
 
 #: 自主微调。蛰伏/收敛态无输入时，极小的自发漂移，模拟"无事时也会
 #: 自己想一想"。方向随机，幅度极小，相当于"梦里的微调"。
-AUTONOMOUS_DRIFT = 0.0002
+# C.AUTONOMOUS_DRIFT -> C.AUTONOMOUS_DRIFT
 
 
 # ---------------------------------------------------------------- 数据结构
@@ -164,7 +194,7 @@ class Evidence:
         signal = self.signal
         if self.ambiguity >= SARCASTIC_AMBIGUITY:
             signal = -signal
-            epistemic *= 0.55  # 反话解释天然不确定，再打折
+            epistemic *= C.SARCASTIC_DISCOUNT  # 反话解释天然不确定，再打折
         return signal * self.salience * epistemic
 
 
@@ -195,7 +225,7 @@ class TraitGraph:
     传播慢，但长期积累后形成稳定的性格结构。
     """
 
-    RELATION_CAP = 0.20
+    RELATION_CAP = C.RELATION_SPREAD_CAP
 
     def __init__(self) -> None:
         self._edges: Dict[tuple[str, str], TraitRelation] = {}
@@ -293,7 +323,7 @@ class Trait:
 
     #: 运行期调节项（由 runtime config 注入，不需要成为历史真值）。
     fuzziness: float = 0.0
-    uncertainty_gate: float = UNCERTAINTY_GATE
+    uncertainty_gate: float = C.UNCERTAINTY_GATE
     dormancy_after: int = DORMANCY_AFTER
 
     #: 来历。每个提交过的变化都留下它依据的事件。
@@ -322,9 +352,9 @@ class Trait:
         这样既保留"生长期快、固化期慢"，又避免连续质变过快把角色
         推成不自然的超级状态。
         """
-        base = max(GATE_FLOOR, GATE_RATIO * self._capacity())
+        base = max(C.GATE_FLOOR, C.GATE_RATIO * self._capacity())
         level = max(0, int(self.gate_level))
-        scale = min(GATE_LEVEL_CAP, math.pow(GATE_LEVEL_MULTIPLIER, level))
+        scale = min(C.GATE_LEVEL_CAP, math.pow(C.GATE_LEVEL_MULTIPLIER, level))
         return base * scale
 
     def _capacity(self) -> float:
@@ -338,7 +368,7 @@ class Trait:
         （见 BREAKTHROUGH），或者足够长时间的持续动摇。跟人一样。
         """
         s = max(self.strength, SEED_FLOOR)
-        room = max(CEILING - self.strength, SEED_FLOOR)
+        room = max(C.CEILING - self.strength, SEED_FLOOR)
         return s * room
 
     def feed(self, ev: Evidence) -> None:
@@ -349,12 +379,12 @@ class Trait:
         """
         jitter = _stable_jitter(self.id, ev.event_id, self.fuzziness)
         force = ev.force * jitter
-        delta = PLASTICITY * self._capacity() * force
+        delta = C.PLASTICITY * self._capacity() * force
 
         # 极重大的事件可以绕过固化阻力，但仍受解释置信度约束。
-        if ev.salience >= BREAKTHROUGH:
+        if ev.salience >= C.BREAKTHROUGH:
             delta += (
-                BREAKTHROUGH_GAIN
+                C.BREAKTHROUGH_GAIN
                 * ev.signal
                 * (ev.salience - BREAKTHROUGH)
                 * ev.confidence
@@ -405,7 +435,7 @@ class Trait:
                     * float(old.get("confidence", 0.0) or 0.0)
                     * (1.0 - float(old.get("ambiguity", 0.0) or 0.0))
                 )
-                promoted += PLASTICITY * self._capacity() * old_force * 0.35
+                promoted += C.PLASTICITY * self._capacity() * old_force * 0.35
                 old_id = str(old.get("event_id", ""))
                 if old_id and old_id not in self._staged:
                     self._staged.append(old_id)
@@ -476,7 +506,7 @@ class Trait:
             self.inactive_cycles += 1
 
         # 快态会回落，惯性更慢；因此可有小波折，但不会取代稳态人格。
-        self.transient *= FAST_DECAY if had_input else 0.82
+        self.transient *= C.FAST_DECAY if had_input else 0.82
         self.momentum *= 0.86 if had_input else 0.72
 
         # 行为校准：让强度向实际表现频率靠拢
@@ -488,9 +518,9 @@ class Trait:
             applied = self.pending * (1.0 - PENDING_RESIDUAL)
             # 物极必反的软饱和：接近两端时继续同向会越来越难。
             if (applied > 0.0 and self.strength > SATURATION_START) or (
-                applied < 0.0 and self.strength < (CEILING - SATURATION_START)
+                applied < 0.0 and self.strength < (C.CEILING - SATURATION_START)
             ):
-                edge = max(self.strength, CEILING - self.strength)
+                edge = max(self.strength, C.CEILING - self.strength)
                 resistance = _clamp(1.0 - (edge - SATURATION_START) / 0.18, 0.15, 1.0)
                 applied *= resistance
             self.strength = _clamp(self.strength + applied, 0.0, CEILING)
@@ -502,19 +532,19 @@ class Trait:
             if self.formed_at is None:
                 self.formed_at = now
             # 不完全清零：保留一部分惯性，避免刚跃迁完立刻掉回去。
-            self.pending *= PENDING_RESIDUAL
+            self.pending *= C.PENDING_RESIDUAL
             if abs(moved) > 1e-9:
                 self.gate_level += 1
             # 到边界后，同向残留不再保留，避免在边界上空转。
             if (self.strength <= 0.0 and self.pending < 0.0) or (
-                self.strength >= CEILING and self.pending > 0.0
+                self.strength >= C.CEILING and self.pending > 0.0
             ):
                 self.pending = 0.0
         elif not had_input:
             # 这个周期没人提它 —— 蓄水池渗漏一部分。
             # 有输入的周期不漏：一次次被印证的小事必须能攒起来，
             # 否则弱信号永远够不到阈值，"量变到质变"就断在了半路。
-            self.pending *= LEAK
+            self.pending *= C.LEAK
 
         # 冻结态：不衰减、不回弹、不自主微调，完全冰封。
         if not had_input and self.life_phase == "冻结":
@@ -522,12 +552,12 @@ class Trait:
         elif not had_input:
             # 蛰伏/收敛态：微小的自主漂移，相当于"无事时自己想一想"。
             if self.life_phase in ("蛰伏", "收敛"):
-                drift = AUTONOMOUS_DRIFT * (1.0 - 2.0 * (hash(self.id + str(self.inactive_cycles)) % 10000) / 10000.0)
+                drift = C.AUTONOMOUS_DRIFT * (1.0 - 2.0 * (hash(self.id + str(self.inactive_cycles)) % 10000) / 10000.0)
                 self.strength = _clamp(self.strength + drift, 0.0, CEILING)
-            self.strength *= DECAY
+            self.strength *= C.DECAY
             # 回弹：极端特质无输入时自然向中心 0.5 软化。
             if abs(self.strength - 0.5) > 0.25:
-                rebound = REBOUND * (abs(self.strength - 0.5) / 0.5) * (self.strength - 0.5)
+                rebound = C.REBOUND * (abs(self.strength - 0.5) / 0.5) * (self.strength - 0.5)
                 self.strength = _clamp(self.strength - rebound, 0.0, CEILING)
         return moved
 
@@ -547,10 +577,10 @@ class Trait:
             return 0.0
         rate = self.expressed / self.opportunities
         gap = rate - self.strength
-        if abs(gap) < CALIBRATION_TOLERANCE:
+        if abs(gap) < C.CALIBRATION_TOLERANCE:
             return 0.0
-        excess = gap - math.copysign(CALIBRATION_TOLERANCE, gap)
-        return CALIBRATION * excess * self._capacity()
+        excess = gap - math.copysign(C.CALIBRATION_TOLERANCE, gap)
+        return C.CALIBRATION * excess * self._capacity()
 
     def observe(self, expressed: bool) -> None:
         """记录一次"有机会表现这条特质"的场合及其结果。"""

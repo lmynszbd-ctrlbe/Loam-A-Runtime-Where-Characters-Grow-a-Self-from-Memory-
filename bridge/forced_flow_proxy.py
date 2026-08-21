@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import threading
 import time
 import urllib.error
@@ -29,6 +30,21 @@ from typing import Any, Dict, List, Optional, Tuple
 
 PROXY_HOST = os.environ.get("PROXY_HOST", "127.0.0.1")
 PROXY_PORT = int(os.environ.get("PROXY_PORT", "8780"))
+
+# Security: proxy requires a local token to prevent unauthorized access
+# from other processes or browser extensions on the same machine.
+PROXY_TOKEN_FILE = Path(os.environ.get("PROXY_TOKEN_FILE", "~/.loam/proxy_token")).expanduser()
+PROXY_TOKEN = os.environ.get("PROXY_TOKEN", "").strip()
+if not PROXY_TOKEN:
+    if PROXY_TOKEN_FILE.exists():
+        PROXY_TOKEN = PROXY_TOKEN_FILE.read_text(encoding="utf-8").strip()
+    else:
+        PROXY_TOKEN = "loam-" + secrets.token_hex(16)
+        PROXY_TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+        PROXY_TOKEN_FILE.write_text(PROXY_TOKEN, encoding="utf-8")
+        os.chmod(PROXY_TOKEN_FILE, 0o600)
+TOKEN_AUTH_REQUIRED = os.environ.get("PROXY_NO_AUTH", "0") not in ("1", "true", "True")
+
 
 LOAM_URL = os.environ.get("LOAM_URL", "http://127.0.0.1:8765").rstrip("/")
 
@@ -277,6 +293,9 @@ def _models_merged() -> Dict[str, Any]:
 
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
+        if TOKEN_AUTH_REQUIRED and not self._check_token():
+            self._send(401, {"error": {"message": "unauthorized: missing or invalid proxy token. Set PROXY_TOKEN env or check ~/.loam/proxy_token"}})
+            return
         if self.path != "/v1/chat/completions":
             self._send(404, {"error": {"message": "not found"}})
             return
@@ -384,6 +403,18 @@ class Handler(BaseHTTPRequestHandler):
 
         self._send(404, {"error": {"message": "not found"}})
 
+
+    def _check_token(self) -> bool:
+        """Verify the request carries the correct proxy token."""
+        auth = self.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            return auth[7:] == PROXY_TOKEN
+        # Also accept X-Proxy-Token header for clients that can't set Authorization
+        xt = self.headers.get("X-Proxy-Token", "")
+        if xt:
+            return xt == PROXY_TOKEN
+        return False
+
     def _read_json(self) -> Dict[str, Any]:
         n = int(self.headers.get("Content-Length") or 0)
         raw = self.rfile.read(n) if n > 0 else b"{}"
@@ -409,6 +440,10 @@ class Handler(BaseHTTPRequestHandler):
 def main() -> int:
     srv = ThreadingHTTPServer((PROXY_HOST, PROXY_PORT), Handler)
     print(f"forced-flow-proxy listening on http://{PROXY_HOST}:{PROXY_PORT}")
+    if TOKEN_AUTH_REQUIRED:
+        print(f"proxy token: {PROXY_TOKEN} (saved to {PROXY_TOKEN_FILE})")
+        print(f"Add header: Authorization: Bearer {PROXY_TOKEN}")
+        print(f"Or set env: PROXY_NO_AUTH=1 to disable (not recommended)")
     print(f"loam={LOAM_URL} default_upstream={DEFAULT_UPSTREAM} upstreams={list(UPSTREAMS.keys())}")
     try:
         srv.serve_forever()
