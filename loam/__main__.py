@@ -38,6 +38,19 @@ def main(argv: list[str] | None = None) -> int:
             svc.close()
         return 0
 
+    if args.cmd == "snapshot":
+        from pathlib import Path
+        out_dir = Path(getattr(args, "output", "~/.loam/snapshots/latest")).expanduser().resolve()
+        svc = _service_from_args(args, auto_start_grower=False)
+        try:
+            manifest = svc.memory.export_snapshot(str(out_dir))
+            print(f"角色卡已导出到 {out_dir}")
+            print(f"  traits: {manifest['stats'].get('trait_count', '?')} 条")
+            print(f"  events: {manifest['stats'].get('event_count', '?')} 条")
+        finally:
+            svc.close()
+        return 0
+
     if args.cmd == "context":
         svc = _service_from_args(args, auto_start_grower=False)
         try:
@@ -114,6 +127,10 @@ def _parser() -> argparse.ArgumentParser:
     d1 = sub.add_parser("digest-once", help="手动消化一批")
     _common_service_flags(d1)
     d1.add_argument("--limit", type=int, default=None)
+
+    snap = sub.add_parser("snapshot", help="导出活体角色卡")
+    _common_service_flags(snap)
+    snap.add_argument("-o", "--output", default="~/.loam/snapshots/latest", help="导出目录")
 
     ctx = sub.add_parser("context", help="构造一次上下文")
     _common_service_flags(ctx)

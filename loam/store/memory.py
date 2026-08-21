@@ -252,6 +252,8 @@ class Memory:
     """熟料库。"""
 
     def __init__(self, path: str | Path) -> None:
+        self._buffered_changes: List[int] = []
+        self._buffered_cycle: int = -1
         self.path = Path(path).expanduser()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._db = sqlite3.connect(str(self.path), check_same_thread=False)
@@ -818,9 +820,15 @@ class Memory:
 
         没有 evidence 一律拒绝 —— 这是那条总原则的最后一道闸门：
         任何改动都必须能指回具体哪几件事，指不出来的不许发生。
+
+        写缓冲：多次 log_change 不立即 commit，等 flush_changelog()
+        或下次 log_change 跨 cycle 时才批量提交，避免每个 digest
+        周期内几十次独立写入。
         """
         if not evidence:
             raise ValueError(f"人格变化必须有依据：{kind} {target}")
+        if self._buffered_changes and self._buffered_cycle != cycle:
+            self.flush_changelog()
         cur = self._db.execute(
             "INSERT INTO changelog (cycle, kind, target, before, after,"
             " reason, evidence, created_at) VALUES (?,?,?,?,?,?,?,?)",
@@ -835,8 +843,17 @@ class Memory:
                 time.time(),
             ),
         )
-        self._db.commit()
-        return int(cur.lastrowid or 0)
+        self._buffered_changes.append(int(cur.lastrowid or 0))
+        self._buffered_cycle = cycle
+        return self._buffered_changes[-1]
+
+    def flush_changelog(self) -> int:
+        """提交所有缓冲的 changelog 写入。"""
+        n = len(self._buffered_changes)
+        if n > 0:
+            self._db.commit()
+            self._buffered_changes.clear()
+        return n
 
     def history(self, limit: int = 100, kind: Optional[str] = None) -> List[Dict[str, object]]:
         """人格演化时间线。它是在哪一天、因为什么，变成现在这样的。"""
@@ -1173,7 +1190,129 @@ class Memory:
 
     # ------------------------------------------------------------ 生命周期
 
+
+    def export_snapshot(self, target_dir: str) -> Dict[str, object]:
+        """导出当前角色状态为可移植的「活体角色卡」。
+        包含：memory.db 副本 + traits.json + network.json + manifest.json。
+        返回 manifest 字典。
+        """
+        import shutil
+        target = Path(target_dir)
+        target.mkdir(parents=True, exist_ok=True)
+        # 先 flush 确保数据最新
+        self.flush_changelog()
+        # 复制数据库
+        src = Path(self._db_path)
+        dst_db = target / "memory.db"
+        shutil.copy2(src, dst_db)
+        # 导出 traits
+        traits = self.load_traits(include_retired=False)
+        traits_data = []
+        for t in traits:
+            traits_data.append({
+                "id": t.id,
+                "text": t.text,
+                "strength": round(t.strength, 4),
+                "pending": round(t.pending, 4),
+                "phase": t.phase,
+                "is_kernel": t.is_kernel,
+                "evidence_count": len(t.evidence),
+                "last_expressed": t.last_expressed,
+            })
+        (target / "traits.json").write_text(
+            json.dumps(traits_data, ensure_ascii=False, indent=2), "utf-8")
+        # 导出 network
+        net = self.load_network()
+        net_data = net.to_dict() if hasattr(net, 'to_dict') else {
+            "nodes": len(net.nodes) if hasattr(net, 'nodes') else 0,
+            "edges": len(net.edges) if hasattr(net, 'edges') else 0,
+        }
+        (target / "network.json").write_text(
+            json.dumps(net_data, ensure_ascii=False, indent=2), "utf-8")
+        # 导出 dossier
+        dossier = self.dossier()
+        (target / "dossier.json").write_text(
+            json.dumps(dossier, ensure_ascii=False, indent=2), "utf-8")
+        # 导出 narrative
+        narrative = self.current_narrative()
+        if narrative:
+            (target / "narrative.json").write_text(
+                json.dumps(narrative, ensure_ascii=False, indent=2, default=str), "utf-8")
+        # 导出 changelog 摘要
+        history = self.history(limit=200)
+        (target / "changelog.json").write_text(
+            json.dumps(history, ensure_ascii=False, indent=2, default=str), "utf-8")
+        # manifest
+        stats = self.stats()
+        manifest = {
+            "exported_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "exported_at_ts": time.time(),
+            "version": "0.3.0",
+            "character": self._character if hasattr(self, '_character') else "default",
+            "stats": stats,
+            "files": [
+                "memory.db", "traits.json", "network.json",
+                "dossier.json", "changelog.json"
+            ],
+        }
+        if narrative:
+            manifest["files"].append("narrative.json")
+        (target / "manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), "utf-8")
+        return manifest
+
+    def _db_path(self) -> str:
+        """返回数据库文件路径（内部用）。"""
+        # 从连接中提取路径
+        cur = self._db.execute("PRAGMA database_list")
+        for row in cur.fetchall():
+            if row["name"] == "main":
+                return row["file"]
+        return ""
+
+    def export_snapshot(self, target_dir: str) -> dict:
+        """导出当前角色为'活体角色卡'——memory.db + 可读 JSON。"""
+        import shutil
+        target = Path(target_dir)
+        target.mkdir(parents=True, exist_ok=True)
+        self.flush_changelog()
+        # 复制数据库
+        db_src = self._db_path()
+        if db_src and Path(db_src).exists():
+            shutil.copy2(db_src, str(target / "memory.db"))
+        # 导出 traits
+        traits = self.load_traits(include_retired=False)
+        traits_data = [{
+            "id": t.id, "text": t.text,
+            "strength": round(t.strength, 4),
+            "pending": round(t.pending, 4),
+            "phase": t.phase, "is_kernel": t.is_kernel,
+            "evidence_count": len(t.evidence),
+        } for t in traits]
+        (target / "traits.json").write_text(
+            json.dumps(traits_data, ensure_ascii=False, indent=2), "utf-8")
+        # 导出 dossier
+        (target / "dossier.json").write_text(
+            json.dumps(self.dossier(), ensure_ascii=False, indent=2), "utf-8")
+        # 导出网络摘要
+        net = self.load_network()
+        (target / "network.json").write_text(json.dumps({
+            "nodes": len(net.nodes), "edges": len(net.edges),
+        }, indent=2), "utf-8")
+        # manifest
+        stats = self.stats()
+        manifest = {
+            "exported_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "version": "0.3.0",
+            "stats": stats,
+            "files": ["memory.db", "traits.json", "dossier.json", "network.json", "manifest.json"],
+        }
+        (target / "manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), "utf-8")
+        return manifest
+
     def close(self) -> None:
+        self.flush_changelog()
         self._db.close()
 
     def __enter__(self) -> "Memory":

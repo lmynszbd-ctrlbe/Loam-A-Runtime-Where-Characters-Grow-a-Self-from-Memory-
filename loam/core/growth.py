@@ -476,7 +476,24 @@ class Trait:
             feed_resistance = _clamp(1.0 - (edge - SATURATION_START) / 0.18, 0.25, 1.0)
             delta *= feed_resistance
 
-        self.pending += (delta + promoted) * assimilation
+        # 极化螺旋阻尼：连续同向信号逐渐打折，防止 LLM 迎合导致
+        # 角色被用户反复激发后不可逆地走向极端。
+        if delta > 0 and self._consecutive_same_sign > 0:
+            self._consecutive_same_sign += 1
+        elif delta < 0 and self._consecutive_same_sign < 0:
+            self._consecutive_same_sign -= 1
+        else:
+            self._consecutive_same_sign = 1 if delta > 0 else (-1 if delta < 0 else 0)
+        spiral_damp = 1.0
+        # 极化螺旋阻尼：只在 trait 已经处于极端（>0.85 或 <0.15）且
+        # 连续被同向推时才触发。避免极端值不断自我强化。
+        n = abs(self._consecutive_same_sign)
+        is_extreme = self.strength > 0.85 or self.strength < 0.15
+        pushing_outward = (self.strength > 0.5 and delta > 0) or (self.strength < 0.5 and delta < 0)
+        if n >= 4 and is_extreme and pushing_outward:
+            # 越极端、越连续，阻尼越强，最低降到 50%
+            spiral_damp = max(0.5, 1.0 - (n - 3) * 0.10)
+        self.pending += (delta + promoted) * assimilation * spiral_damp
 
         if force >= 0:
             self.reinforced += 1
@@ -511,6 +528,10 @@ class Trait:
 
     #: 解释不确定、尚未获独立印证的证据。
     _uncertain: List[Dict[str, object]] = field(default_factory=list, repr=False)
+
+    #: 连续同向信号的计数器。防止 LLM 迎合导致的极化螺旋。
+    #: 每连续 3 次同向印证，第 4 次开始逐渐打折，最高打到 50%。
+    _consecutive_same_sign: int = 0
 
     #: 本周期是否有经历进来。
     _fed: bool = field(default=False, repr=False)

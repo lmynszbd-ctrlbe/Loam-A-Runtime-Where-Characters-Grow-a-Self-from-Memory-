@@ -882,6 +882,35 @@ class LoamHandler(BaseHTTPRequestHandler):
                 self._send_json(200, self.server.service.build_context(query, learn=learn))
                 return
 
+            if path == "/narrative":
+                self._send_json(200, self.server.service.narrative())
+                return
+            if path == "/network" or path.startswith("/network?"):
+                net = self.server.service.memory.load_network()
+                limit = int((qs.get("limit") or ["80"])[0])
+                nodes = []
+                edges = []
+                for nid, ndata in net.nodes.items():
+                    d = ndata if isinstance(ndata, dict) else getattr(ndata, '__dict__', {})
+                    nodes.append({
+                        "id": nid,
+                        "weight": round(float(d.get("weight", 0)), 4),
+                        "degree": int(d.get("degree", 0)),
+                    })
+                for (src, dst), edata in net.edges.items():
+                    w = float(edata) if isinstance(edata, (int, float)) else float(getattr(edata, 'weight', 0))
+                    edges.append({"source": src, "target": dst, "weight": round(w, 4)})
+                nodes.sort(key=lambda x: x["weight"], reverse=True)
+                nodes = nodes[:limit]
+                edges.sort(key=lambda x: x["weight"], reverse=True)
+                edges = edges[:limit * 2]
+                self._send_json(200, {
+                    "nodes": nodes,
+                    "edges": edges,
+                    "total_nodes": len(net.nodes),
+                    "total_edges": len(net.edges),
+                })
+                return
             self._send_json(404, {"error": f"unknown route: {path}"})
         except ValueError as exc:
             self._send_json(400, {"error": str(exc)})
