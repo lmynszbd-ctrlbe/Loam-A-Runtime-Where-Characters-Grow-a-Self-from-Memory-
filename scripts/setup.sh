@@ -134,9 +134,9 @@ try:
     providers = cfg.get('providers', {})
     if providers:
         first = list(providers.values())[0]
-        secrets = {
+secrets = {
             'api_key': first.get('api_key', ''),
-            'base_url': first.get('base_url', 'https://api.openai.com/v1'),
+            'base_url': (first.get('base_url', 'https://api.openai.com/v1') or 'https://api.openai.com/v1').rstrip('/v1').rstrip('/'),
             'model': first.get('default_model', first.get('model', 'gpt-4o-mini')),
         }
         json.dump(secrets, open('$HOME/.loam/secrets.json', 'w'), indent=2, ensure_ascii=False)

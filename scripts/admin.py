@@ -1069,7 +1069,7 @@ class Handler(BaseHTTPRequestHandler):
         body = self._read_body()
         data = {
             "api_key": (body.get("api_key") or "").strip(),
-            "base_url": (body.get("base_url") or "").strip(),
+            "base_url": (body.get("base_url") or "").strip().rstrip("/v1").rstrip("/"),
             "model": (body.get("model") or "").strip(),
         }
         if not (data["api_key"] and data["base_url"] and data["model"]):
