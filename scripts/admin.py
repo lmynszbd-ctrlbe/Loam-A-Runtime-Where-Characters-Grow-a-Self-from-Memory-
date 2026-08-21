@@ -314,7 +314,7 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
         <h3 style="margin:0">💬 聊天回复模型 <span class="muted" style="font-weight:400;font-size:11px">— 你聊天时实际生成回复的模型，可以配多个随时切换</span></h3>
         <button class="btn btn-sm btn-outline" onclick="addUpstreamRow()">+ 添加提供商</button>
       </div>
-      <p class="muted" style="font-size:11px;margin-bottom:10px">你在第三方软件里填的 Model 格式是 <code>提供商名/模型名</code>（比如 <code>relayA/deepseek-chat</code>），会在这里匹配对应的 Base URL 和 Key。</p>
+      <p class="muted" style="font-size:11px;margin-bottom:10px">填好 Base URL 和 API Key 后点「拉取」，会从提供商拉取<b>完整模型列表</b>。你的聊天软件选 <code>提供商名/模型名</code>（如 <code>relayA/deepseek-chat</code>）。<br>DeepSeek 填 <code>https://api.deepseek.com</code>，OpenAI 填 <code>https://api.openai.com</code>，其他 OpenAI 兼容 API 填对应地址。</p>
       <div id="upstream-rows"></div>
       <div style="display:flex;align-items:end;gap:12px;margin-top:10px">
         <div class="form-group" style="margin:0">
@@ -595,16 +595,7 @@ async function loadApiConfig() {
     const defName = u.default || '';
     if (cfg.home) document.getElementById('cfg-home').textContent = cfg.home;
     renderUpstreamRows(defName);
-    // restore upstream model values
-    for (const [name, p] of Object.entries(_upstreamData)) {
-      const row = document.getElementById('up-row-'+name);
-      if (!row) continue;
-      const mel = row.querySelector('.up-model-inp');
-      if (mel && mel.tagName === 'SELECT') {
-        const opt = Array.from(mel.options).find(o => o.value === (p.default_model||''));
-        if (opt) mel.value = p.default_model;
-      }
-    }
+    // upstream model values are fetched from API, no need to restore
   } catch(e) {
     toast('Could not load config: ' + e.message, 'err');
   }
@@ -619,23 +610,18 @@ function renderUpstreamRows(defName) {
 
   container.innerHTML = sorted.map(name => {
     const p = _upstreamData[name] || {};
-    return `<div class="upstream-row" id="up-row-${escAttr(name)}" style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto auto;gap:8px;align-items:end;padding:8px 0;border-bottom:1px solid var(--border)">
+    return `<div class="upstream-row" id="up-row-${escAttr(name)}" style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:8px;align-items:end;padding:8px 0;border-bottom:1px solid var(--border)">
       <div class="form-group" style="margin:0">
-        <label>Name</label>
+        <label>提供商名称</label>
         <input class="up-name-inp" value="${escAttr(name)}" placeholder="请填写" style="font-weight:600">
       </div>
       <div class="form-group" style="margin:0">
-        <label>Base URL</label>
+        <label>Base URL（如 https://api.deepseek.com）</label>
         <input class="up-url-inp" value="${escAttr(p.base_url||'')}" placeholder="请填写">
       </div>
       <div class="form-group" style="margin:0">
-        <label>API Key</label>
+        <label>API Key（sk-...）</label>
         <input class="up-key-inp" type="password" value="${escAttr(p.api_key||'')}" placeholder="请填写">
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>Model</label>
-        <input class="up-model-inp" value="${escAttr(p.default_model||'')}" placeholder="请填写" list="up-models-list-${escAttr(name)}">
-        <datalist id="up-models-list-${escAttr(name)}"></datalist>
       </div>
       <button class="btn btn-sm btn-outline" style="height:38px;align-self:end" class="btn-fetch" onclick="fetchModels('${escAttr(name)}')" title="拉取模型列表">拉取</button>
       <button class="btn btn-sm btn-danger" style="height:38px;align-self:end" onclick="removeUpstreamRow('${escAttr(name)}')">✕</button>
@@ -670,12 +656,11 @@ function collectUpstreamFromDOM() {
   rows.forEach(row => {
     const name = (row.querySelector('.up-name-inp')?.value || '').trim();
     if (!name) return;
-    const modelEl = row.querySelector('.up-model-inp');
-    const modelVal = modelEl ? (modelEl.tagName === 'SELECT' ? modelEl.value : modelEl.value) : '';
+    const existing = _upstreamData[name] || {};
     data[name] = {
       base_url: (row.querySelector('.up-url-inp')?.value || '').trim(),
       api_key: (row.querySelector('.up-key-inp')?.value || '').trim(),
-      default_model: modelVal.trim(),
+      default_model: existing.default_model || '',
     };
   });
   return data;
@@ -760,10 +745,10 @@ async function fetchModels(section) {
         // upstream row: find model input and replace with select
         const row = document.getElementById('up-row-'+section);
         if (row) {
-          const inp = row.querySelector('.up-model-inp');
+          const inp = row.querySelector('.up-key-inp');
           if (inp) {
             const sel = document.createElement('select');
-            sel.className = 'up-model-inp';
+            sel.className = 'up-key-inp';
             sel.style.cssText = inp.style.cssText;
             sel.innerHTML = r.models.map(m => `<option value="${m}">${m}</option>`).join('');
             inp.parentNode.replaceChild(sel, inp);
@@ -938,8 +923,8 @@ class Handler(BaseHTTPRequestHandler):
         for name, p in providers.items():
             if not isinstance(p, dict):
                 return {"error": f"provider '{name}' must be an object"}
-            if not (p.get("base_url") and p.get("api_key") and p.get("default_model")):
-                return {"error": f"provider '{name}': base_url, api_key, default_model are all required"}
+            if not (p.get("base_url") and p.get("api_key")):
+                return {"error": f"provider '{name}': base_url and api_key are required"}
         data = {"providers": providers}
         default = (body.get("default") or "").strip()
         if default and providers.get(default):
