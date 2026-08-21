@@ -1,15 +1,26 @@
 # loam Deployment Guide
 
+## One-command setup (recommended)
+
+```bash
+bash scripts/setup.sh
+```
+
+Detects your OS, installs prerequisites, clones the repo, walks you through configuration, starts everything, and opens the admin panel at `http://127.0.0.1:8899`. Works on Termux, macOS, Linux, WSL, and Windows.
+
+The sections below are for manual setup if you prefer step-by-step control.
+
 ## Quick overview
 
-loam runs as two processes:
+loam runs as two processes plus an optional admin panel:
 
 | Process | Port | What it does |
 |---------|------|-------------|
 | loam server | 8765 | Stores memories, grows personality, digests conversations |
 | forced proxy | 8780 | OpenAI-compatible API gateway, routes to your LLM provider |
+| admin panel | 8899 | Web UI for status, traits, memory, config, constants, actions |
 
-You need both. The proxy is what your chat client connects to.
+You need both loam and proxy. The proxy is what your chat client connects to.
 
 ## You need two things before starting
 
