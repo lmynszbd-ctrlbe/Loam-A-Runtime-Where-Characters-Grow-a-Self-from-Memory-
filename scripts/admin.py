@@ -580,17 +580,31 @@ let _upstreamData = {};  // {name: {base_url, api_key, default_model}}
 async function loadApiConfig() {
   try {
     const cfg = await callAdmin('GET', '/admin/config');
-    // secrets
     const s = cfg.secrets || {};
     document.getElementById('sec-key').value = s.api_key || '';
     document.getElementById('sec-url').value = s.base_url || '';
-    document.getElementById('sec-model').value = s.model || '';
-    // upstreams
+    const modelEl = document.getElementById('sec-model');
+    if (modelEl.tagName === 'SELECT') {
+      const opt = Array.from(modelEl.options).find(o => o.value === (s.model||''));
+      if (opt) modelEl.value = s.model;
+    } else {
+      modelEl.value = s.model || '';
+    }
     const u = cfg.upstreams || {};
     _upstreamData = u.providers || {};
     const defName = u.default || '';
     if (cfg.home) document.getElementById('cfg-home').textContent = cfg.home;
     renderUpstreamRows(defName);
+    // restore upstream model values
+    for (const [name, p] of Object.entries(_upstreamData)) {
+      const row = document.getElementById('up-row-'+name);
+      if (!row) continue;
+      const mel = row.querySelector('.up-model-inp');
+      if (mel && mel.tagName === 'SELECT') {
+        const opt = Array.from(mel.options).find(o => o.value === (p.default_model||''));
+        if (opt) mel.value = p.default_model;
+      }
+    }
   } catch(e) {
     toast('Could not load config: ' + e.message, 'err');
   }

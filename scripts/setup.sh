@@ -174,7 +174,7 @@ start_services() {
 
     # Start proxy
     if [ -f bridge/forced_flow_proxy.py ]; then
-        nohup python3 bridge/forced_flow_proxy.py > /dev/null 2>&1 &
+        PROXY_NO_AUTH=1 nohup python3 bridge/forced_flow_proxy.py > /dev/null 2>&1 &
         say "proxy started (port 8780)"
     fi
 
