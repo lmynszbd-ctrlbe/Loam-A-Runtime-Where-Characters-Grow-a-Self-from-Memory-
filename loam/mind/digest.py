@@ -879,13 +879,14 @@ class Grower:
         for ent, eids in clusters.items():
             if len(eids) < 3:
                 continue
-            # 合并成一条高级经验
-            merged_id = f"consolidated_{ent}_{int(time.time())}"
+            # 星型结构：保留原始事件节点，创建父级摘要节点
+            # 原始事件继续存在，细颗粒度永远可追溯
+            parent_id = f"consolidated_{ent}_{int(time.time())}"
             summary = f"关于{ent}的多次经历累积形成的印象"
-            consolidated = Event(
-                id=merged_id,
+            parent = Event(
+                id=parent_id,
                 summary=summary,
-                source_ids=eids,
+                source_ids=eids,  # 指向所有子事件
                 session="__consolidation__",
                 salience=min(0.65, 0.3 + 0.05 * len(eids)),
                 valence=0.0,
@@ -893,7 +894,14 @@ class Grower:
                 entities=[ent],
                 happened_at=time.time(),
             )
-            d.memory.add_event(consolidated)
+            d.memory.add_event(parent)
+            # 把父节点和每个子节点之间建立高权重边（星型拓扑）
+            net = d.memory.load_network()
+            for child_id in eids:
+                if child_id in net.nodes:
+                    net.strengthen(parent_id, child_id, 0.35, force=True)
+                    net.strengthen(child_id, parent_id, 0.35, force=True)
+            d.memory.save_network(net)
             merged += 1
 
         if merged:

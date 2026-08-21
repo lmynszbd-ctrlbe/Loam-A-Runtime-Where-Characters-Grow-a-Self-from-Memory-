@@ -751,15 +751,29 @@ class LoamService:
 
     # ------------------------------------------------------------ 输出
 
-    def build_context(self, query: str, learn: bool = False) -> Dict[str, Any]:
+    def build_context(self, query: str, learn: bool = False, sync_grow: bool = False) -> Dict[str, Any]:
         with self._lock:
             self._maybe_apply_decay_unlocked(force=False)
             # 对话链路指标与成长链路拆分统计。
             self._metric_inc("dialog.context_requests", 1)
             if learn:
                 self._metric_inc("dialog.context_learn_requests", 1)
+            sync_report = None
+            if sync_grow:
+                self._metric_inc("dialog.context_sync_grow", 1)
+                try:
+                    sync_report = self.digest_once(limit=20)
+                except Exception:
+                    pass
             pack = self.context.build(self.character, query=query, learn=learn)
-            return {"context": pack.as_dict(), "text": pack.render()}
+            result = {"context": pack.as_dict(), "text": pack.render()}
+            if sync_report is not None:
+                result["sync_grow"] = {
+                    "entries": sync_report.get("entries", 0),
+                    "events": sync_report.get("events", 0),
+                    "traits_touched": sync_report.get("traits_touched", 0),
+                }
+            return result
 
     def stats(self) -> Dict[str, Any]:
         with self._lock:
@@ -879,7 +893,8 @@ class LoamHandler(BaseHTTPRequestHandler):
             if path == "/context":
                 query = (qs.get("q") or [""])[0]
                 learn = _coerce_bool((qs.get("learn") or [None])[0], default=False)
-                self._send_json(200, self.server.service.build_context(query, learn=learn))
+                sync_grow = _coerce_bool((qs.get("sync_grow") or [None])[0], default=False)
+                self._send_json(200, self.server.service.build_context(query, learn=learn, sync_grow=sync_grow))
                 return
 
             if path == "/narrative":
@@ -910,6 +925,17 @@ class LoamHandler(BaseHTTPRequestHandler):
                     "total_nodes": len(net.nodes),
                     "total_edges": len(net.edges),
                 })
+                return
+            if path == "/constants" or path.startswith("/constants?"):
+                import loam.core.constants as C
+                all_consts = {}
+                for name in dir(C):
+                    if name.isupper() and not name.startswith('_'):
+                        val = getattr(C, name)
+                        if isinstance(val, (int, float, bool, str)):
+                            all_consts[name] = val
+                overrides = self.server.service._runtime_const_overrides if hasattr(self.server.service, '_runtime_const_overrides') else {}
+                self._send_json(200, {"constants": all_consts, "overrides": overrides})
                 return
             self._send_json(404, {"error": f"unknown route: {path}"})
         except ValueError as exc:
@@ -944,7 +970,8 @@ class LoamHandler(BaseHTTPRequestHandler):
             if path == "/context":
                 query = str(payload.get("query") or "")
                 learn = _coerce_bool(payload.get("learn"), default=False)
-                self._send_json(200, self.server.service.build_context(query, learn=learn))
+                sync_grow = _coerce_bool(payload.get("sync_grow"), default=False)
+                self._send_json(200, self.server.service.build_context(query, learn=learn, sync_grow=sync_grow))
                 return
 
             if path == "/grower/start":
