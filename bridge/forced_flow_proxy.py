@@ -676,6 +676,7 @@ class Handler(BaseHTTPRequestHandler):
             msg = {}
         reasoning = (msg.get("reasoning_content") or "").strip()
         content = _extract_text(msg.get("content", "")).strip()
+        tool_calls = msg.get("tool_calls")
 
         def chunk(delta: Dict[str, Any], finish: Optional[str] = None) -> bytes:
             payload = {
@@ -698,6 +699,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(chunk({"reasoning_content": reasoning}))
             if content:
                 self.wfile.write(chunk({"content": content}))
+            if tool_calls and isinstance(tool_calls, list) and len(tool_calls) > 0:
+                self.wfile.write(chunk({"tool_calls": tool_calls}))
             self.wfile.write(chunk({}, finish="stop"))
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush()
