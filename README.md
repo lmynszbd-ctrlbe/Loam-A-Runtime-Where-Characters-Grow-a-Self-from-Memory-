@@ -111,7 +111,7 @@ The proxy now requires `Authorization: Bearer <token>` (token printed at startup
 | `/healthz` | GET | Health + stats |
 | `/stats` | GET | Full statistics |
 | `/dashboard` | GET | Time-windowed activity data |
-| `/context` | GET/POST | Build memory context for a query |
+| `/context` | GET/POST | Build memory context (supports `sync_grow=true` for real-time digestion) |
 | `/ingest` | POST | Submit raw dialogue turns |
 | `/digest` | POST | Trigger one digestion cycle |
 | `/drain` | POST | Process all queued turns |
@@ -126,6 +126,8 @@ The proxy now requires `Authorization: Bearer <token>` (token printed at startup
 | `/recompute/history` | GET | Recompute run history |
 | `/experiments` | GET | Experiment history |
 | `/experiments/flags` | GET/POST | Experiment flags |
+| `/constants` | GET | List all 48 tunable parameters |
+| `/constants` | POST | Hot-override parameters (in-memory, reset on restart) |
 
 ## CLI
 
