@@ -363,6 +363,8 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             req = self._read_json()
+            req_model = str(req.get("model") or "")
+            print(f"[proxy] POST /v1/chat/completions model={req_model} stream={req.get('stream')} messages={len(req.get('messages', []))}", flush=True)
             # For now loam does not support streaming, but many clients default to
             # stream=true. We silently fall back to non-streaming so those clients
             # work without modification.
@@ -408,6 +410,7 @@ class Handler(BaseHTTPRequestHandler):
                 up_payload,
                 headers=_provider_headers(provider),
             )
+            print(f"[proxy] POST {_provider_api_base(provider)}/v1/chat/completions → model={upstream_model} → OK", flush=True)
 
             # 3) 强制落本轮原文到 loam
             assistant = _assistant_text(up_resp)
@@ -438,12 +441,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, {"error": {"message": str(e)}})
         except urllib.error.HTTPError as e:
             raw = e.read().decode("utf-8")
+            print(f"[proxy] HTTP {e.code} from upstream: {raw[:300]}", flush=True)
             try:
                 data = json.loads(raw)
             except Exception:
                 data = {"error": {"message": raw or str(e)}}
             self._send(e.code, data)
         except Exception as e:  # noqa: BLE001
+            print(f"[proxy] {type(e).__name__}: {e}", flush=True)
             self._send(500, {"error": {"message": f"{type(e).__name__}: {e}"}})
 
     def do_GET(self) -> None:  # noqa: N802
