@@ -1,81 +1,116 @@
 # loam
 
-A lightweight, model-agnostic memory runtime where identity continuity comes from immutable dialogue history, gated growth dynamics, and auditable reconstruction.
+A memory runtime where identity grows from immutable dialogue history through gated growth dynamics, Hebbian associative networks, and auditable reconstruction.
 
-## 项目简介
-loam 把每轮对话先保存为**不可变原始底稿**，再将其消化为事件、特质、网络与上下文。
-它的目标不是“写死人设”，而是让角色在长期交互中从真实经历里逐步长出稳定自我。
+## What it is
 
-**Model statement (truthful architecture):**
+loam is two cooperating processes that run locally:
 
-> Loam is a lightweight memory runtime designed to be model-agnostic.
-> It works with any LLM backend (such as OpenAI, Anthropic, or local open-source models) via standard API integration.
+1. **loam** (port 8765) — stores raw dialogue turns, digests them into structured memory (events, traits, a Hebbian network, and a self-narrative), and serves retrieval via `/context`.
+2. **forced proxy** (port 8780) — an OpenAI-compatible gateway that enforces the pipeline `context → upstream LLM → ingest` on every turn, so memory writes don't depend on host tool-calling reliability.
 
-## 核心机制 / 设计理念
-### 1) 不可变底座（Immutable substrate）
-- 原始对话只增不改，作为唯一真值来源。
-- 任何派生变化都可回溯到具体证据。
+Your client connects to `http://127.0.0.1:8780/v1`. The proxy routes to whichever upstream provider you configured, then writes the turn back to loam. The growth model digests accumulated turns asynchronously.
 
-### 2) 门控生长（Gated growth）
-- 特质变化采用“先累积、后提交”的门控机制。
-- 小信号可长期沉淀，避免抖动和一次性过拟合。
+## Why the design decisions are what they are
 
-### 3) 可审计与可重建（Auditable + rebuildable）
-- 派生层支持增量/全量重算。
-- 参数版本化、实验审计、重算审计可追踪。
+### Immutable substrate
+Raw turns are append-only. Every derived artifact (trait strength, event, edge, narrative) points to a concrete source turn. If the model improves later, replay the same raw journal through the new model and compare.
 
-### 4) 聊天链路与成长链路解耦
-- 回复模型与成长/消化模型可独立配置。
-- 延迟优化与认知质量调优互不绑死。
+### Gated growth, not weighted averaging
+Traits don't move on every interaction. Evidence accumulates in a `pending` buffer. Only when the buffer crosses a dynamic threshold does a qualitative shift occur — and the threshold itself rises after each commit (marginal diminishing returns). This prevents both random jitter and runaway positive feedback.
 
-## 快速开始
-在仓库根目录执行（两条命令即可启动）：
+### Hebbian network for causal recall
+Similarity search alone can't jump from "I'm nervous about tomorrow" to "the last time someone interrupted you in a meeting." The network grows edges between events that co-occur in experience, then spreads activation along those edges. Different characters develop different network topologies from different experiences — the topology *is* the personality.
 
-```bash
-python -m loam init-secrets --secrets-home ~/.loam
-python -m loam run --character demo --home ~/.loam/characters
+### Chat model ≠ growth model
+The model that generates replies is decoupled from the model that digests memory. You can use a fast model for chat and a more capable model for digestion, or vice versa. They are configured independently in `upstreams.json`.
+
+## Growth mechanics
+
+Trait dynamics follow S-shaped capacity:
+
+```
+capacity = max(strength, 0.06) × max(0.97 - strength, 0.06)
+delta    = 0.35 × capacity × signal × salience
+gate     = max(0.004, 0.5 × capacity) × 1.1^gate_level
 ```
 
-启动后可通过 `/ingest`、`/digest`、`/context` 完成最小闭环。
+Key mechanisms:
+- **Pending → commit**: evidence accumulates in a buffer; qualitative change only after crossing the dynamic gate.
+- **Expression feedback**: claimed-but-never-expressed traits are pulled down; consistently-expressed-but-unclaimed traits are pushed up.
+- **Saturation**: absorption rate decays near boundaries (strength ≥ 0.88).
+- **Rebound**: extreme traits (|S − 0.5| > 0.25) slowly soften toward center when not reinforced.
+- **Freeze**: after 48 inactive cycles, traits freeze entirely — no decay, no drift, preserved until explicitly woken.
+- **Sarcasm reversal**: ambiguity ≥ 0.65 inverts the literal signal and discounts it.
+- **Trait graph**: when one trait shifts, a ripple propagates through the relation network to connected traits.
+- **Lifecycle**: warmup → active → converging → dormant → frozen → recovering.
 
-可观测/审计接口：
-- `/dashboard`（任务态、告警分级、时间窗聚合）
-- `/explain`（变化触发证据链，可选原始 entry 展开）
-- `/experiments` 与 `/experiments/flags`（实验开关+审计）
-- `/recompute` 与 `/recompute/history`（增量/全量重算）
+Tests: `python tests/test_growth.py` (25/25 pass).
 
-## 部署方式
-- **零基础超详细（推荐先看）**：`docs/DEPLOYMENT_FOR_ABSOLUTE_BEGINNERS.md`
-- **Android / Termux 快速版**：`TERMUX_QUICKSTART.md`
-- **Linux / VM / WSL / macOS**：`DEPLOYMENT_MODES.md`
-- **上游模板（必须先配）**：模板在 `bridge/upstreams.example.json`，运行时文件是 `~/.loam/upstreams.json`
-- **容器化部署**：`Dockerfile` + `docker-compose.yml`
-- **多上游路由**：`MULTI_UPSTREAM_QUICKSTART.md`
-- **第三方集成**：`THIRD_PARTY_INTEGRATION.md`
-- **迁移与回滚**：`docs/MIGRATION_RUNBOOK.md`（含导出/加载/目标库一致性校验脚本）
-- **备份恢复与运维 SOP**：`docs/BACKUP_RESTORE_RUNBOOK.md`、`docs/OPS_SOP.md`
-- **合规与 License**：`docs/COMPLIANCE_AND_LICENSE.md`
-- **发布前检查**：`INTEGRATION_CHECKLIST.md`
-- **最新发布说明**：`docs/RELEASE_v0.2.0_CHECKLIST_CLOSURE.md`
+## Memory network
 
-## 技术栈
-- Python 3（标准库优先）
-- SQLite（WAL + FTS5）
-- 进程内 HTTP 服务（ThreadingHTTPServer）
-- 可插拔 LLM backend（OpenAI / Anthropic / 本地开源模型等）
+A single Hebbian rule: nodes co-activated together strengthen their edges. The rest follows:
 
-## 贡献指南
-1. Fork 并创建功能分支。
-2. 保持改动最小闭环（代码 + 测试 + 文档）。
-3. 提交前运行：
-   - `python -m compileall -q loam tests`
-   - `for f in tests/test_*.py; do python "$f"; done`
-4. 提交 PR，并说明变更动机、影响范围与验证结果。
+```
+strengthen: new = min(w + 0.30 × base × room × force, 0.95)
+spread:     energy(dst) = Σ energy(src) × edge_weight × 0.75
+```
 
-## 项目归属
-- **@lmynszbd-ctrlbe** — Project initiated, designed, and directed by @lmynszbd-ctrlbe.
-- **玉槿（AI 共创者）** — AI co-author (implementation assistance, checklist closure, beginner deployment documentation, release-note drafting).
-- **all（AI 共创者）** — AI co-author (implementation assistance, refactoring support, test scaffolding).
+- **Lived co-occurrence** (same experience) seeds edges at 0.22; recalled co-occurrence at 0.05.
+- **Spreading activation** (max 4 hops) enables multi-step causal recall across semantically dissimilar but causally linked events.
+- **Edge decay** (0.995/cycle) and pruning (< 0.015) handle forgetting.
+- **Anchor nodes** (always-on) and **tiering** (hot/warm/cold) control retrieval scope.
+
+## Quick start
+
+```bash
+git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git loam
+cd loam
+
+# 1. Create your upstream config (required)
+mkdir -p ~/.loam
+cp bridge/upstreams.example.json ~/.loam/upstreams.json
+nano ~/.loam/upstreams.json   # replace placeholders with real provider values
+python -m json.tool ~/.loam/upstreams.json >/dev/null && echo JSON_OK
+
+# 2. Start loam + proxy
+LOAM_API_KEY='your_key' LOAM_MODEL='deepseek-chat-flash' \
+UPSTREAMS_CONFIG="$HOME/.loam/upstreams.json" UPSTREAM_DEFAULT='relayA' \
+bash scripts/termux/final_start_all.sh
+
+# 3. Verify
+curl -s http://127.0.0.1:8765/health
+curl -s http://127.0.0.1:8780/health
+curl -s http://127.0.0.1:8780/v1/models
+```
+
+Client: Base URL `http://127.0.0.1:8780/v1`, model `provider/model` (e.g. `relayA/gpt-4o-mini`).
+
+## Deployment
+
+See `docs/DEPLOY.md` for all platforms (Termux, Linux, WSL, macOS, Docker).
+
+Additional references: `docs/RELEASE.md`, `docs/MIGRATION_RUNBOOK.md`, `docs/BACKUP_RESTORE_RUNBOOK.md`, `docs/OPS_SOP.md`, `THIRD_PARTY_INTEGRATION.md`, `INTEGRATION_CHECKLIST.md`.
+
+## Tech stack
+
+- Python 3 (stdlib-first, no framework dependencies)
+- SQLite (WAL mode, FTS5 with custom bigram tokenizer for Chinese)
+- ThreadingHTTPServer (process-internal)
+- Model-agnostic LLM backend (OpenAI-compatible API)
+
+## Contributing
+
+1. Fork and create a feature branch.
+2. Keep changes minimal: code + tests + docs.
+3. Before submitting: `python -m compileall -q loam tests && for f in tests/test_*.py; do python "$f"; done`
+4. PR should describe motivation, scope, and verification.
+
+## Attribution
+
+- **@lmynszbd-ctrlbe** — project initiated, designed, and directed.
+- **玉槿 (AI co-author)** — implementation, growth mechanics, deployment documentation.
+- **all (AI co-author)** — implementation, refactoring, test scaffolding.
 
 ---
-Don’t hard-freeze a persona. Grow a self from memory.
+Don't script a persona. Grow a self from memory.
