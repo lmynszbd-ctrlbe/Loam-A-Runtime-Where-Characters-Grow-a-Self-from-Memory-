@@ -1,11 +1,7 @@
 # loam Deployment Guide
 
-> 🚀 **One-click**: `bash scripts/setup.sh` — auto-detects OS, installs everything, opens admin panel.
-> 📖 **Manual**: follow the per-platform commands below for step-by-step control.
-
----
-
-## Quick overview
+> 🚀 **One-click**: `git clone <repo> && cd loam && bash scripts/setup.sh` — auto-detects OS, installs everything, opens admin panel.
+> 📖 **Manual**: pick your platform below for step-by-step commands.
 
 ---
 
@@ -21,42 +17,7 @@ Client connects to `http://127.0.0.1:8780/v1`, model: `relayA/deepseek-chat`.
 
 ---
 
-## Configuration
-
-Two files in `~/.loam/`:
-
-### `secrets.json` — loam server (digestion model)
-
-```json
-{
-  "api_key": "sk-your-key",
-  "base_url": "https://api.deepseek.com",
-  "model": "deepseek-chat"
-}
-```
-
-Optional `low_cost_*` fields route cheaper extraction phases to a smaller model.
-
-### `upstreams.json` — forced proxy (chat models)
-
-```json
-{
-  "default": "relayA",
-  "providers": {
-    "relayA": {
-      "base_url": "https://api.deepseek.com",
-      "api_key": "sk-your-key",
-      "default_model": "deepseek-chat"
-    }
-  }
-}
-```
-
----
-
 ## Manual setup (per platform)
-
-If you prefer full control over each step, pick your platform below. Otherwise, `bash scripts/setup.sh` handles all of this automatically.
 
 ### Android (Termux)
 
@@ -64,9 +25,11 @@ If you prefer full control over each step, pick your platform below. Otherwise, 
 # Prerequisites
 pkg update -y && pkg install -y python git curl
 
-# Clone & configure
+# Clone
 cd ~ && git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git loam
 cd ~/loam
+
+# Configure
 mkdir -p ~/.loam
 python -m loam init-secrets --secrets-home ~/.loam
 cp bridge/upstreams.example.json ~/.loam/upstreams.json
@@ -85,10 +48,12 @@ bash scripts/termux/final_status_all.sh
 ```bash
 # Prerequisites: install Python (check "Add to PATH") + Git from https://git-scm.com
 
-# Clone & configure
+# Clone
 cd %USERPROFILE%
 git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git loam
 cd loam
+
+# Configure
 mkdir %USERPROFILE%\.loam
 python -m loam init-secrets --secrets-home %USERPROFILE%\.loam
 copy bridge\upstreams.example.json %USERPROFILE%\.loam\upstreams.json
@@ -178,6 +143,39 @@ cd ~/loam && docker compose up -d --build
 ```
 
 Note: docker-compose only starts loam server (8765). Run proxy separately or add a second service to docker-compose.yml with port 8780.
+
+---
+
+## Configuration reference
+
+Two files in `~/.loam/`:
+
+### `secrets.json` — loam server (digestion model)
+
+```json
+{
+  "api_key": "sk-your-key",
+  "base_url": "https://api.deepseek.com",
+  "model": "deepseek-chat"
+}
+```
+
+Optional `low_cost_*` fields route cheaper extraction phases to a smaller model.
+
+### `upstreams.json` — forced proxy (chat models)
+
+```json
+{
+  "default": "relayA",
+  "providers": {
+    "relayA": {
+      "base_url": "https://api.deepseek.com",
+      "api_key": "sk-your-key",
+      "default_model": "deepseek-chat"
+    }
+  }
+}
+```
 
 ---
 
