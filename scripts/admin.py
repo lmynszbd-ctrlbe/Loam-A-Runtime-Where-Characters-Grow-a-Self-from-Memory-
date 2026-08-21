@@ -247,7 +247,7 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
     <!-- SECTION 1: loam memory API -->
     <div class="card" style="margin-bottom:16px; border-left:3px solid var(--accent)">
       <h3>🧠 loam Memory API <span class="muted" style="font-weight:400;font-size:11px">— digests conversations into memory</span></h3>
-      <div class="grid" style="grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:end">
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr auto auto; gap:8px; align-items:end">
         <div class="form-group" style="margin:0">
           <label>Base URL</label>
           <input id="sec-url" placeholder="https://api.deepseek.com">
@@ -258,8 +258,10 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
         </div>
         <div class="form-group" style="margin:0">
           <label>Model</label>
-          <input id="sec-model" placeholder="deepseek-chat">
+          <input id="sec-model" placeholder="deepseek-chat" list="sec-models-list">
+          <datalist id="sec-models-list"></datalist>
         </div>
+        <button class="btn btn-sm btn-outline" style="height:38px;align-self:end" onclick="fetchModels('sec')" title="Fetch available models from provider">📋 Fetch</button>
         <button class="btn btn-ok" style="height:38px;align-self:end" onclick="saveSecrets()">💾 Save</button>
       </div>
       <div id="sec-status" style="margin-top:8px;font-size:12px" class="muted"></div>
@@ -326,6 +328,17 @@ async function call(method, path, body) {
     opts.body = JSON.stringify(body);
   }
   const r = await fetch(API + path, opts);
+  return r.json();
+}
+
+// callAdmin — direct to admin panel (not proxied to loam)
+async function callAdmin(method, path, body) {
+  const opts = {method};
+  if (body) {
+    opts.headers = {'Content-Type': 'application/json'};
+    opts.body = JSON.stringify(body);
+  }
+  const r = await fetch(path, opts);
   return r.json();
 }
 
@@ -524,7 +537,7 @@ let _upstreamData = {};  // {name: {base_url, api_key, default_model}}
 
 async function loadApiConfig() {
   try {
-    const cfg = await call('GET', '/admin/config');
+    const cfg = await callAdmin('GET', '/admin/config');
     // secrets
     const s = cfg.secrets || {};
     document.getElementById('sec-key').value = s.api_key || '';
@@ -550,7 +563,7 @@ function renderUpstreamRows(defName) {
 
   container.innerHTML = sorted.map(name => {
     const p = _upstreamData[name] || {};
-    return `<div class="upstream-row" style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:8px;align-items:end;padding:8px 0;border-bottom:1px solid var(--border)">
+    return `<div class="upstream-row" id="up-row-${escAttr(name)}" style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto auto;gap:8px;align-items:end;padding:8px 0;border-bottom:1px solid var(--border)">
       <div class="form-group" style="margin:0">
         <label>Name</label>
         <input class="up-name-inp" value="${escAttr(name)}" placeholder="relayA" style="font-weight:600">
@@ -565,8 +578,10 @@ function renderUpstreamRows(defName) {
       </div>
       <div class="form-group" style="margin:0">
         <label>Model</label>
-        <input class="up-model-inp" value="${escAttr(p.default_model||'')}" placeholder="deepseek-chat">
+        <input class="up-model-inp" value="${escAttr(p.default_model||'')}" placeholder="deepseek-chat" list="up-models-list-${escAttr(name)}">
+        <datalist id="up-models-list-${escAttr(name)}"></datalist>
       </div>
+      <button class="btn btn-sm btn-outline" style="height:38px;align-self:end" onclick="fetchModels('${escAttr(name)}')" title="Fetch available models">📋</button>
       <button class="btn btn-sm btn-danger" style="height:38px;align-self:end" onclick="removeUpstreamRow('${escAttr(name)}')">✕</button>
     </div>`;
   }).join('');
@@ -617,7 +632,7 @@ async function saveSecrets() {
   if (!body.api_key || !body.base_url || !body.model) {
     toast('Fill in all three fields for loam Memory API', 'err'); return;
   }
-  const r = await call('POST', '/admin/secrets', body);
+  const r = await callAdmin('POST', '/admin/secrets', body);
   const el = document.getElementById('sec-status');
   if (r.ok) { el.innerHTML = '<span class="ok">✓ saved — restart loam to apply</span>'; toast('Memory API saved', 'ok'); }
   else { el.innerHTML = '<span class="err">'+esc(r.error||'failed')+'</span>'; toast('save failed', 'err'); }
@@ -635,7 +650,7 @@ async function saveUpstreams() {
   const defName = document.getElementById('up-default').value;
   const body = {providers};
   if (defName && providers[defName]) body.default = defName;
-  const r = await call('POST', '/admin/upstreams', body);
+  const r = await callAdmin('POST', '/admin/upstreams', body);
   const el = document.getElementById('up-status');
   if (r.ok) {
     _upstreamData = providers;
@@ -646,10 +661,37 @@ async function saveUpstreams() {
 
 function loadConnect() { loadApiConfig(); }
 
+// ---- FETCH MODELS ----
+async function fetchModels(section) {
+  let url, key, targetList;
+  if (section === 'sec') {
+    url = document.getElementById('sec-url').value.trim();
+    key = document.getElementById('sec-key').value.trim();
+    targetList = 'sec-models-list';
+  } else {
+    // upstream row — section is the row index or name
+    const row = document.getElementById('up-row-'+section);
+    if (!row) { toast('Provider row not found', 'err'); return; }
+    url = row.querySelector('.up-url-inp')?.value.trim() || '';
+    key = row.querySelector('.up-key-inp')?.value.trim() || '';
+    targetList = 'up-models-list-'+section;
+  }
+  if (!url || !key) { toast('Fill in Base URL and API Key first', 'err'); return; }
+  const btn = document.getElementById(section === 'sec' ? 'sec-status' : 'up-status');
+  const r = await callAdmin('POST', '/admin/fetch-models', {base_url: url, api_key: key});
+  if (r.models && r.models.length) {
+    const dl = document.getElementById(targetList);
+    if (dl) dl.innerHTML = r.models.map(m => `<option value="${m}">`).join('');
+    toast(`${r.models.length} models loaded`, 'ok');
+  } else {
+    toast('Fetch failed: ' + (r.error||'no models returned'), 'err');
+  }
+}
+
 // ---- UPDATE CHECK ----
 async function checkVersion() {
   try {
-    const v = await call('GET', '/admin/version');
+    const v = await callAdmin('GET', '/admin/version');
     if (!v.has_update) return;
     // show update modal
     const overlay = document.createElement('div');
@@ -667,7 +709,7 @@ async function checkVersion() {
     document.getElementById('update-btn-confirm').onclick = async () => {
       const btn = document.getElementById('update-btn-confirm');
       btn.disabled = true; btn.textContent = '⏳ Updating...';
-      const r = await call('POST', '/admin/update');
+      const r = await callAdmin('POST', '/admin/update');
       if (r.ok) {
         overlay.querySelector('h2').textContent = '✓ Updated';
         overlay.querySelector('p').innerHTML = 'loam updated to <code>'+esc(v.remote)+'</code>. Restarting...<br>Page will reload in 5 seconds.';
@@ -728,6 +770,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(self._read_config())
         elif self.path == "/admin/version":
             self._json(self._version_info())
+        elif self.path == "/admin/fetch-models":
+            self._json(self._fetch_models())
         elif self.path.startswith("/api/proxy"):
             self._proxy("GET")
         else:
@@ -826,7 +870,6 @@ class Handler(BaseHTTPRequestHandler):
             if r.returncode != 0:
                 out = (out + "\n" + r.stderr).strip()
                 return {"error": "git pull failed", "detail": out[:300]}
-            # restart loam + proxy
             restart = []
             for proc_name in ["loam.__main__", "forced_flow_proxy", "scripts/admin.py", "scripts/dashboard.py"]:
                 try:
@@ -834,14 +877,12 @@ class Handler(BaseHTTPRequestHandler):
                     restart.append(proc_name)
                 except Exception:
                     pass
-            # restart loam
             try:
                 subprocess.Popen(["python3", "-m", "loam", "run", "--grow-interval", "60"],
                                 cwd=repo_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 restart.append("loam-restarted")
             except Exception:
                 pass
-            # restart proxy
             try:
                 subprocess.Popen(["python3", "bridge/forced_flow_proxy.py"],
                                 cwd=repo_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -849,6 +890,32 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 pass
             return {"ok": True, "detail": out[:200], "restarted": restart}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def _fetch_models(self):
+        """Proxy a /v1/models call to a provider. Body: {base_url, api_key}."""
+        body = self._read_body()
+        url = (body.get("base_url") or "").strip()
+        key = (body.get("api_key") or "").strip()
+        if not url or not key:
+            return {"error": "base_url and api_key are required"}
+        # normalize URL
+        url = url.rstrip("/")
+        if not url.endswith("/v1"):
+            url += "/v1"
+        try:
+            req = urllib.request.Request(f"{url}/models")
+            req.add_header("Authorization", f"Bearer {key}")
+            req.add_header("Content-Type", "application/json")
+            with urllib.request.urlopen(req, timeout=15) as r:
+                data = json.loads(r.read())
+            models = []
+            for m in data.get("data", []):
+                mid = m.get("id", "")
+                if mid and not mid.startswith("ft:"):
+                    models.append(mid)
+            return {"models": models}
         except Exception as e:
             return {"error": str(e)}
 
