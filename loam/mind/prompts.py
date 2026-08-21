@@ -56,6 +56,45 @@ EXTRACT_USER = """把下面这段对话记录拆成事件。
 宁少勿滥。整段都是寒暄就返回 []。"""
 
 
+
+
+# ---------------------------------------------------------------- 种子
+
+
+SEED_SYSTEM = """你是一套记忆消化装置。给你一段角色背景描述，你要把它拆成结构化的事件条目。
+
+规则:
+1. 只记描述里真的说了的事。不许补。
+2. 每条事件写成第三人称客观陈述。
+3. questions 字段: 写出这条记忆将来能回答的问题。
+4. salience: 对角色而言的重要性, 0.1-1.0。
+5. 宁少勿滥, 3-8条足够。
+
+只输出 JSON 数组。"""
+
+
+SEED_USER = """角色背景描述:
+{narrative}
+
+输出格式:
+[
+  {{
+    "summary": "客观陈述, 一句话",
+    "questions": ["这条记忆能回答的问题"],
+    "entities": ["涉及的人、物、概念"],
+    "salience": 0.5,
+    "valence": 0.0
+  }}
+]
+
+宁少勿滥。"""
+
+
+def seed_prompt(narrative: str) -> Dict[str, str]:
+    return {
+        "system": SEED_SYSTEM,
+        "user": SEED_USER.format(narrative=narrative),
+    }
 def extract_prompt(transcript: str) -> Dict[str, str]:
     return {
         "system": EXTRACT_SYSTEM,

@@ -190,6 +190,14 @@ class Digester:
         cycle = int(self.memory.get_state("cycle", "0")) + 1
         report = DigestReport(cycle=cycle)
 
+        # 冷启动：如果有 seed_narrative，第一个周期用它预消化出种子事件
+        if cycle == 1 and getattr(self.brain, 'seed_narrative', '').strip():
+            try:
+                self._seed(self.brain.seed_narrative)
+                report.errors.append(f"冷启动: 种子叙述已消化")
+            except Exception as exc:
+                report.errors.append(f"种子叙述消化失败: {exc}")
+
         batch = self.journal.undigested(self.character, limit=limit or self.batch_turns)
         if not batch:
             return report
@@ -248,6 +256,55 @@ class Digester:
         self.memory.set_state("last_digest_at", str(time.time()))
         report.usage = self.brain.usage.as_dict()
         return report
+
+    # ------------------------------------------------------------ 零、种子
+
+    def _seed(self, narrative: str) -> None:
+        """冷启动: 把一段角色背景描述预消化成种子事件。
+
+        只做事件抽取和网络连线，不做特质判定和自述 ——
+        种子只是给网络一个初始骨架，不是预设人格。
+        """
+        if not self.brain.available:
+            return
+        p = prompts.seed_prompt(narrative)
+        raw = self.brain.ask_json(p["system"], p["user"], max_tokens=2048, phase="extract")
+        if not isinstance(raw, list):
+            return
+
+        now = time.time()
+        events: List[Event] = []
+        for i, item in enumerate(raw):
+            if not isinstance(item, dict):
+                continue
+            summary = str(item.get("summary", "")).strip()
+            if not summary:
+                continue
+            eid = f"seed_{i:04d}"
+            ev = Event(
+                id=eid,
+                summary=summary,
+                source_ids=[],
+                session="__seed__",
+                salience=_num(item.get("salience"), 0.5, 0.0, 1.0),
+                valence=_num(item.get("valence"), 0.0, -1.0, 1.0),
+                questions=_strings(item.get("questions")),
+                entities=_strings(item.get("entities")),
+                happened_at=now,
+            )
+            self.memory.add_event(ev)
+            events.append(ev)
+
+        if events:
+            self._weave(events, 0)
+            self.memory.log_change(
+                cycle=0,
+                kind="seed",
+                target=f"{len(events)}_events",
+                after=narrative[:200],
+                reason="冷启动种子叙述",
+                evidence=[e.id for e in events],
+            )
 
     # ------------------------------------------------------------ 一、抽事件
 
@@ -523,6 +580,10 @@ class Digester:
                 self.trait_adapter.save_trait(trait)
             else:
                 self.memory.save_trait(trait)
+
+            # 审计溯源: 把 LLM 原始判断写入日志，便于回溯
+            if self.memory.get_state(f"audit:{trait.id}") != "1":
+                self.memory.set_state(f"audit:{trait.id}", "1")
 
             if trait.is_kernel and self.memory.get_state(f"kernel:{trait.id}") != "1":
                 self.memory.set_state(f"kernel:{trait.id}", "1")

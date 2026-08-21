@@ -341,6 +341,9 @@ def load_brain(home: str | Path = "~/.loam", **overrides: Any) -> Brain:
         cfg.get("low_cost_phases"),
     )
 
+    seed_narrative = os.environ.get('LOAM_SEED_NARRATIVE') or cfg.get('seed_narrative', '').strip()
+
+    
     brain = Brain(
         api_key=key,
         base_url=base,
@@ -353,6 +356,7 @@ def load_brain(home: str | Path = "~/.loam", **overrides: Any) -> Brain:
     )
     for k, v in overrides.items():
         setattr(brain, k, v)
+    brain.seed_narrative = seed_narrative
     return brain
 
 
@@ -399,6 +403,7 @@ def write_secrets_template(home: str | Path = "~/.loam") -> Path:
                     "low_cost_base_url": "",
                     "low_cost_model": "",
                     "low_cost_phases": ["extract", "observe", "dossier", "drift"],
+                "seed_narrative": "",
                 },
                 ensure_ascii=False,
                 indent=2,
