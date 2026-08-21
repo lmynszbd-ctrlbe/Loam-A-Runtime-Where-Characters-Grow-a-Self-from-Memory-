@@ -15,6 +15,7 @@ import urllib.error
 import os
 import time
 import socket
+import re
 from pathlib import Path
 
 LOAM = os.environ.get("LOAM_URL", "http://127.0.0.1:8765").rstrip("/")
@@ -278,8 +279,9 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
       <div class="card">
         <h3>🔗 填到聊天软件的 Base URL</h3>
         <div id="client-base-url" style="font-family:monospace;font-size:14px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">http://127.0.0.1:8781/v1</div>
-        <div id="client-base-url-alt" style="font-family:monospace;font-size:12px;text-align:center;padding:4px;background:var(--bg);border-radius:4px;margin-top:4px;color:var(--accent);min-height:1.5em"></div>
-        <p class="muted" style="font-size:11px;margin-top:4px">同一环境用 127.0.0.1；Operit 等独立 App 请用下面带 IP 的地址。</p>
+        <div id="client-base-url-alt" style="font-family:monospace;font-size:12px;text-align:center;padding:4px;background:var(--bg);border-radius:4px;margin-top:4px;color:var(--accent);min-height:1.5em"><span class="spinner"></span> 正在检测可用地址...</div>
+        <div id="client-base-url-err" style="color:var(--err);font-size:11px;text-align:center;margin-top:4px;min-height:1.5em"></div>
+        <p class="muted" style="font-size:11px;margin-top:4px"><b>同一设备：</b>用 127.0.0.1。<b>不同 App（如 Operit）：</b>用下方带 IP 的地址。<b>不同设备：</b>手机和电脑必须连同一个 WiFi。</b></p>
       </div>
       <div class="card">
         <h3>🔑 填到聊天软件的 API Key</h3>
@@ -618,15 +620,21 @@ async function loadApiConfig() {
 }
 
 async function updateBaseUrlDisplay() {
+  const altEl = document.getElementById('client-base-url-alt');
+  const errEl = document.getElementById('client-base-url-err');
   try {
     const addrs = await callAdmin('GET', '/admin/addresses');
     if (addrs.local && addrs.local.length) {
       const primary = addrs.local[0];
-      document.getElementById('client-base-url').textContent = `http://${addrs.loopback}:8781/v1`;
-      document.getElementById('client-base-url-alt').textContent = `跨 App 用：http://${primary}:8781/v1`;
+      altEl.innerHTML = `跨 App 用：http://${primary}:8781/v1`;
+      if (errEl) errEl.textContent = '';
+    } else {
+      altEl.textContent = '未检测到局域网 IP，跨 App 请手动输入本机 IP';
+      if (errEl) errEl.textContent = '提示：手机和电脑必须连同一个 WiFi';
     }
   } catch(e) {
-    // ignore
+    altEl.textContent = '地址检测失败，请刷新重试';
+    if (errEl) errEl.textContent = '请确保 proxy 已启动，并且手机和客户端在同一网络';
   }
 }
 
@@ -916,29 +924,42 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---- config file handlers (admin owns these, not the loam backend) ----
     def _local_addresses(self):
-        """Return non-loopback local IPs and loopback for same-machine use."""
-        addrs = {"loopback": "127.0.0.1", "local": []}
+        """Return non-loopback local IPs and loopback for same-machine use.
+
+        Tries socket.gethostbyname first, then falls back to parsing
+        ifconfig/ip output so Android/Termux environments can expose
+        the LAN IP to other apps (e.g. Operit).
+        """
+        addrs: Dict[str, Any] = {"loopback": "127.0.0.1", "local": []}
         try:
-            # primary loopback is always valid for same-process clients
+            # best-effort: get a non-loopback IP via socket
             hostname = socket.gethostname()
             addrs["hostname"] = hostname
             try:
-                ip = socket.getaddrinfo(hostname, None, socket.AF_INET)[0][4][0]
-                if ip and ip != "127.0.0.1":
+                ip = socket.gethostbyname(hostname)
+                if ip and not ip.startswith("127."):
                     addrs["local"].append(ip)
             except Exception:
                 pass
-            # try to enumerate interfaces via getaddrinfo on common names
+
+            # fallback: parse ifconfig / ip addr
             seen = set(addrs["local"])
-            for name in (hostname, "localhost"):
+            candidates: List[str] = []
+            try:
+                import subprocess as sp
                 try:
-                    for info in socket.getaddrinfo(name, None, socket.AF_INET):
-                        ip = info[4][0]
-                        if ip and not ip.startswith("127.") and ip not in seen:
-                            seen.add(ip)
-                            addrs["local"].append(ip)
-                except Exception:
-                    pass
+                    out = sp.check_output(["ifconfig"], stderr=sp.DEVNULL, timeout=5).decode("utf-8", "ignore")
+                except Exception:  # noqa: BLE001
+                    out = sp.check_output(["ip", "addr"], stderr=sp.DEVNULL, timeout=5).decode("utf-8", "ignore")
+                for m in re.finditer(r"inet\s+(\d+\.\d+\.\d+\.\d+)", out):
+                    candidates.append(m.group(1))
+            except Exception:
+                pass
+
+            for ip in candidates:
+                if ip and not ip.startswith("127.") and ip not in seen:
+                    seen.add(ip)
+                    addrs["local"].append(ip)
         except Exception:
             pass
         return addrs

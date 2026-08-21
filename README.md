@@ -6,10 +6,10 @@ A memory runtime where identity grows from immutable dialogue history through ga
 loam gives AI characters real memory that grows over time. It runs locally — two processes behind any OpenAI-compatible chat client:
 
 1. **loam** (port 8765) — stores dialogue turns, digests them into structured memory, grows traits
-2. **forced proxy** (port 8780) — OpenAI-compatible gateway that enforces `context → upstream LLM → ingest` on every turn
+2. **forced proxy** (port 8781) — OpenAI-compatible gateway that enforces `context → upstream LLM → ingest` on every turn
 
 Optional extras:
-- **admin panel** (port 8899) — 6-tab web UI: Status, Traits, Memory, Config, Constants, Actions
+- **admin panel** (port 8900) — 6-tab web UI: Status, Traits, Memory, Config, Constants, Actions
 - **watchdog** — keeps both processes alive, auto-restarts on crash
 
 ## Getting started
@@ -32,9 +32,20 @@ cd ~/loam && git pull && bash scripts/setup.sh
 
 `setup.sh` auto-detects your OS, installs prerequisites, walks you through the API keys, starts all three processes, and opens the admin panel.
 
-After setup, open `http://127.0.0.1:8899` — the admin panel lets you view traits, browse memory, hot-tune constants, trigger digest, and set both API keys (see the **Connect** tab). Prefer per-platform manual commands? See [docs/DEPLOY.md](docs/DEPLOY.md).
+After setup, open `http://127.0.0.1:8900` — the admin panel lets you view traits, browse memory, hot-tune constants, trigger digest, and set both API keys (see the **Connect** tab). Prefer per-platform manual commands? See [docs/DEPLOY.md](docs/DEPLOY.md).
 
-Client: Base URL `http://127.0.0.1:8780/v1`, model `provider/model` (e.g. `relayA/deepseek-chat`).
+Client: Base URL `http://127.0.0.1:8781/v1`, model `provider/model` (e.g. `relayA/deepseek-chat`).
+
+### ⚠️ Connecting another app on the same phone (e.g. Operit)?
+
+Each Android app runs in its own sandbox. `127.0.0.1` inside Termux is **not** the same `127.0.0.1` inside another app. To connect a separate app on the same phone:
+
+1. Make sure loam was started with proxy listening on all interfaces (`setup.sh` does this by default).
+2. In the admin **Connect** tab, copy the URL that shows your LAN IP, e.g. `http://10.104.36.176:8781/v1`.
+3. Paste that into the third-party client.
+4. The phone must have a network assigned (WiFi or mobile data) so it has a LAN IP.
+
+> **Same WiFi rule for different devices:** if you want a laptop/another phone to use the loam running on this phone, both devices must be on the **same WiFi / same local network**.
 
 > ⚠️ **IMPORTANT — Keep the processes running!**
 > loam consists of three processes (loam server, proxy, admin panel). If you close the terminal, they all stop.

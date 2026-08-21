@@ -282,22 +282,25 @@ curl -s http://127.0.0.1:8780/v1/models
 
 If your client is a **separate Android app** (not running inside Termux), it cannot reach `127.0.0.1` that Termux uses. Use the phone's LAN IP instead.
 
-1. Make sure proxy listens on all interfaces:
+1. Make sure proxy listens on all interfaces. `setup.sh` now does this by default:
 
 ```bash
-PROXY_NO_AUTH=1 PROXY_HOST=0.0.0.0 bash scripts/setup.sh
+bash scripts/setup.sh
 ```
 
-2. Find your LAN IP:
-
-```bash
-ifconfig 2>/dev/null | grep 'inet ' | head -3
-# Example: 10.104.36.176
-```
-
-3. In the client, use: `http://<LAN_IP>:8781/v1`
+2. Open the admin panel at `http://127.0.0.1:8900` → **Connect** tab.
+3. Under **Base URL**, wait for the line that says `跨 App 用：http://<IP>:8781/v1`. Copy that URL.
+4. Paste it into the third-party client (e.g. Operit). API Key can be anything, e.g. `local-key`.
 
 > **Note:** `127.0.0.1` only works when the client and loam are in the same process/environment. Different Android apps are sandboxed, so use the LAN IP.
+
+### Same WiFi / same local network rule
+
+If you want a **different device** (laptop, another phone, etc.) to use loam running on this phone, both devices must be on the **same WiFi / same local network**.
+
+If the phone has no network (no WiFi, no mobile data), it will not have a LAN IP, and other apps/devices cannot connect. In that case you must either:
+- connect the phone to a network, or
+- run the client inside the same Termux environment where loam runs.
 
 ## Troubleshooting
 
