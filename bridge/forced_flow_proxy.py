@@ -106,15 +106,54 @@ def _json_post(
     payload: Dict[str, Any],
     headers: Optional[Dict[str, str]] = None,
     timeout: float = 120.0,
+    retries: int = 2,
 ) -> Dict[str, Any]:
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    hs = {"Content-Type": "application/json; charset=utf-8"}
+    hs = {"Content-Type": "application/json"}
     if headers:
         hs.update(headers)
-    req = urllib.request.Request(url, data=body, headers=hs, method="POST")
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        raw = r.read().decode("utf-8")
-    return json.loads(raw) if raw else {}
+    last_exc: Optional[Exception] = None
+    for attempt in range(retries + 1):
+        try:
+            req = urllib.request.Request(url, data=body, headers=hs, method="POST")
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                raw = r.read().decode("utf-8")
+            return json.loads(raw) if raw else {}
+        except urllib.error.HTTPError:
+            # HTTP errors (4xx/5xx) are meaningful — don't retry, bubble up.
+            raise
+        except Exception as exc:  # noqa: BLE001
+            # Transient transport errors (RemoteDisconnected, reset, timeout).
+            last_exc = exc
+            if attempt < retries:
+                print(f"[proxy] upstream POST retry {attempt + 1}/{retries} after {type(exc).__name__}", flush=True)
+                time.sleep(0.8 * (attempt + 1))
+                continue
+            raise
+    if last_exc:
+        raise last_exc
+    return {}
+
+
+# Fields we forward to the upstream OpenAI-compatible API. Anything else the
+# client sends (e.g. Operit-specific extras) is dropped so it can't make the
+# upstream reject the request or close the connection unexpectedly.
+_UPSTREAM_ALLOWED_FIELDS = {
+    "model", "messages", "temperature", "top_p", "max_tokens",
+    "max_completion_tokens", "frequency_penalty", "presence_penalty",
+    "stop", "n", "seed", "response_format", "logit_bias", "user",
+    "tools", "tool_choice",
+}
+
+
+def _clean_upstream_payload(req: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep only standard fields the upstream understands."""
+    out: Dict[str, Any] = {}
+    for k, v in req.items():
+        if k in _UPSTREAM_ALLOWED_FIELDS and v is not None:
+            out[k] = v
+    out["stream"] = False
+    return out
 
 
 def _json_get(
@@ -417,7 +456,7 @@ class Handler(BaseHTTPRequestHandler):
             hdr_up = str(headers_low.get("x-upstream") or "").strip()
             provider, upstream_model, exposed_model = _pick_upstream(req_model, hdr_up)
 
-            up_payload = dict(req)
+            up_payload = _clean_upstream_payload(req)
             up_payload["model"] = upstream_model
             up_payload["messages"] = _trim_messages(merged)
 
@@ -465,7 +504,13 @@ class Handler(BaseHTTPRequestHandler):
             self._send(e.code, data)
         except Exception as e:  # noqa: BLE001
             print(f"[proxy] {type(e).__name__}: {e}", flush=True)
-            self._send(500, {"error": {"message": f"{type(e).__name__}: {e}"}})
+            name = type(e).__name__
+            if name in ("RemoteDisconnected", "IncompleteRead", "ConnectionResetError") or "RemoteDisconnected" in str(e):
+                msg = ("上游 API 中断了连接（可能是该模型不可用/超载，或历史消息过多）。"
+                       "请换一个模型，或减少对话历史后重试。")
+            else:
+                msg = f"{name}: {e}"
+            self._send(502, {"error": {"message": msg, "type": name}})
 
     def do_GET(self) -> None:  # noqa: N802
         _maybe_reload_upstreams()
