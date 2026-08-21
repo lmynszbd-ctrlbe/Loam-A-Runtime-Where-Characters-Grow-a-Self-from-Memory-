@@ -89,7 +89,8 @@ Client: Base URL `http://127.0.0.1:8780/v1`, model `provider/model` (e.g. `relay
 
 See `docs/DEPLOY.md` for all platforms (Termux, Windows, macOS, Linux, Docker, systemd, MCP).
 
-Additional references: `docs/RELEASE.md`, `docs/MIGRATION_RUNBOOK.md`, `docs/BACKUP_RESTORE_RUNBOOK.md`, `docs/OPS_SOP.md`.
+Additional references:
+`docs/RELEASE.md`, `docs/MIGRATION_RUNBOOK.md`, `docs/BACKUP_RESTORE_RUNBOOK.md`, `docs/OPS_SOP.md`.
 
 ## Tech stack
 
