@@ -307,40 +307,47 @@ def _provider_base(provider: str) -> str:
     return base
 
 
+def _provider_api_base(provider: str) -> str:
+    """Return base URL for /v1/... endpoints, tolerating trailing /v1 in config."""
+    base = _provider_base(provider)
+    if base.endswith("/v1"):
+        return base[:-3]
+    return base
+
+
 def _models_merged() -> Dict[str, Any]:
     out: List[Dict[str, Any]] = []
     for name in UPSTREAMS.keys():
-        items = None
         try:
             data = _json_get(
-                f"{_provider_base(name)}/v1/models",
+                f"{_provider_api_base(name)}/v1/models",
                 headers=_provider_headers(name),
                 timeout=30,
             )
             items = data.get("data") if isinstance(data, dict) else None
-        except Exception:
-            pass  # API 调用失败，用 fallback
+            if isinstance(items, list) and items:
+                for m in items:
+                    if not isinstance(m, dict):
+                        continue
+                    mid = str(m.get("id") or "").strip()
+                    if not mid:
+                        continue
+                    c = dict(m)
+                    c["id"] = f"{name}/{mid}"
+                    c["owned_by"] = f"{name}:{m.get('owned_by', '')}".strip(":")
+                    out.append(c)
+                continue
+        except Exception as exc:
+            return {"object": "list", "data": [], "_error": f"{name}: {type(exc).__name__}: {exc}"}
 
-        if isinstance(items, list) and items:
-            for m in items:
-                if not isinstance(m, dict):
-                    continue
-                mid = str(m.get("id") or "").strip()
-                if not mid:
-                    continue
-                c = dict(m)
-                c["id"] = f"{name}/{mid}"
-                c["owned_by"] = f"{name}:{m.get('owned_by', '')}".strip(":")
-                out.append(c)
-        else:
-            # fallback: 至少用 default_model 生成一个条目，让用户能下拉选择
-            dmodel = (UPSTREAMS.get(name) or {}).get("default_model", "").strip()
-            if dmodel:
-                out.append({
-                    "id": f"{name}/{dmodel}",
-                    "object": "model",
-                    "owned_by": name,
-                })
+        # fallback: 至少用 default_model 生成一个条目，让用户能下拉选择
+        dmodel = (UPSTREAMS.get(name) or {}).get("default_model", "").strip()
+        if dmodel:
+            out.append({
+                "id": f"{name}/{dmodel}",
+                "object": "model",
+                "owned_by": name,
+            })
     return {"object": "list", "data": out}
 
 
@@ -395,7 +402,7 @@ class Handler(BaseHTTPRequestHandler):
             up_payload["messages"] = merged
 
             up_resp = _json_post(
-                f"{_provider_base(provider)}/v1/chat/completions",
+                f"{_provider_api_base(provider)}/v1/chat/completions",
                 up_payload,
                 headers=_provider_headers(provider),
             )
