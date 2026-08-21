@@ -50,6 +50,14 @@ EDGE_SEED_LIVED = 0.22
 #: 弱激活该表现为"痕浅"，不该表现为"根本没发生"。
 SEED_FORCE_FLOOR = 0.4
 
+#: 枢纽惩罚的度数阈值。连接超过此数量的节点视为"超级枢纽"。
+#: 来源: heuristically_tuned —— 大部分节点度数在 1-5，超过 20 的极少。
+HUB_DEGREE_THRESHOLD = 20
+
+#: 枢纽惩罚的衰减指数。>1 表示超线性惩罚，度数越高衰减越剧烈。
+#: 来源: heuristically_tuned —— 2.0 意味着度数翻倍则能量衰减到 1/4。
+HUB_DECAY_EXPONENT = 2.0
+
 #: 连线每个周期的自然衰减。用则强，不用则弛。
 EDGE_DECAY = 0.995
 
@@ -294,7 +302,10 @@ class Network:
                 for dst, w in self._edges.get(src, {}).items():
                     if w < PRUNE_BELOW:
                         continue
-                    passed = e_src * w * TRANSMIT
+                    # 枢纽惩罚：度数越高的节点，能量传过去衰减越大
+                    degree = len(self._edges.get(dst, {}))
+                    hub_penalty = 1.0 / max(1.0, (degree / HUB_DEGREE_THRESHOLD) ** HUB_DECAY_EXPONENT)
+                    passed = e_src * w * TRANSMIT * hub_penalty
                     if passed < MIN_ENERGY:
                         continue
                     energy[dst] = energy.get(dst, 0.0) + passed

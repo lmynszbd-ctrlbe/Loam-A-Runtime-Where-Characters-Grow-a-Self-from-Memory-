@@ -799,6 +799,9 @@ class Grower:
         self.last_step_at = time.time()
         d = self.digester
 
+        # 记忆沉淀：长时间无对话时，合并零碎事件为高级经验
+        self._maybe_consolidate()
+
         # 0) 先把 pending_evidence 搬运进 entries（同 session 串行）
         if d.job_adapter is not None:
             q = d.job_adapter.drain_ingest_jobs(d.character, max_jobs=1)
@@ -839,6 +842,69 @@ class Grower:
                 self.last_error = traceback.format_exc(limit=3)
 
         return report
+
+    def _maybe_consolidate(self) -> None:
+        """记忆沉淀：长时间无对话时，把零碎事件合并成高级经验。
+
+        触发条件：连续 3 次 step 都没有新料可煮。
+        作用：类似人类的"睡眠记忆整理"——把 10 次"被你骂"合并成
+        "你脾气不好"这个单一节点，减少网络碎片化。
+        """
+        if not hasattr(self, '_consolidate_idle_count'):
+            self._consolidate_idle_count = 0
+
+        d = self.digester
+        if d.ready(idle_seconds=self.idle_seconds):
+            self._consolidate_idle_count = 0
+            return
+
+        self._consolidate_idle_count += 1
+        if self._consolidate_idle_count < 3:
+            return
+
+        self._consolidate_idle_count = 0
+
+        # 取得最近 48 小时内的所有事件
+        recent = d.memory.recent_events(limit=200)
+        if len(recent) < 10:
+            return
+
+        # 按 entity 聚类：共享 entity 的事件归为一组
+        clusters: Dict[str, List[str]] = {}
+        for ev in recent:
+            for ent in ev.entities:
+                clusters.setdefault(ent, []).append(ev.id)
+
+        merged = 0
+        for ent, eids in clusters.items():
+            if len(eids) < 3:
+                continue
+            # 合并成一条高级经验
+            merged_id = f"consolidated_{ent}_{int(time.time())}"
+            summary = f"关于{ent}的多次经历累积形成的印象"
+            consolidated = Event(
+                id=merged_id,
+                summary=summary,
+                source_ids=eids,
+                session="__consolidation__",
+                salience=min(0.65, 0.3 + 0.05 * len(eids)),
+                valence=0.0,
+                questions=[f"{ent}相关的经历", f"对{ent}的整体印象"],
+                entities=[ent],
+                happened_at=time.time(),
+            )
+            d.memory.add_event(consolidated)
+            merged += 1
+
+        if merged:
+            d.memory.log_change(
+                cycle=int(d.memory.get_state("cycle", "0")),
+                kind="consolidation",
+                target=f"{merged}_groups",
+                after=f"合并了 {len(recent)} 条事件中的 {merged} 组",
+                reason="记忆沉淀",
+                evidence=[],
+            )
 
     def drain(self, max_rounds: int = 50) -> List[DigestReport]:
         """一直煮到没料为止。用于导入历史记录，或者测试。"""

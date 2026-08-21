@@ -161,6 +161,20 @@ def _session_from(req_body: Dict[str, Any], headers: Dict[str, str]) -> str:
 
 
 def _build_messages_with_context(orig: List[Dict[str, Any]], ctx_text: str) -> List[Dict[str, Any]]:
+    # Token 预算: 上下文最多占 2000 字符，优先保留高能量部分
+    ctx_budget = 2000
+    if len(ctx_text) > ctx_budget:
+        # 按段落分割，优先保留前面的（高能量段落在前）
+        paras = ctx_text.split("\n\n")
+        kept = []
+        total = 0
+        for p in paras:
+            if total + len(p) <= ctx_budget:
+                kept.append(p)
+                total += len(p) + 2
+            else:
+                break
+        ctx_text = "\n\n".join(kept)
     mem = {
         "role": "system",
         "content": (

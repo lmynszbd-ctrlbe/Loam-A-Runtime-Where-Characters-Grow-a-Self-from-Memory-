@@ -301,6 +301,13 @@ class Trait:
 
     人格不存放在这里 —— 这只是一个强度数字加一串来历。
     真正的人格是这些强度在检索时造成的偏向。
+
+    Trait vs State 区分:
+    - State（瞬态）: 快态 transient 捕捉短期情绪波动，半衰期极短。
+      例如"愤怒"——今天被骂了很生气，但明天就忘了。
+    - Trait（长态）: 强度 strength 采用门控蓄水池机制，需要大量证据
+      反复印证才会质变。例如"暴躁"——长期易怒才叫暴躁。
+    - 两者通过 is_state 标记区分。State 不走门控，直接用快态衰减。
     """
 
     id: str
@@ -320,6 +327,10 @@ class Trait:
     inactive_cycles: int = 0
     warmup_remaining: int = 0
     from_seed: bool = False
+
+    #: 是否为瞬态（State）而非长期特质（Trait）。
+    #: State 不走门控蓄水池，直接用快态衰减，半衰期约 2-3 个周期。
+    is_state: bool = False
 
     #: 运行期调节项（由 runtime config 注入，不需要成为历史真值）。
     fuzziness: float = 0.0
@@ -409,6 +420,13 @@ class Trait:
         self._fed = True
         self.inactive_cycles = 0
 
+        # State 不走门控蓄水池：直接作用到快态，不进入长期 pending
+        if self.is_state:
+            self.transient = _clamp(self.transient + delta * 0.5, -FAST_LIMIT, FAST_LIMIT)
+            if ev.event_id not in self._staged:
+                self._staged.append(ev.event_id)
+            return
+
         epistemic = ev.confidence * (1.0 - ev.ambiguity)
         if epistemic < self.uncertainty_gate:
             self._uncertain.append(
@@ -477,6 +495,13 @@ class Trait:
         self.momentum = _clamp(self.momentum * 0.8 + math.copysign(0.2, amount), -1.0, 1.0)
         self._fed = True
         self.inactive_cycles = 0
+
+        # State 不走门控蓄水池：直接作用到快态，不进入长期 pending
+        if self.is_state:
+            self.transient = _clamp(self.transient + delta * 0.5, -FAST_LIMIT, FAST_LIMIT)
+            if ev.event_id not in self._staged:
+                self._staged.append(ev.event_id)
+            return
         if event_id not in self._staged:
             self._staged.append(event_id)
 
