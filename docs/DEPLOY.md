@@ -136,7 +136,7 @@ You'll see text scrolling. When it stops, both loam and proxy are running.
 
 ### Step 6: Verify
 
-Open a new Termux session (swipe from left edge → "New session") and run:
+Open a new Termux session (swipe from left edge -> "New session") and run:
 
 ```bash
 curl -s http://127.0.0.1:8765/health
@@ -236,7 +236,7 @@ Same as Android — see client settings above.
 
 ### Step 1: Install Python and Git
 
-Open Terminal (Applications → Utilities → Terminal):
+Open Terminal (Applications -> Utilities -> Terminal):
 ```bash
 # If you have Homebrew:
 brew install python git curl
@@ -400,9 +400,9 @@ Add more entries to `~/.loam/upstreams.json`:
 ```
 
 Then in your chat client, choose models by prefix:
-- `relayA/deepseek-chat` → uses DeepSeek
-- `relayB/gpt-4o-mini` → uses OpenAI
-- No prefix → uses the `default` provider (relayA in this example)
+- `relayA/deepseek-chat` -> uses DeepSeek
+- `relayB/gpt-4o-mini` -> uses OpenAI
+- No prefix -> uses the `default` provider (relayA in this example)
 
 ---
 
@@ -454,34 +454,34 @@ python3 tests/test_context.py
 ## Troubleshooting
 
 ### "command not found: python" or "pip: command not found"
-→ Python isn't installed or not in PATH.
+-> Python isn't installed or not in PATH.
 - Windows: reinstall Python and check "Add Python to PATH"
 - Mac/Linux: try `python3` instead of `python`
 
 ### "git: command not found"
-→ Git isn't installed.
+-> Git isn't installed.
 - Termux: `pkg install git`
 - Windows: download from https://git-scm.com
 - Mac: `brew install git`
 - Linux: `sudo apt install git`
 
 ### "Connection refused" at /health
-→ The service isn't running. Check if the terminal is still running and not showing errors. On Termux, run `bash scripts/termux/final_status_all.sh`.
+-> The service isn't running. Check if the terminal is still running and not showing errors. On Termux, run `bash scripts/termux/final_status_all.sh`.
 
 ### "401 Unauthorized" in chat client
-→ The API key in `upstreams.json` is wrong or expired. Open the file and double-check.
+-> The API key in `upstreams.json` is wrong or expired. Open the file and double-check.
 
 ### "Models list is empty" or "no models available"
-→ The `base_url` in `upstreams.json` is wrong. It must be the API endpoint (starts with `https://`), not the provider's homepage.
+-> The `base_url` in `upstreams.json` is wrong. It must be the API endpoint (starts with `https://`), not the provider's homepage.
 
 ### Proxy exits immediately
-→ Check the log: `cat ~/.loam/run/forced_proxy.log`. Usually a typo in `upstreams.json`.
+-> Check the log: `cat ~/.loam/run/forced_proxy.log`. Usually a typo in `upstreams.json`.
 
 ### loam won't start: "启动失败：未检测到 LOAM_API_KEY"
-→ `secrets.json` is missing or has an empty `api_key`. Run `python -m loam init-secrets --secrets-home ~/.loam` and edit the file.
+-> `secrets.json` is missing or has an empty `api_key`. Run `python -m loam init-secrets --secrets-home ~/.loam` and edit the file.
 
 ### "No module named loam"
-→ You're not in the loam directory. Run `cd ~/loam` first.
+-> You're not in the loam directory. Run `cd ~/loam` first.
 
 ---
 

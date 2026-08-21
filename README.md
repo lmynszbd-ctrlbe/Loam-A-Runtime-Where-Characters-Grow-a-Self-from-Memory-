@@ -7,7 +7,7 @@ A memory runtime where identity grows from immutable dialogue history through ga
 loam is two cooperating processes that run locally:
 
 1. **loam** (port 8765) — stores raw dialogue turns, digests them into structured memory (events, traits, a Hebbian network, and a self-narrative), and serves retrieval via `/context`.
-2. **forced proxy** (port 8780) — an OpenAI-compatible gateway that enforces the pipeline `context → upstream LLM → ingest` on every turn, so memory writes don't depend on host tool-calling reliability.
+2. **forced proxy** (port 8780) — an OpenAI-compatible gateway that enforces the pipeline `context -> upstream LLM -> ingest` on every turn, so memory writes don't depend on host tool-calling reliability.
 
 Your client connects to `http://127.0.0.1:8780/v1`. The proxy routes to whichever upstream provider you configured, then writes the turn back to loam. The growth model digests accumulated turns asynchronously.
 
@@ -30,20 +30,20 @@ The model that generates replies is decoupled from the model that digests memory
 Trait dynamics follow S-shaped capacity:
 
 ```
-capacity = max(strength, 0.06) × max(0.97 - strength, 0.06)
-delta    = 0.35 × capacity × signal × salience
-gate     = max(0.004, 0.5 × capacity) × 1.1^gate_level
+capacity = max(strength, 0.06) * max(0.97 - strength, 0.06)
+delta    = 0.35 * capacity * signal * salience
+gate     = max(0.004, 0.5 * capacity) * 1.1^gate_level
 ```
 
 Key mechanisms:
-- **Pending → commit**: evidence accumulates in a buffer; qualitative change only after crossing the dynamic gate.
+- **Pending -> commit**: evidence accumulates in a buffer; qualitative change only after crossing the dynamic gate.
 - **Expression feedback**: claimed-but-never-expressed traits are pulled down; consistently-expressed-but-unclaimed traits are pushed up.
-- **Saturation**: absorption rate decays near boundaries (strength ≥ 0.88).
-- **Rebound**: extreme traits (|S − 0.5| > 0.25) slowly soften toward center when not reinforced.
+- **Saturation**: absorption rate decays near boundaries (strength >= 0.88).
+- **Rebound**: extreme traits (abs(S - 0.5) > 0.25) slowly soften toward center when not reinforced.
 - **Freeze**: after 48 inactive cycles, traits freeze entirely — no decay, no drift, preserved until explicitly woken.
-- **Sarcasm reversal**: ambiguity ≥ 0.65 inverts the literal signal and discounts it.
+- **Sarcasm reversal**: ambiguity >= 0.65 inverts the literal signal and discounts it.
 - **Trait graph**: when one trait shifts, a ripple propagates through the relation network to connected traits.
-- **Lifecycle**: warmup → active → converging → dormant → frozen → recovering.
+- **Lifecycle**: warmup -> active -> converging -> dormant -> frozen -> recovering.
 
 Tests: `python tests/test_growth.py` (25/25 pass).
 
@@ -52,8 +52,8 @@ Tests: `python tests/test_growth.py` (25/25 pass).
 A single Hebbian rule: nodes co-activated together strengthen their edges. The rest follows:
 
 ```
-strengthen: new = min(w + 0.30 × base × room × force, 0.95)
-spread:     energy(dst) = Σ energy(src) × edge_weight × 0.75
+strengthen: new = min(w + 0.30 * base * room * force, 0.95)
+spread:     energy(dst) = Σ energy(src) * edge_weight * 0.75
 ```
 
 - **Lived co-occurrence** (same experience) seeds edges at 0.22; recalled co-occurrence at 0.05.
@@ -67,15 +67,14 @@ spread:     energy(dst) = Σ energy(src) × edge_weight × 0.75
 git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git loam
 cd loam
 
-# 1. Create your upstream config (required)
+# 1. Create both config files (required)
 mkdir -p ~/.loam
+python -m loam init-secrets --secrets-home ~/.loam
+nano ~/.loam/secrets.json       # fill in api_key, base_url, model
 cp bridge/upstreams.example.json ~/.loam/upstreams.json
-nano ~/.loam/upstreams.json   # replace placeholders with real provider values
-python -m json.tool ~/.loam/upstreams.json >/dev/null && echo JSON_OK
+nano ~/.loam/upstreams.json     # fill in provider info
 
 # 2. Start loam + proxy
-LOAM_API_KEY='your_key' LOAM_MODEL='deepseek-chat-flash' \
-UPSTREAMS_CONFIG="$HOME/.loam/upstreams.json" UPSTREAM_DEFAULT='relayA' \
 bash scripts/termux/final_start_all.sh
 
 # 3. Verify
@@ -84,13 +83,13 @@ curl -s http://127.0.0.1:8780/health
 curl -s http://127.0.0.1:8780/v1/models
 ```
 
-Client: Base URL `http://127.0.0.1:8780/v1`, model `provider/model` (e.g. `relayA/gpt-4o-mini`).
+Client: Base URL `http://127.0.0.1:8780/v1`, model `provider/model` (e.g. `relayA/deepseek-chat`).
 
 ## Deployment
 
-See `docs/DEPLOY.md` for all platforms (Termux, Linux, WSL, macOS, Docker).
+See `docs/DEPLOY.md` for all platforms (Termux, Windows, macOS, Linux, Docker, systemd, MCP).
 
-Additional references: `docs/RELEASE.md`, `docs/MIGRATION_RUNBOOK.md`, `docs/BACKUP_RESTORE_RUNBOOK.md`, `docs/OPS_SOP.md`, `THIRD_PARTY_INTEGRATION.md`, `INTEGRATION_CHECKLIST.md`.
+Additional references: `docs/RELEASE.md`, `docs/MIGRATION_RUNBOOK.md`, `docs/BACKUP_RESTORE_RUNBOOK.md`, `docs/OPS_SOP.md`.
 
 ## Tech stack
 
