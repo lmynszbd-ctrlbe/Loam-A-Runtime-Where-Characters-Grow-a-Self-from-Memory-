@@ -146,17 +146,28 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
 #menu-toggle{display:none;background:none;border:none;color:var(--fg);font-size:20px;cursor:pointer;padding:4px 8px}
 @media(max-width:768px){
   body{flex-direction:column}
-  nav{width:100%;padding:8px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;border-right:none;border-bottom:1px solid var(--border);position:sticky;top:0}
-  nav .logo{width:100%;border:none;margin:0;padding:4px 0}
+  nav{width:100%;padding:8px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;border-right:none;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+  nav .logo{width:auto;flex:1;border:none;margin:0;padding:0;font-size:14px}
   nav a{font-size:11px;padding:4px 8px;border-radius:4px}
   #menu-toggle{display:block}
   nav .nav-links{display:none;width:100%;flex-direction:column}
   nav .nav-links.open{display:flex}
-  main{padding:12px;max-height:none}
-  .grid{grid-template-columns:1fr}
-  .const-row{grid-template-columns:140px 60px 1fr;font-size:11px}
-  .const-input{width:60px}
-  .upstream-row{grid-template-columns:1fr 1fr!important}
+  main{padding:10px;max-height:none;overflow-x:hidden}
+  h1{font-size:16px}
+  .grid{grid-template-columns:1fr!important}
+  .card{padding:10px}
+  .card h3{font-size:11px}
+  .const-row{grid-template-columns:130px 55px 1fr;font-size:11px}
+  .const-input{width:55px}
+  /* Connect: form rows stack vertically */
+  .connect-form-row{grid-template-columns:1fr!important}
+  .upstream-row{grid-template-columns:1fr 1fr!important;gap:4px;font-size:11px}
+  .upstream-row .form-group{margin-bottom:4px}
+  .upstream-row label{font-size:10px}
+  .btn{font-size:11px;padding:4px 10px}
+  .btn-sm{font-size:10px;padding:3px 8px}
+  .actions{gap:4px}
+  .banner{font-size:11px;padding:8px 10px}
 }
 </style>
 </head>
@@ -277,7 +288,7 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
     <div class="card" style="margin-bottom:16px; border-left:3px solid var(--accent)">
       <h3>🧠 记忆生长模型 <span class="muted" style="font-weight:400;font-size:11px">— loam 用它来消化对话、提炼特质、让角色「生长」</span></h3>
       <p class="muted" style="font-size:11px;margin-bottom:10px">这个模型在后台默默工作，不直接生成你看到的回复。填你的 API 提供商给的 Base URL 和 Key，选一个便宜点的模型就行。</p>
-      <div class="grid" style="grid-template-columns:1fr 1fr 1fr auto auto; gap:8px; align-items:end">
+      <div class="grid connect-form-row" style="grid-template-columns:1fr 1fr 1fr auto auto; gap:8px; align-items:end">
         <div class="form-group" style="margin:0">
           <label>Base URL（API 地址）</label>
           <input id="sec-url" placeholder="https://api.deepseek.com">
