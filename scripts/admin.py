@@ -934,7 +934,7 @@ class Handler(BaseHTTPRequestHandler):
         return write_json_file(UPSTREAMS_FILE, data)
 
     def _version_info(self):
-        """Return local commit hash + fetch remote latest for comparison."""
+        """Return local commit hash + fetch remote via curl (not git ls-remote)."""
         import subprocess
         local = ""
         remote = ""
@@ -946,11 +946,15 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             pass
         try:
-            r = subprocess.run(["git", "-C", repo_dir, "ls-remote", "origin", "HEAD"],
-                              capture_output=True, text=True, timeout=15)
-            remote = r.stdout.strip().split()[0][:7] if r.stdout.strip() else ""
+            req = urllib.request.Request(
+                "https://api.github.com/repos/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/commits/main",
+                headers={"Accept": "application/vnd.github.v3+json", "User-Agent": "loam-admin"}
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read())
+                remote = data.get("sha", "")[:7]
         except Exception:
-            pass
+            pass  # network failed, silently skip
         has_update = bool(local and remote and local != remote)
         return {"local": local, "remote": remote, "has_update": has_update}
 
