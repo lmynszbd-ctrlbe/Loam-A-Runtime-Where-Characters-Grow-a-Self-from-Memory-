@@ -33,7 +33,17 @@ PROXY_PORT = int(os.environ.get("PROXY_PORT", "8781"))
 
 # Security: proxy requires a local token to prevent unauthorized access
 # from other processes or browser extensions on the same machine.
-PROXY_TOKEN_FILE = Path(os.environ.get("PROXY_TOKEN_FILE", "~/.loam/proxy_token")).expanduser()
+def _default_path(env_var: str, sub_path: str) -> Path:
+    """Return a sensible default path, falling back to Termux home on Android."""
+    p = Path(os.environ.get(env_var, f"~/.loam/{sub_path}")).expanduser()
+    if not p.exists() and os.name != "nt" and not str(p).startswith("/data/data/com.termux"):
+        termux_p = Path(f"/data/data/com.termux/files/home/.loam/{sub_path}")
+        if termux_p.exists() or not p.parent.exists():
+            return termux_p
+    return p
+
+
+PROXY_TOKEN_FILE = _default_path("PROXY_TOKEN_FILE", "proxy_token")
 PROXY_TOKEN = os.environ.get("PROXY_TOKEN", "").strip()
 if not PROXY_TOKEN:
     if PROXY_TOKEN_FILE.exists():
@@ -52,10 +62,25 @@ DEFAULT_SESSION = os.environ.get("LOAM_SESSION", "proxy-default")
 LEARN_ON_CONTEXT = os.environ.get("LOAM_CONTEXT_LEARN", "0") not in ("0", "false", "False")
 FORCE_DIGEST = os.environ.get("LOAM_FORCE_DIGEST", "0") in ("1", "true", "True")
 
-STORE = Path(os.environ.get("PROXY_STATE_PATH", "~/.loam/proxy_state.json")).expanduser()
+STORE = _default_path("PROXY_STATE_PATH", "proxy_state.json")
 STORE.parent.mkdir(parents=True, exist_ok=True)
 
-UPSTREAMS_CONFIG = Path(os.environ.get("UPSTREAMS_CONFIG", "~/.loam/upstreams.json")).expanduser()
+def _default_upstreams_config() -> Path:
+    """Return a sensible default for upstreams.json.
+
+    On Android the proxy is sometimes launched as a system service where
+    HOME=/, so expanduser('~/.loam') gives /.loam and the real user files
+    are under /data/data/com.termux/files/home. Try that fallback.
+    """
+    p = Path(os.environ.get("UPSTREAMS_CONFIG", "~/.loam/upstreams.json")).expanduser()
+    if not p.exists() and os.name != "nt":
+        termux_home = Path("/data/data/com.termux/files/home/.loam/upstreams.json")
+        if termux_home.exists():
+            return termux_home
+    return p
+
+
+UPSTREAMS_CONFIG = _default_upstreams_config()
 UPSTREAM_DEFAULT = os.environ.get("UPSTREAM_DEFAULT", "").strip()
 
 # 兼容单上游老参数
