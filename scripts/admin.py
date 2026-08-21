@@ -846,8 +846,8 @@ function toggleTheme(){
 loadStatus();
 // show keep-running banner
 document.getElementById('keep-running-banner').style.display = 'flex';
-// check for updates (silent — only shows modal if new version found)
-checkVersion();
+// // check for updates
+// checkVersion();
 </script>
 </body>
 </html>"""
