@@ -7,7 +7,9 @@ Usage:
 """
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import importlib
 import subprocess
+import sys
 import urllib.request
 import urllib.error
 import os
@@ -221,66 +223,70 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-t
   <!-- CONNECT -->
   <div id="panel-connect" class="panel">
     <h1>🔌 Connect</h1>
-    <div class="sub">Client info + set your API keys below</div>
+    <div class="sub">配置 API 密钥。loam 使用两套独立的模型：一套消化记忆，一套生成回复。</div>
 
-    <!-- Client connect info (compact) -->
+    <!-- 顶部三卡片：告诉用户填到聊天客户端的三个值 -->
     <div class="grid" style="grid-template-columns:repeat(3, 1fr); margin-bottom:20px">
       <div class="card">
-        <h3>🔗 Base URL</h3>
-        <div style="font-family:monospace;font-size:15px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">http://127.0.0.1:8780/v1</div>
+        <h3>🔗 填到聊天软件的 Base URL</h3>
+        <div style="font-family:monospace;font-size:14px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">http://127.0.0.1:8780/v1</div>
+        <p class="muted" style="font-size:11px;margin-top:4px">复制到 SillyTavern / Open WebUI 等第三方软件的 API 地址栏。</p>
       </div>
       <div class="card">
-        <h3>🔑 API Key</h3>
-        <div style="font-family:monospace;font-size:15px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">local-key</div>
-        <p class="muted" style="font-size:11px;margin-top:4px">填什么都行。loam 在你本地运行，不需要真正鉴权——真正的鉴权由上游 API 提供商处理。</p>
+        <h3>🔑 填到聊天软件的 API Key</h3>
+        <div style="font-family:monospace;font-size:14px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">local-key</div>
+        <p class="muted" style="font-size:11px;margin-top:4px">填什么都行。loam 跑在你本地，不需要真正鉴权——真正的密钥在下面配置。</p>
       </div>
       <div class="card">
-        <h3>🤖 Model</h3>
-        <div style="font-family:monospace;font-size:14px;text-align:center;padding:6px;background:var(--bg);border-radius:4px"><code>provider/model</code></div>
+        <h3>🤖 填到聊天软件的 Model</h3>
+        <div style="font-family:monospace;font-size:13px;text-align:center;padding:6px;background:var(--bg);border-radius:4px"><code>provider/model</code></div>
+        <p class="muted" style="font-size:11px;margin-top:4px">格式：<code>提供商名/模型名</code>。会自动匹配下面配置的 Chat 上游 API。</p>
       </div>
     </div>
 
     <div class="actions" style="margin-bottom:16px">
-      <button class="btn btn-sm" onclick="loadApiConfig()">🔄 Reload from disk</button>
-      <span class="muted" style="font-size:11px;margin-left:8px">Saved to <code id="cfg-home">~/.loam</code> · restart after saving</span>
+      <button class="btn btn-sm" onclick="loadApiConfig()">🔄 从磁盘重新加载</button>
+      <span class="muted" style="font-size:11px;margin-left:8px">保存位置：<code id="cfg-home">~/.loam</code> · 保存后需重启对应进程生效</span>
     </div>
 
-    <!-- SECTION 1: loam memory API -->
+    <!-- SECTION 1: loam memory API — 用于消化记忆，生成角色特质 -->
     <div class="card" style="margin-bottom:16px; border-left:3px solid var(--accent)">
-      <h3>🧠 loam Memory API <span class="muted" style="font-weight:400;font-size:11px">— digests conversations into memory</span></h3>
+      <h3>🧠 记忆生长模型 <span class="muted" style="font-weight:400;font-size:11px">— loam 用它来消化对话、提炼特质、让角色「生长」</span></h3>
+      <p class="muted" style="font-size:11px;margin-bottom:10px">这个模型在后台默默工作，不直接生成你看到的回复。填你的 API 提供商给的 Base URL 和 Key，选一个便宜点的模型就行。</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr auto auto; gap:8px; align-items:end">
         <div class="form-group" style="margin:0">
-          <label>Base URL</label>
+          <label>Base URL（API 地址）</label>
           <input id="sec-url" placeholder="https://api.deepseek.com">
         </div>
         <div class="form-group" style="margin:0">
-          <label>API Key</label>
+          <label>API Key（密钥）</label>
           <input id="sec-key" placeholder="sk-..." type="password">
         </div>
         <div class="form-group" style="margin:0">
-          <label>Model</label>
+          <label>Model（模型名）</label>
           <input id="sec-model" placeholder="deepseek-chat" list="sec-models-list">
           <datalist id="sec-models-list"></datalist>
         </div>
         <button class="btn btn-sm btn-outline" style="height:38px;align-self:end" onclick="fetchModels('sec')" title="从提供商拉取可用模型列表">拉取</button>
-        <button class="btn btn-ok" style="height:38px;align-self:end" onclick="saveSecrets()">💾 Save</button>
+        <button class="btn btn-ok" style="height:38px;align-self:end" onclick="saveSecrets()">💾 保存</button>
       </div>
       <div id="sec-status" style="margin-top:8px;font-size:12px" class="muted"></div>
     </div>
 
-    <!-- SECTION 2: chat upstream APIs -->
+    <!-- SECTION 2: chat upstream APIs — 用于生成聊天回复 -->
     <div class="card" style="border-left:3px solid var(--ok)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <h3 style="margin:0">💬 Chat Upstream APIs <span class="muted" style="font-weight:400;font-size:11px">— the models your chat client uses</span></h3>
-        <button class="btn btn-sm btn-outline" onclick="addUpstreamRow()">+ Add Provider</button>
+        <h3 style="margin:0">💬 聊天回复模型 <span class="muted" style="font-weight:400;font-size:11px">— 你聊天时实际生成回复的模型，可以配多个随时切换</span></h3>
+        <button class="btn btn-sm btn-outline" onclick="addUpstreamRow()">+ 添加提供商</button>
       </div>
+      <p class="muted" style="font-size:11px;margin-bottom:10px">你在第三方软件里填的 Model 格式是 <code>提供商名/模型名</code>（比如 <code>relayA/deepseek-chat</code>），会在这里匹配对应的 Base URL 和 Key。</p>
       <div id="upstream-rows"></div>
       <div style="display:flex;align-items:end;gap:12px;margin-top:10px">
         <div class="form-group" style="margin:0">
-          <label>Default provider</label>
+          <label>默认提供商</label>
           <select id="up-default" style="width:auto;min-width:200px"></select>
         </div>
-        <button class="btn btn-ok" style="height:38px" onclick="saveUpstreams()">💾 Save All</button>
+        <button class="btn btn-ok" style="height:38px" onclick="saveUpstreams()">💾 保存全部</button>
       </div>
       <div id="up-status" style="margin-top:8px;font-size:12px" class="muted"></div>
     </div>
@@ -502,7 +508,7 @@ async function updateConfig() {
 
 // ---- CONSTANTS ----
 async function loadConstants() {
-  const data = await call('GET', '/constants');
+  const data = await callAdmin('GET', '/admin/constants');  // direct from admin, no loam needed
   const consts = data.constants||{};
   const overrides = data.overrides||{};
   const descs = data.descriptions||{};
@@ -771,6 +777,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(self._read_config())
         elif self.path == "/admin/version":
             self._json(self._version_info())
+        elif self.path == "/admin/constants":
+            self._json(self._read_constants_local())
         elif self.path == "/admin/fetch-models":
             self._json(self._fetch_models())
         elif self.path.startswith("/api/proxy"):
@@ -893,6 +901,24 @@ class Handler(BaseHTTPRequestHandler):
             return {"ok": True, "detail": out[:200], "restarted": restart}
         except Exception as e:
             return {"error": str(e)}
+
+    def _read_constants_local(self):
+        """Read constants + descriptions directly from constants.py, no loam backend needed."""
+        import importlib
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            import loam.core.constants as C
+            importlib.reload(C)
+        except Exception:
+            return {"constants": {}, "overrides": {}, "descriptions": {}, "error": "cannot import constants"}
+        all_consts = {}
+        for name in dir(C):
+            if name.isupper() and not name.startswith('_') and name != 'DESCRIPTIONS':
+                val = getattr(C, name)
+                if isinstance(val, (int, float, bool, str)):
+                    all_consts[name] = val
+        descriptions = getattr(C, 'DESCRIPTIONS', {})
+        return {"constants": all_consts, "overrides": {}, "descriptions": descriptions}
 
     def _fetch_models(self):
         """Proxy a /v1/models call to a provider. Body: {base_url, api_key}."""
