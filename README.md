@@ -12,19 +12,14 @@ Optional extras:
 - **admin panel** (port 8899) — 6-tab web UI: Status, Traits, Memory, Config, Constants, Actions
 - **watchdog** — keeps both processes alive, auto-restarts on crash
 
-## One-command setup
+## Getting started
 
-```bash
-bash scripts/setup.sh
-```
-
-Detects your OS, installs prerequisites, clones the repo, walks you through configuration, starts everything, and opens the admin panel in your browser. Works on Termux, macOS, Linux, WSL, and Windows.
+> 🚀 **One-click**: `bash scripts/setup.sh` — auto-detects OS, installs everything, opens admin panel.
+> 📖 **Manual**: follow [docs/DEPLOY.md](docs/DEPLOY.md) for per-platform step-by-step commands.
 
 After setup, open `http://127.0.0.1:8899` — the admin panel lets you view traits, browse memory, hot-tune constants, trigger digest, and more.
 
 Client: Base URL `http://127.0.0.1:8780/v1`, model `provider/model` (e.g. `relayA/deepseek-chat`).
-
-For manual setup and per-platform details, see [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Why the design decisions are what they are
 
