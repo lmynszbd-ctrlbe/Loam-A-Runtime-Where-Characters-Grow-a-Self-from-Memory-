@@ -1135,13 +1135,44 @@ class Handler(BaseHTTPRequestHandler):
         """
         body = self._read_body()
         discard_local = bool(body.get("discard_local"))
+        # Data-safety net: snapshot the .loam runtime DBs before touching the
+        # tree, so even if something goes wrong the user's memory is recoverable.
+        skip_snapshot = bool(body.get("skip_snapshot"))
         repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
         def git(*args, timeout=30):
             return subprocess.run(["git", "-C", repo_dir, *args],
                                   capture_output=True, text=True, timeout=timeout)
 
+        def snapshot_data():
+            """Copy runtime DBs to ~/.loam/snapshots/pre_update_<stamp>.
+
+            Returns (snapshot_dir, [copied files]) or (None, []) if nothing to
+            back up. Best-effort: failures never block the update itself, but we
+            surface them so the caller can decide.
+            """
+            import shutil
+            stamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())
+            snap_dir = SECRETS_HOME / "snapshots" / f"pre_update_{stamp}"
+            copied = []
+            for name in ("journal.db", "memory.db"):
+                src = SECRETS_HOME / name
+                if not src.exists():
+                    continue
+                snap_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, snap_dir / name)
+                copied.append(name)
+            return (str(snap_dir) if copied else None), copied
+
         try:
+            snapshot_dir = None
+            snapshot_files = []
+            snapshot_error = None
+            if not skip_snapshot:
+                try:
+                    snapshot_dir, snapshot_files = snapshot_data()
+                except Exception as se:
+                    snapshot_error = str(se)[:200]
             # Opt-in destructive path: hard reset to remote, dropping local work.
             if discard_local:
                 f = git("fetch", "origin")
@@ -1204,6 +1235,11 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 pass
             result = {"ok": True, "detail": out[:200], "restarted": restart}
+            if snapshot_dir:
+                result["snapshot"] = snapshot_dir
+                result["snapshot_files"] = snapshot_files
+            if snapshot_error:
+                result["snapshot_error"] = snapshot_error
             if stash_conflict:
                 result["warning"] = (
                     "本地改动已拉取新代码，但你的本地修改在自动恢复时发生冲突，"
