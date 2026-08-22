@@ -186,7 +186,7 @@ class Brain:
                 "还没配后台反思用的模型。把 key 写进 ~/.loam/secrets.json 的 api_key。"
             )
 
-        url = route["base_url"].rstrip("/") + "/v1/chat/completions"
+        url = route["base_url"].rstrip("/").rstrip("/v1") + "/v1/chat/completions"
         payload: Dict[str, Any] = {
             "_api_key": route["api_key"],
             "model": route["model"],
