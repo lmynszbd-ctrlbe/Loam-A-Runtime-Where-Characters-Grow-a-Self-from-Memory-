@@ -33,9 +33,11 @@ class BrainUnavailable(BrainError):
 
 #: 一次请求最多重试几次。后台任务不着急，宁可慢也别丢料。
 RETRIES = 3
-
 #: 重试的基础间隔（秒），每次翻倍。
 BACKOFF = 2.0
+#: ask_json 遇到截断时，token 预算翻倍的上限。推理模型思考可能很长，
+#: 给足空间让它写完思考再吐 JSON；触顶还截断就只能靠重问兜底。
+_MAX_JSON_BUDGET = 16384
 
 @dataclass
 class Usage:
@@ -180,12 +182,25 @@ class Brain:
         温度默认压得很低 —— 这不是创作，是审阅。同一批经历应该
         得出大致相同的结论，随机性在这里只会变成漂移。
         """
+        text, _ = self._ask_raw(
+            system, user, temperature=temperature, max_tokens=max_tokens, phase=phase
+        )
+        return text
+
+    def _ask_raw(
+        self,
+        system: str,
+        user: str,
+        temperature: float = 0.2,
+        max_tokens: int = 2048,
+        phase: str = "",
+    ) -> tuple[str, str]:
+        """底层问答，除了文本还回传 finish_reason，供 ask_json 判断截断。"""
         route = self._pick_route(phase=phase)
         if self.transport is http_transport and not route["api_key"]:
             raise BrainUnavailable(
                 "还没配后台反思用的模型。把 key 写进 ~/.loam/secrets.json 的 api_key。"
             )
-
         url = route["base_url"].rstrip("/").rstrip("/v1") + "/v1/chat/completions"
         payload: Dict[str, Any] = {
             "_api_key": route["api_key"],
@@ -198,12 +213,12 @@ class Brain:
             "max_tokens": max_tokens,
             "stream": False,
         }
-
         last: Optional[Exception] = None
         for attempt in range(self.retries):
             try:
                 data = self.transport(url, dict(payload), self.timeout)
                 text = _extract_text(data)
+                finish = _finish_reason(data)
                 u = data.get("usage") or {}
                 self.usage.add(
                     int(u.get("prompt_tokens", 0)),
@@ -212,7 +227,7 @@ class Brain:
                 )
                 if self.on_call:
                     self.on_call(f"[{route['route']}] {user[:200]}", text[:200])
-                return text
+                return text, finish
             except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError) as exc:
                 last = exc
                 if attempt + 1 < self.retries:
@@ -235,27 +250,42 @@ class Brain:
         phase: str = "",
     ) -> Any:
         """问一句，要一段 JSON 回来。
-
         模型很爱在 JSON 外面裹 ```json 或者写几句解释，全都容忍掉。
+        推理模型还会先写一大段思考，把 token 预算吃光、JSON 被截断 —— 遇到
+        finish_reason=='length' 就自动把预算翻倍再问，直到写得下或触顶。
         实在解析不出来，就重问一次并把错误告诉它。
         """
         prompt = user
+        budget = max(256, int(max_tokens))
         last: Optional[Exception] = None
         for _ in range(max(1, retries)):
-            raw = self.ask(
+            raw, finish = self._ask_raw(
                 system,
                 prompt,
                 temperature=temperature,
-                max_tokens=max_tokens,
+                max_tokens=budget,
                 phase=phase,
             )
+            # 被截断：思考写太长，JSON 没吐完。加预算重来，别急着解析残料。
+            while finish == "length" and budget < _MAX_JSON_BUDGET:
+                budget = min(_MAX_JSON_BUDGET, budget * 2)
+                raw, finish = self._ask_raw(
+                    system,
+                    prompt,
+                    temperature=temperature,
+                    max_tokens=budget,
+                    phase=phase,
+                )
             try:
                 return parse_json(raw)
             except ValueError as exc:
                 last = exc
+                # 解析失败若仍疑似截断，下一轮直接给足预算。
+                if finish == "length":
+                    budget = _MAX_JSON_BUDGET
                 prompt = (
                     f"{user}\n\n上一次你的回答无法被解析：{exc}\n"
-                    "只输出 JSON 本身，不要任何解释、不要代码块标记。"
+                    "只输出 JSON 本身，不要任何解释、不要思考过程、不要代码块标记。"
                 )
         raise BrainError(f"要不到能解析的 JSON：{last}")
 
@@ -273,6 +303,15 @@ def _extract_text(data: Dict[str, Any]) -> str:
     if not text.strip():
         raise BrainError("响应是空的")
     return text
+
+
+def _finish_reason(data: Dict[str, Any]) -> str:
+    """拿到本次生成为什么停下来。推理模型常见 'length' —— 思考写太长把
+    token 预算吃光，JSON 还没吐就被截断。ask_json 靠它决定是否加预算重试。"""
+    try:
+        return str(data["choices"][0].get("finish_reason") or "").strip().lower()
+    except (KeyError, IndexError, TypeError):
+        return ""
 
 
 _FENCE = re.compile(r"```(?:json|JSON)?\s*(.*?)```", re.DOTALL)
@@ -463,6 +502,11 @@ class ScriptedBrain(Brain):
             r = r(user)
         self.usage.add(len(user) // 4, 64)
         return r if isinstance(r, str) else json.dumps(r, ensure_ascii=False)
+    def _ask_raw(self, system: str, user: str, **kw: Any) -> tuple[str, str]:  # type: ignore[override]
+        # 假脑子的回答天然完整，finish_reason 恒为 stop。
+        # 通过 self.ask 取文本，好让子类只重写 ask 就能改变行为
+        # （ask_json 走 _ask_raw，子类的 ask 覆盖才不会被绕过）。
+        return self.ask(system, user, **kw), "stop"
 
 
 def _never(url: str, payload: Dict[str, Any], timeout: float) -> Dict[str, Any]:
