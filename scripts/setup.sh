@@ -159,20 +159,20 @@ except Exception as e:
         say "secrets.json already exists"
         # Auto-heal: if base_url ends with /v1, fix it (loam Brain appends /v1/chat/completions)
         python3 -c "
-import json
-p = '$HOME/.loam/secrets.json'
+import json, os
+p = os.path.expanduser('~/.loam/secrets.json')
 try:
     d = json.load(open(p))
     url = d.get('base_url','')
     if url.endswith('/v1'):
         d['base_url'] = url[:-3].rstrip('/')
         json.dump(d, open(p,'w'), indent=2, ensure_ascii=False)
-        print('FIXED')
+        print('FIXED: stripped trailing /v1 from secrets.json')
     else:
-        print('OK')
+        print('secrets.json base_url OK')
 except Exception as e:
-    print(f'ERR: {e}')
-" 2>/dev/null && say "secrets.json checked" || true
+    print('secrets.json check skipped:', e)
+" 2>/dev/null
     fi
 
     # upstreams.json
