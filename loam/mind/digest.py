@@ -347,7 +347,14 @@ class Digester:
         )
 
         if not isinstance(raw, list):
-            raise ValueError(f"抽事件应该返回数组，拿到 {type(raw).__name__}")
+            # 模型有时把数组包在 {"events": [...]} 里
+            if isinstance(raw, dict):
+                for key in ("events", "items", "results", "data"):
+                    if key in raw and isinstance(raw[key], list):
+                        raw = raw[key]
+                        break
+            if not isinstance(raw, list):
+                raise ValueError(f"抽事件应该返回数组，拿到 {type(raw).__name__}")
 
         by_turn: Dict[int, List[int]] = {}
         for e in batch:
