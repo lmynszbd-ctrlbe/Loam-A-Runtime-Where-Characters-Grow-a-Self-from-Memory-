@@ -1119,7 +1119,6 @@ class Handler(BaseHTTPRequestHandler):
             pass  # network failed, silently skip
         has_update = bool(local and remote and local != remote)
         return {"local": local, "remote": remote, "has_update": has_update}
-
     def _run_update(self):
         """Run git pull and restart loam + proxy.
 
@@ -1129,7 +1128,13 @@ class Handler(BaseHTTPRequestHandler):
         local changes, pull, then restore the stash. If restoring conflicts
         we KEEP the stash (never silently drop the user's work) and report it
         so they can resolve it by hand.
+
+        Body option ``{"discard_local": true}`` lets the user opt in to
+        throwing away local changes and hard-resetting to the remote — off by
+        default so we never destroy work unless explicitly asked.
         """
+        body = self._read_body()
+        discard_local = bool(body.get("discard_local"))
         repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
         def git(*args, timeout=30):
@@ -1137,31 +1142,47 @@ class Handler(BaseHTTPRequestHandler):
                                   capture_output=True, text=True, timeout=timeout)
 
         try:
-            # 1) stash local changes (tracked + untracked) if the tree is dirty
-            status = git("status", "--porcelain")
-            dirty = bool(status.stdout.strip())
-            stashed = False
-            if dirty:
-                s = git("stash", "push", "-u", "-m", "loam-auto-update")
-                stashed = s.returncode == 0 and "No local changes" not in (s.stdout or "")
+            # Opt-in destructive path: hard reset to remote, dropping local work.
+            if discard_local:
+                f = git("fetch", "origin")
+                if f.returncode != 0:
+                    return {"error": "git fetch failed", "detail": (f.stdout + "\n" + f.stderr).strip()[:300]}
+                # determine current branch, default to main
+                b = git("rev-parse", "--abbrev-ref", "HEAD")
+                branch = (b.stdout.strip() or "main") if b.returncode == 0 else "main"
+                rs = git("reset", "--hard", f"origin/{branch}")
+                if rs.returncode != 0:
+                    return {"error": "git reset failed", "detail": (rs.stdout + "\n" + rs.stderr).strip()[:300]}
+                git("clean", "-fd")  # remove untracked files the user chose to discard
+                out = rs.stdout.strip()
+                stash_conflict = None
+            else:
+                # 1) stash local changes (tracked + untracked) if the tree is dirty
+                status = git("status", "--porcelain")
+                dirty = bool(status.stdout.strip())
+                stashed = False
+                if dirty:
+                    s = git("stash", "push", "-u", "-m", "loam-auto-update")
+                    stashed = s.returncode == 0 and "No local changes" not in (s.stdout or "")
 
-            # 2) fast-forward pull
-            r = git("pull", "--ff-only")
-            out = r.stdout.strip()
-            if r.returncode != 0:
-                # restore the user's work before bailing out
+                # 2) fast-forward pull
+                r = git("pull", "--ff-only")
+                out = r.stdout.strip()
+                if r.returncode != 0:
+                    # restore the user's work before bailing out
+                    if stashed:
+                        git("stash", "pop")
+                    out = (out + "\n" + r.stderr).strip()
+                    return {"error": "git pull failed", "detail": out[:300]}
+
+                # 3) restore the stashed local changes
+                stash_conflict = None
                 if stashed:
-                    git("stash", "pop")
-                out = (out + "\n" + r.stderr).strip()
-                return {"error": "git pull failed", "detail": out[:300]}
+                    p = git("stash", "pop")
+                    if p.returncode != 0:
+                        # keep the stash for manual resolution — do NOT drop it
+                        stash_conflict = (p.stdout + "\n" + p.stderr).strip()[:300]
 
-            # 3) restore the stashed local changes
-            stash_conflict = None
-            if stashed:
-                p = git("stash", "pop")
-                if p.returncode != 0:
-                    # keep the stash for manual resolution — do NOT drop it
-                    stash_conflict = (p.stdout + "\n" + p.stderr).strip()[:300]
 
             restart = []
             for proc_name in ["loam.__main__", "forced_flow_proxy", "scripts/admin.py", "scripts/dashboard.py"]:
