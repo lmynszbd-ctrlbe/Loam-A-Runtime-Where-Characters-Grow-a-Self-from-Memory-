@@ -1121,15 +1121,48 @@ class Handler(BaseHTTPRequestHandler):
         return {"local": local, "remote": remote, "has_update": has_update}
 
     def _run_update(self):
-        """Run git pull and restart loam + proxy."""
+        """Run git pull and restart loam + proxy.
+
+        Users who tinkered with tracked source files would otherwise get
+        blocked by ``git pull --ff-only`` ("local changes would be
+        overwritten"). To keep the update button robust we auto-stash any
+        local changes, pull, then restore the stash. If restoring conflicts
+        we KEEP the stash (never silently drop the user's work) and report it
+        so they can resolve it by hand.
+        """
         repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+        def git(*args, timeout=30):
+            return subprocess.run(["git", "-C", repo_dir, *args],
+                                  capture_output=True, text=True, timeout=timeout)
+
         try:
-            r = subprocess.run(["git", "-C", repo_dir, "pull", "--ff-only"],
-                              capture_output=True, text=True, timeout=30)
+            # 1) stash local changes (tracked + untracked) if the tree is dirty
+            status = git("status", "--porcelain")
+            dirty = bool(status.stdout.strip())
+            stashed = False
+            if dirty:
+                s = git("stash", "push", "-u", "-m", "loam-auto-update")
+                stashed = s.returncode == 0 and "No local changes" not in (s.stdout or "")
+
+            # 2) fast-forward pull
+            r = git("pull", "--ff-only")
             out = r.stdout.strip()
             if r.returncode != 0:
+                # restore the user's work before bailing out
+                if stashed:
+                    git("stash", "pop")
                 out = (out + "\n" + r.stderr).strip()
                 return {"error": "git pull failed", "detail": out[:300]}
+
+            # 3) restore the stashed local changes
+            stash_conflict = None
+            if stashed:
+                p = git("stash", "pop")
+                if p.returncode != 0:
+                    # keep the stash for manual resolution — do NOT drop it
+                    stash_conflict = (p.stdout + "\n" + p.stderr).strip()[:300]
+
             restart = []
             for proc_name in ["loam.__main__", "forced_flow_proxy", "scripts/admin.py", "scripts/dashboard.py"]:
                 try:
@@ -1149,7 +1182,14 @@ class Handler(BaseHTTPRequestHandler):
                 restart.append("proxy-restarted")
             except Exception:
                 pass
-            return {"ok": True, "detail": out[:200], "restarted": restart}
+            result = {"ok": True, "detail": out[:200], "restarted": restart}
+            if stash_conflict:
+                result["warning"] = (
+                    "本地改动已拉取新代码，但你的本地修改在自动恢复时发生冲突，"
+                    "已保留在 git stash 里（未丢失）。请手动 `git stash pop` 解决冲突。"
+                )
+                result["stash_conflict"] = stash_conflict
+            return result
         except Exception as e:
             return {"error": str(e)}
 
