@@ -362,25 +362,89 @@ def parse_json(raw: str) -> Any:
 
 
 SECRETS_NAME = "secrets.json"
+#: 后台面板保存 provider 配置的文件（base_url / api_key / default_model）。
+UPSTREAMS_NAME = "upstreams.json"
+#: 常见占位文本，命中就当没填，避免把模板值当成真 key 发出去。
+_PLACEHOLDER_HINTS = ("请替换", "替换为", "your_", "your-", "yourkey", "sk-xxx", "xxxxxx")
+
+
+def _looks_placeholder(value: str) -> bool:
+    v = str(value or "").strip()
+    if not v:
+        return True
+    low = v.lower()
+    return any(h in v or h in low for h in _PLACEHOLDER_HINTS)
+
+
+def _load_upstream_default(home_path: Path) -> Dict[str, str]:
+    """从面板写的 upstreams.json 里取默认 provider，作为 secrets.json 的兜底。
+
+    结构：{"default": "<name>", "providers": {"<name>": {base_url, api_key, default_model}}}
+    只在 secrets.json 没配好时用，占位模板值会被忽略。
+    """
+    path = home_path / UPSTREAMS_NAME
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    providers = data.get("providers")
+    if not isinstance(providers, dict) or not providers:
+        return {}
+    name = data.get("default")
+    prov = providers.get(name) if isinstance(name, str) else None
+    if not isinstance(prov, dict):
+        prov = next((p for p in providers.values() if isinstance(p, dict)), None)
+    if not isinstance(prov, dict):
+        return {}
+    out: Dict[str, str] = {}
+    base_url = str(prov.get("base_url", "")).strip()
+    api_key = str(prov.get("api_key", "")).strip()
+    model = str(prov.get("default_model", "")).strip()
+    if base_url and not _looks_placeholder(base_url):
+        out["base_url"] = base_url
+    if api_key and not _looks_placeholder(api_key):
+        out["api_key"] = api_key
+    if model and not _looks_placeholder(model):
+        out["model"] = model
+    return out
 
 
 def load_brain(home: str | Path = "~/.loam", **overrides: Any) -> Brain:
-    """按 环境变量 > secrets.json > 默认值 的顺序装配脑子。
+    """按 环境变量 > secrets.json > upstreams.json(面板) > 默认值 的顺序装配脑子。
 
     secrets.json 永远不进仓库（.gitignore 里已经排掉）。
     没配 key 也不报错 —— 返回一个 available=False 的脑子，
     这样存储和内生机制依然能跑，只是不能煮料。
+
+    兜底读 upstreams.json：用户在后台面板填的 provider 会写进那里，
+    以前 digest/grower 看不到它，导致"面板配好了但消化还是超时"。
     """
     cfg: Dict[str, Any] = {}
-    path = Path(home).expanduser() / SECRETS_NAME
+    home_path = Path(home).expanduser()
+    path = home_path / SECRETS_NAME
     if path.exists():
         try:
             cfg = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             cfg = {}
-    key = os.environ.get("LOAM_API_KEY") or cfg.get("api_key", "")
-    base = os.environ.get("LOAM_BASE_URL") or cfg.get("base_url") or "https://api.deepseek.com"
-    model = os.environ.get("LOAM_MODEL") or cfg.get("model") or "deepseek-chat"
+    upstream = _load_upstream_default(home_path)
+    key = os.environ.get("LOAM_API_KEY") or cfg.get("api_key") or upstream.get("api_key", "")
+    base = (
+        os.environ.get("LOAM_BASE_URL")
+        or cfg.get("base_url")
+        or upstream.get("base_url")
+        or "https://api.deepseek.com"
+    )
+    model = (
+        os.environ.get("LOAM_MODEL")
+        or cfg.get("model")
+        or upstream.get("model")
+        or "deepseek-chat"
+    )
 
     low_key = os.environ.get("LOAM_LOW_COST_API_KEY") or cfg.get("low_cost_api_key", "")
     low_base = os.environ.get("LOAM_LOW_COST_BASE_URL") or cfg.get("low_cost_base_url", "")
