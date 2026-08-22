@@ -302,6 +302,20 @@ def parse_json(raw: str) -> Any:
             except json.JSONDecodeError:
                 continue
 
+    # 最后手段：推理模型可能把思考过程写在 JSON 前面。
+    # 找第一个出现在行首的 { 或 [，从那里开始解析。
+    for m2 in re.finditer(r'(?:^|\n)\s*([\[{])', text):
+        idx = m2.start(1)
+        chunk = text[idx:]
+        for opener, closer in (("[", "]"), ("{", "}")):
+            if chunk[0] == opener:
+                end = chunk.rfind(closer)
+                if end > 0:
+                    try:
+                        return json.loads(chunk[:end + 1])
+                    except json.JSONDecodeError:
+                        continue
+
     raise ValueError(f"不是 JSON：{text[:200]}")
 
 
