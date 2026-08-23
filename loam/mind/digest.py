@@ -904,10 +904,14 @@ class Grower:
             d.memory.add_event(parent)
             # 把父节点和每个子节点之间建立高权重边（星型拓扑）
             net = d.memory.load_network()
+            # 父节点是新造的摘要节点，从没入过网 —— 先加进去，
+            # 否则 link 会因为"连线两端必须都存在"而抛 KeyError。
+            net.add(parent_id, salience=parent.salience)
             for child_id in eids:
-                if child_id in net.nodes:
-                    net.strengthen(parent_id, child_id, 0.35, force=True)
-                    net.strengthen(child_id, parent_id, 0.35, force=True)
+                # Network 用 __contains__ 判存在，没有 .nodes 属性
+                if child_id in net:
+                    # link 一次就双向写入，不用来回连两遍
+                    net.link(parent_id, child_id, 0.35)
             d.memory.save_network(net)
             merged += 1
 
