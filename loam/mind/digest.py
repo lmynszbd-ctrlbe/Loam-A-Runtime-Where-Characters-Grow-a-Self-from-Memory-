@@ -922,7 +922,7 @@ class Grower:
                 target=f"{merged}_groups",
                 after=f"合并了 {len(recent)} 条事件中的 {merged} 组",
                 reason="记忆沉淀",
-                evidence=[],
+                evidence=eids,
             )
 
     def drain(self, max_rounds: int = 50) -> List[DigestReport]:
