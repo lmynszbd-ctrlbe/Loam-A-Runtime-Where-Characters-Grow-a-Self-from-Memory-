@@ -406,12 +406,13 @@ label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px;margin
   <button id="menu-toggle" onclick="this.nextElementSibling.classList.toggle('open')">☰</button>
   <div class="nav-links">
   <a href="#status" class="nav-link active" data-panel="status">📊 Status</a>
+  <a href="#demo" class="nav-link" data-panel="demo" style="color:var(--accent);font-weight:600">✨ Demo (试玩)</a>
   <a href="#traits" class="nav-link" data-panel="traits">🧬 Traits</a>
   <a href="#memory" class="nav-link" data-panel="memory">💾 Memory</a>
   <a href="#config" class="nav-link" data-panel="config">⚙ Config</a>
   <a href="#constants" class="nav-link" data-panel="constants">🔧 Constants</a>
   <a href="#connect" class="nav-link" data-panel="connect">🔌 Connect</a>
-  <a href="#actions" class="nav-link" data-panel="actions">▶ Actions</a>
+  <a href="#actions" class="nav-link" data-panel="actions">🌱 Growth</a>
   </div>
 </nav>
 <main>
@@ -427,6 +428,36 @@ label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px;margin
     <div class="sub" id="status-time">loading...</div>
     <div class="grid" id="status-grid"></div>
     <div class="card"><h3>🧬 Traits</h3><div id="status-traits"></div></div>
+  </div>
+
+  <!-- DEMO -->
+  <div id="panel-demo" class="panel">
+    <h1>✨ 零成本试玩 (Demo 演化沙盒)</h1>
+    <div class="sub">无需填写 API Key，不消耗 Token。点击播放即可直观体验 10 轮经历如何推动特质从萌芽到质变！</div>
+    
+    <div class="actions" style="margin-bottom:16px">
+      <button class="btn btn-ok" id="demo-play-btn" onclick="startDemoSimulation()">▶ 播放演化推演</button>
+      <button class="btn btn-outline" onclick="resetDemoSimulation()">🔄 重置沙盒</button>
+      <span class="muted" id="demo-status-text" style="font-size:12px;margin-left:12px">准备就绪，点击开始播放</span>
+    </div>
+
+    <div class="grid" style="grid-template-columns: 1.2fr 1fr; gap:16px">
+      <!-- 左边：模拟对话流 -->
+      <div class="card">
+        <h3>💬 模拟交互流 (Transcript Stream)</h3>
+        <div id="demo-dialogue-stream" style="display:flex;flex-direction:column;gap:8px;max-height:420px;overflow-y:auto;padding-right:4px">
+          <div class="muted" style="text-align:center;padding:20px;font-size:12px">点击上方“播放演化推演”观察对话与特质联动</div>
+        </div>
+      </div>
+
+      <!-- 右边：特质动态发光曲线 -->
+      <div class="card">
+        <h3>🧬 实时特质蓄水池 (Real-time Plasticity)</h3>
+        <div id="demo-traits-monitor" style="display:flex;flex-direction:column;gap:12px;margin-top:10px">
+          <!-- 动态注入特质条 -->
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- TRAITS -->
@@ -476,10 +507,11 @@ label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px;margin
   <!-- CONSTANTS -->
   <div id="panel-constants" class="panel">
     <h1>🔧 Constants</h1>
-    <div class="sub">48 tunable parameters — hot-override in memory, reset on restart</div>
+    <div class="sub">48 tunable parameters — hot-override in memory & persist to disk</div>
     <div class="actions">
       <button class="btn btn-sm" onclick="loadConstants()">🔄 Refresh</button>
-      <button class="btn btn-sm btn-ok" onclick="applyConstants()">💾 Apply Overrides</button>
+      <button class="btn btn-sm btn-ok" onclick="applyConstants()">💾 Save & Persist Overrides</button>
+      <button class="btn btn-sm btn-outline" onclick="clearConstants()">🗑 Reset All Defaults</button>
     </div>
     <div class="card" id="constants-list"></div>
   </div>
@@ -683,6 +715,10 @@ document.querySelectorAll('.nav-link').forEach(a => {
     a.classList.add('active');
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     document.getElementById('panel-' + a.dataset.panel).classList.add('active');
+    if (a.dataset.panel === 'demo') {
+      renderDemoTraits();
+      return;
+    }
     const fn = 'load' + a.dataset.panel.charAt(0).toUpperCase() + a.dataset.panel.slice(1);
     if (typeof window[fn] === 'function') window[fn]();
   });
@@ -824,6 +860,119 @@ async function updateConfig() {
   }
 }
 
+// ---- DEMO SIMULATION (Zero-cost Sandbox) ----
+const DEMO_TRAITS = [
+  { name: "同理心 / 共情", strength: 0.15, pending: 0.05, phase: "sprouting", color: "var(--accent)" },
+  { name: "边界感 / 戒备", strength: 0.70, pending: 0.02, phase: "hardened", color: "var(--warn)" },
+  { name: "幽默感 / 讽刺", strength: 0.35, pending: 0.08, phase: "growing", color: "var(--ok)" },
+];
+
+const DEMO_SCRIPTS = [
+  { user: "其实我今天心里挺难受的，项目搞砸了...", char: "怎么会这样？要不要跟我说说发生了什么？先喝口水别急。", delta: { "同理心 / 共情": +0.12, "边界感 / 戒备": -0.05 }, note: "检测到脆弱倾诉，同理心蓄水池上涨，戒备降低" },
+  { user: "你别管我了，反正我也没人在乎。", char: "话不能这么说，至少现在我就在这里听你说话呢。", delta: { "同理心 / 共情": +0.18, "幽默感 / 讽刺": -0.02 }, note: "坚定陪伴信号，触发共情突破门槛" },
+  { user: "噗，你一个AI还挺会安慰人。", char: "那可不，本赛博崽子可是持证上岗的暖心特工！", delta: { "幽默感 / 讽刺": +0.15, "同理心 / 共情": +0.05 }, note: "轻松调侃互动，幽默感特质被激活" },
+  { user: "哈哈谢谢你，我感觉好多了。", char: "随时都在！难受了就来找我聊天，充充电再出发。", delta: { "同理心 / 共情": +0.22, "边界感 / 戒备": -0.08 }, note: "【质变达成】同理心蓄水溢出，特质进入成长态(Growing)！" },
+];
+
+let _demoPlaying = false;
+let _demoStep = 0;
+let _demoTimer = null;
+
+function renderDemoTraits() {
+  const container = document.getElementById('demo-traits-monitor');
+  if (!container) return;
+  container.innerHTML = DEMO_TRAITS.map(t => {
+    const total = Math.min(1.0, t.strength + t.pending);
+    const strPct = Math.round(t.strength * 100);
+    const pendPct = Math.round(t.pending * 100);
+    return `<div style="background:var(--bg);padding:10px 14px;border-radius:6px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-weight:600;font-size:13px">${esc(t.name)}</span>
+        <span style="font-size:11px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.06);color:${t.color}">
+          ${esc(t.phase)} · ${(t.strength).toFixed(2)} (+${(t.pending).toFixed(2)})
+        </span>
+      </div>
+      <div style="height:10px;background:rgba(255,255,255,0.08);border-radius:5px;overflow:hidden;position:relative">
+        <div style="height:100%;width:${strPct}%;background:${t.color};transition:width 0.6s ease;position:absolute;left:0"></div>
+        <div style="height:100%;left:${strPct}%;width:${pendPct}%;background:rgba(255,255,255,0.4);box-shadow:0 0 8px rgba(255,255,255,0.8);transition:all 0.6s ease;position:absolute"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function startDemoSimulation() {
+  if (_demoPlaying) return;
+  _demoPlaying = true;
+  document.getElementById('demo-play-btn').disabled = true;
+  document.getElementById('demo-status-text').innerHTML = '<span class="spinner"></span> 正在演化推演中...';
+  
+  const stream = document.getElementById('demo-dialogue-stream');
+  if (_demoStep === 0) stream.innerHTML = '';
+
+  function nextTurn() {
+    if (_demoStep >= DEMO_SCRIPTS.length) {
+      _demoPlaying = false;
+      document.getElementById('demo-play-btn').disabled = false;
+      document.getElementById('demo-status-text').innerHTML = '✅ 演化演示完毕（特质已完成质变跃迁）';
+      toast('Demo 推演完成！特质曲线成功跃迁', 'ok');
+      return;
+    }
+    const item = DEMO_SCRIPTS[_demoStep];
+    _demoStep++;
+
+    // 渲染对话气泡
+    const div = document.createElement('div');
+    div.style.padding = '8px 12px';
+    div.style.borderRadius = '6px';
+    div.style.background = 'var(--bg)';
+    div.style.border = '1px solid var(--border)';
+    div.style.fontSize = '12px';
+    div.innerHTML = `
+      <div style="color:var(--accent);margin-bottom:4px"><strong>👤 User:</strong> ${esc(item.user)}</div>
+      <div style="color:var(--fg);margin-bottom:6px"><strong>🤖 Character:</strong> ${esc(item.char)}</div>
+      <div style="font-size:11px;color:var(--ok);border-top:1px dashed var(--border);padding-top:4px">⚡ 动力学: ${esc(item.note)}</div>
+    `;
+    stream.appendChild(div);
+    stream.scrollTop = stream.scrollHeight;
+
+    // 更新特质数值
+    for (const [k, d] of Object.entries(item.delta)) {
+      const trait = DEMO_TRAITS.find(t => t.name === k);
+      if (trait) {
+        trait.pending = Math.max(0, trait.pending + d);
+        if (trait.pending > 0.3) {
+          trait.strength = Math.min(0.95, trait.strength + 0.25);
+          trait.pending = 0.05;
+          trait.phase = "growing";
+        }
+      }
+    }
+    renderDemoTraits();
+
+    _demoTimer = setTimeout(nextTurn, 2200);
+  }
+
+  nextTurn();
+}
+
+function resetDemoSimulation() {
+  if (_demoTimer) clearTimeout(_demoTimer);
+  _demoPlaying = false;
+  _demoStep = 0;
+  DEMO_TRAITS[0].strength = 0.15; DEMO_TRAITS[0].pending = 0.05; DEMO_TRAITS[0].phase = "sprouting";
+  DEMO_TRAITS[1].strength = 0.70; DEMO_TRAITS[1].pending = 0.02; DEMO_TRAITS[1].phase = "hardened";
+  DEMO_TRAITS[2].strength = 0.35; DEMO_TRAITS[2].pending = 0.08; DEMO_TRAITS[2].phase = "growing";
+  document.getElementById('demo-play-btn').disabled = false;
+  document.getElementById('demo-status-text').innerText = '准备就绪，点击开始播放';
+  document.getElementById('demo-dialogue-stream').innerHTML = '<div class="muted" style="text-align:center;padding:20px;font-size:12px">点击上方“播放演化推演”观察对话与特质联动</div>';
+  renderDemoTraits();
+}
+
+// 页面初始化时挂载 demo
+window.addEventListener('DOMContentLoaded', () => {
+  renderDemoTraits();
+});
+
 // ---- CONSTANTS ----
 async function loadConstants() {
   const data = await callAdmin('GET', '/admin/constants');  // direct from admin, no loam needed
@@ -851,10 +1000,21 @@ async function applyConstants() {
     const val = parseFloat(inp.value);
     if (!isNaN(val)) overrides[name] = val;
   });
-  const r = await call('POST', '/constants', {overrides});
+  const r = await call('POST', '/constants', {overrides, persist: true});
   const n = Object.keys(r.applied||{}).length;
-  toast(`${n} constants applied`, 'ok');
+  toast(`${n} constants saved and persisted to disk`, 'ok');
   loadConstants();
+}
+
+async function clearConstants() {
+  if (!confirm('确定要重置所有常数覆盖并恢复默认值吗？')) return;
+  try {
+    const r = await call('POST', '/constants/clear', {});
+    toast(`已清空所有覆盖 (${r.cleared||0} 项)`, 'ok');
+    loadConstants();
+  } catch(e) {
+    toast('重置失败: ' + e.message, 'err');
+  }
 }
 
 // ---- CONNECT / API KEYS ----
@@ -1466,11 +1626,12 @@ class Handler(BaseHTTPRequestHandler):
             return {"error": str(e)}
 
     def _read_constants_local(self):
-        """Read constants + descriptions directly from constants.py, no loam backend needed."""
+        """Read constants + descriptions directly from constants.py and state/overrides.json."""
         import importlib
         try:
             sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             import loam.core.constants as C
+            from loam.core.state import load_persisted_overrides
             importlib.reload(C)
         except Exception:
             return {"constants": {}, "overrides": {}, "descriptions": {}, "error": "cannot import constants"}
@@ -1481,7 +1642,8 @@ class Handler(BaseHTTPRequestHandler):
                 if isinstance(val, (int, float, bool, str)):
                     all_consts[name] = val
         descriptions = getattr(C, 'DESCRIPTIONS', {})
-        return {"constants": all_consts, "overrides": {}, "descriptions": descriptions}
+        overrides = load_persisted_overrides(home=CONFIG_DIR)
+        return {"constants": all_consts, "overrides": overrides, "descriptions": descriptions}
 
     def _restart_proxy(self):
         """Kill and restart the forced proxy process so it picks up new upstreams.json."""

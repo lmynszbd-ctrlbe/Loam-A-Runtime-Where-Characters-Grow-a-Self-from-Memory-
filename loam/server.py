@@ -22,6 +22,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs, urlparse
 
+from .core.state import (
+    apply_overrides_to_constants,
+    clear_persisted_overrides,
+    load_persisted_overrides,
+    record_startup_event,
+    save_persisted_overrides,
+)
 from .mind.context import ContextBuilder
 from .mind.digest import Digester, Grower
 from .mind.llm import Brain, load_brain
@@ -111,6 +118,13 @@ class LoamService:
         self._runtime_config = self._bootstrap_runtime_config()
         self.context = self._build_context_builder(self._runtime_config)
         self._apply_runtime_switches(self._runtime_config)
+
+        # 常数覆盖：启动时自动从 state/overrides.json 恢复持久化的覆写配置
+        self.loam_home = Path(config.home).expanduser().parent
+        if self.loam_home.name == "characters":
+            self.loam_home = self.loam_home.parent
+        self._runtime_const_overrides: Dict[str, Dict[str, Any]] = {}
+        self._restore_persisted_constants()
 
         # 所有 journal/memory 操作都走同一把锁，避免 HTTP 请求与后台 grower 竞态。
         self._lock = threading.RLock()
@@ -775,15 +789,26 @@ class LoamService:
                 }
             return result
 
-    def override_constants(self, overrides: Dict[str, Any]) -> Dict[str, Any]:
-        """Hot-override constants in memory. Reset on restart."""
+    def _restore_persisted_constants(self) -> None:
+        """从 ~/.loam/state/overrides.json 恢复已持久化的常数覆盖。"""
+        persisted = load_persisted_overrides(home=self.loam_home)
+        if not persisted:
+            record_startup_event(home=self.loam_home, note="No persisted overrides found")
+            return
+        applied, rejected = apply_overrides_to_constants(persisted)
+        self._runtime_const_overrides = applied
+        note = f"Restored {len(applied)} overrides, {len(rejected)} rejected"
+        record_startup_event(home=self.loam_home, note=note)
+
+    def override_constants(self, overrides: Dict[str, Any], persist: bool = True) -> Dict[str, Any]:
+        """覆盖常数，默认持久化到 ~/.loam/state/overrides.json。"""
         import loam.core.constants as C
         if not hasattr(self, '_runtime_const_overrides'):
             self._runtime_const_overrides = {}
         applied = {}
         rejected = {}
         for name, val in overrides.items():
-            if not name.isupper() or name.startswith('_'):
+            if not isinstance(name, str) or not name.isupper() or name.startswith('_'):
                 rejected[name] = "invalid name"
                 continue
             if not hasattr(C, name):
@@ -796,7 +821,22 @@ class LoamService:
             setattr(C, name, val)
             self._runtime_const_overrides[name] = {"original": orig, "override": val}
             applied[name] = {"from": orig, "to": val}
-        return {"applied": applied, "rejected": rejected, "total_overrides": len(self._runtime_const_overrides)}
+
+        if persist and self._runtime_const_overrides:
+            cycle = int(self.memory.get_state("cycle", "0") or 0)
+            save_persisted_overrides(self._runtime_const_overrides, home=self.loam_home, cycle=cycle)
+
+        return {"applied": applied, "rejected": rejected, "total_overrides": len(self._runtime_const_overrides), "persisted": persist}
+
+    def clear_constants_overrides(self) -> Dict[str, Any]:
+        """清除所有常数覆盖，重置为 constants.py 默认值，并清空持久化文件。"""
+        import importlib
+        import loam.core.constants as C
+        importlib.reload(C)
+        cleared_count = len(self._runtime_const_overrides)
+        self._runtime_const_overrides = {}
+        clear_persisted_overrides(home=self.loam_home)
+        return {"cleared": cleared_count, "ok": True}
 
     def stats(self) -> Dict[str, Any]:
         with self._lock:
@@ -1002,7 +1042,13 @@ class LoamHandler(BaseHTTPRequestHandler):
                 overrides = payload.get("overrides") or {}
                 if not isinstance(overrides, dict):
                     raise ValueError("overrides must be a dict")
-                result = self.server.service.override_constants(overrides)
+                persist = _coerce_bool(payload.get("persist"), default=True)
+                result = self.server.service.override_constants(overrides, persist=persist)
+                self._send_json(200, result)
+                return
+
+            if path == "/constants/clear":
+                result = self.server.service.clear_constants_overrides()
                 self._send_json(200, result)
                 return
             if path == "/grower/start":

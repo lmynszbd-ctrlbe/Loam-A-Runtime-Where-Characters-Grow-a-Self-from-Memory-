@@ -204,8 +204,10 @@ start_services() {
 
     # Start loam
     export LOAM_HOME="${HOME}/.loam"
-    nohup python3 -m loam run --grow-interval 60 --secrets-home "${LOAM_HOME}" > /dev/null 2>&1 &
-    say "loam started (port 8765)"
+    mkdir -p "${LOAM_HOME}/run" "${LOAM_HOME}/state"
+    nohup python3 -m loam run --grow-interval 60 --secrets-home "${LOAM_HOME}" > "${LOAM_HOME}/run/loam.log" 2>&1 &
+    echo $! > "${LOAM_HOME}/run/loam.pid"
+    say "loam started (port 8765, pid $(cat "${LOAM_HOME}/run/loam.pid"))"
 
     # Start proxy
     # IMPORTANT: on Android the proxy may run as a system service with HOME=/,
@@ -215,17 +217,20 @@ start_services() {
     export PROXY_HOST="0.0.0.0"
 
     if [ -f bridge/forced_flow_proxy.py ]; then
-        PROXY_NO_AUTH=1 nohup python3 bridge/forced_flow_proxy.py > /dev/null 2>&1 &
-        say "proxy started (port 8781)"
+        PROXY_NO_AUTH=1 nohup python3 bridge/forced_flow_proxy.py > "${LOAM_HOME}/run/forced_proxy.log" 2>&1 &
+        echo $! > "${LOAM_HOME}/run/forced_proxy.pid"
+        say "proxy started (port 8781, pid $(cat "${LOAM_HOME}/run/forced_proxy.pid"))"
     fi
 
     # Start admin panel
     if [ -f scripts/admin.py ]; then
-        nohup python3 scripts/admin.py > /dev/null 2>&1 &
-        say "admin panel started (port 8900)"
+        nohup python3 scripts/admin.py > "${LOAM_HOME}/run/admin.log" 2>&1 &
+        echo $! > "${LOAM_HOME}/run/admin.pid"
+        say "admin panel started (port 8900, pid $(cat "${LOAM_HOME}/run/admin.pid"))"
     elif [ -f scripts/dashboard.py ]; then
-        nohup python3 scripts/dashboard.py > /dev/null 2>&1 &
-        say "dashboard started (port 8900)"
+        nohup python3 scripts/dashboard.py > "${LOAM_HOME}/run/admin.log" 2>&1 &
+        echo $! > "${LOAM_HOME}/run/admin.pid"
+        say "dashboard started (port 8900, pid $(cat "${LOAM_HOME}/run/admin.pid"))"
     fi
 
     sleep 2
