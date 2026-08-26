@@ -889,57 +889,99 @@ class LoamService:
 
 
 class LoamHTTPServer(ThreadingHTTPServer):
-    """把 service 挂在 server 上，handler 里直接拿。"""
+    """把 service 挂在 server 上，支持多角色动态服务池 (Multi-Character Pool)。"""
 
     def __init__(self, server_address: tuple[str, int], service: LoamService):
         self.service = service
+        self.pool: Dict[str, LoamService] = {service.character: service}
+        self._pool_lock = threading.Lock()
         super().__init__(server_address, LoamHandler)
+
+    def get_service(self, character: Optional[str] = None) -> LoamService:
+        """获取指定角色的 LoamService，若不存在则动态开辟新角色实例。"""
+        char = str(character or "").strip()
+        if not char:
+            return self.service
+        with self._pool_lock:
+            if char not in self.pool:
+                # 动态派生新角色配置
+                cfg = ServiceConfig(
+                    character=char,
+                    home=self.service.config.home,
+                    default_session=self.service.config.default_session,
+                    batch_turns=self.service.config.batch_turns,
+                    grow_interval=self.service.config.grow_interval,
+                    idle_seconds=self.service.config.idle_seconds,
+                    audit_every=self.service.config.audit_every,
+                    api_key=self.service.config.api_key,
+                )
+                svc = LoamService(cfg, brain=self.service.brain)
+                self.pool[char] = svc
+            return self.pool[char]
 
 
 class LoamHandler(BaseHTTPRequestHandler):
     server: LoamHTTPServer
 
+    def _resolve_service(self, payload: Optional[Dict[str, Any]] = None, qs: Optional[Dict[str, List[str]]] = None) -> LoamService:
+        """从 Header、Query 或 Payload 动态解析目标角色卡。"""
+        # 1. Header: X-Loam-Character / X-Character
+        char = self.headers.get("x-loam-character") or self.headers.get("x-character")
+        if char:
+            return self.server.get_service(char)
+
+        # 2. Query: ?character=xxx
+        if qs and "character" in qs and qs["character"]:
+            return self.server.get_service(qs["character"][0])
+
+        # 3. Payload: {"character": "xxx"}
+        if payload and isinstance(payload, dict) and payload.get("character"):
+            return self.server.get_service(str(payload["character"]))
+
+        return self.server.service
+
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
         qs = parse_qs(parsed.query)
+        svc = self._resolve_service(qs=qs)
 
         try:
             if path == "/health":
-                self._send_json(200, {"ok": True, "character": self.server.service.character})
+                self._send_json(200, {"ok": True, "character": svc.character})
                 return
 
             if not self._require_auth(path):
                 return
 
             if path == "/healthz":
-                self._send_json(200, self.server.service.healthz())
+                self._send_json(200, svc.healthz())
                 return
 
             if path == "/stats":
-                self._send_json(200, self.server.service.stats())
+                self._send_json(200, svc.stats())
                 return
 
             if path == "/dashboard":
-                self._send_json(200, self.server.service.dashboard())
+                self._send_json(200, svc.dashboard())
                 return
 
             if path == "/config":
-                self._send_json(200, self.server.service.runtime_config())
+                self._send_json(200, svc.runtime_config())
                 return
 
             if path == "/recompute/history":
                 limit_text = (qs.get("limit") or ["20"])[0]
-                self._send_json(200, self.server.service.recompute_history(limit=int(limit_text or 20)))
+                self._send_json(200, svc.recompute_history(limit=int(limit_text or 20)))
                 return
 
             if path == "/experiments":
                 limit_text = (qs.get("limit") or ["20"])[0]
-                self._send_json(200, self.server.service.experiment_history(limit=int(limit_text or 20)))
+                self._send_json(200, svc.experiment_history(limit=int(limit_text or 20)))
                 return
 
             if path == "/experiments/flags":
-                self._send_json(200, self.server.service.experiment_flags())
+                self._send_json(200, svc.experiment_flags())
                 return
 
             if path == "/explain":
@@ -949,7 +991,7 @@ class LoamHandler(BaseHTTPRequestHandler):
                 include_entries = None if include_raw is None else _coerce_bool(include_raw, default=False)
                 self._send_json(
                     200,
-                    self.server.service.explain(
+                    svc.explain(
                         kind=kind,
                         limit=int(limit_text or 20),
                         include_entries=include_entries,
@@ -961,14 +1003,15 @@ class LoamHandler(BaseHTTPRequestHandler):
                 query = (qs.get("q") or [""])[0]
                 learn = _coerce_bool((qs.get("learn") or [None])[0], default=False)
                 sync_grow = _coerce_bool((qs.get("sync_grow") or [None])[0], default=False)
-                self._send_json(200, self.server.service.build_context(query, learn=learn, sync_grow=sync_grow))
+                self._send_json(200, svc.build_context(query, learn=learn, sync_grow=sync_grow))
                 return
 
             if path == "/narrative":
-                self._send_json(200, self.server.service.narrative())
+                self._send_json(200, svc.narrative())
                 return
+
             if path == "/network" or path.startswith("/network?"):
-                net = self.server.service.memory.load_network()
+                net = svc.memory.load_network()
                 limit = int((qs.get("limit") or ["80"])[0])
                 nodes = []
                 edges = []
@@ -993,6 +1036,7 @@ class LoamHandler(BaseHTTPRequestHandler):
                     "total_edges": len(net.edges),
                 })
                 return
+
             if path == "/constants" or path.startswith("/constants?"):
                 import loam.core.constants as C
                 all_consts = {}
@@ -1001,9 +1045,10 @@ class LoamHandler(BaseHTTPRequestHandler):
                         val = getattr(C, name)
                         if isinstance(val, (int, float, bool, str)):
                             all_consts[name] = val
-                overrides = self.server.service._runtime_const_overrides if hasattr(self.server.service, '_runtime_const_overrides') else {}
+                overrides = svc._runtime_const_overrides if hasattr(svc, '_runtime_const_overrides') else {}
                 descriptions = getattr(C, 'DESCRIPTIONS', {})
                 self._send_json(200, {"constants": all_consts, "overrides": overrides, "descriptions": descriptions})
+                return
                 return
             self._send_json(404, {"error": f"unknown route: {path}"})
         except ValueError as exc:
@@ -1014,69 +1059,58 @@ class LoamHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
-
         try:
             if not self._require_auth(path):
                 return
-
             payload = self._read_json()
+            svc = self._resolve_service(payload=payload)
 
             if path == "/ingest":
-                self._send_json(200, self.server.service.ingest(payload))
+                self._send_json(200, svc.ingest(payload))
                 return
-
             if path == "/digest":
                 limit = payload.get("limit")
-                self._send_json(200, self.server.service.digest_once(limit=int(limit) if limit else None))
+                self._send_json(200, svc.digest_once(limit=int(limit) if limit else None))
                 return
-
             if path == "/drain":
                 rounds = int(payload.get("max_rounds") or 50)
-                self._send_json(200, self.server.service.drain(max_rounds=rounds))
+                self._send_json(200, svc.drain(max_rounds=rounds))
                 return
-
             if path == "/context":
                 query = str(payload.get("query") or "")
                 learn = _coerce_bool(payload.get("learn"), default=False)
                 sync_grow = _coerce_bool(payload.get("sync_grow"), default=False)
-                self._send_json(200, self.server.service.build_context(query, learn=learn, sync_grow=sync_grow))
+                self._send_json(200, svc.build_context(query, learn=learn, sync_grow=sync_grow))
                 return
-
             if path == "/constants":
                 overrides = payload.get("overrides") or {}
                 if not isinstance(overrides, dict):
                     raise ValueError("overrides must be a dict")
                 persist = _coerce_bool(payload.get("persist"), default=True)
-                result = self.server.service.override_constants(overrides, persist=persist)
+                result = svc.override_constants(overrides, persist=persist)
                 self._send_json(200, result)
                 return
-
             if path == "/constants/clear":
-                result = self.server.service.clear_constants_overrides()
+                result = svc.clear_constants_overrides()
                 self._send_json(200, result)
                 return
             if path == "/grower/start":
-                self._send_json(200, self.server.service.start_grower())
+                self._send_json(200, svc.start_grower())
                 return
-
             if path == "/grower/stop":
-                self._send_json(200, self.server.service.stop_grower())
+                self._send_json(200, svc.stop_grower())
                 return
-
             if path == "/config/update":
-                updates = payload.get("updates")
-                if not isinstance(updates, dict):
-                    raise ValueError("updates 必须是对象")
+                updates = payload.get("updates") or {}
                 note = str(payload.get("note") or "")
-                self._send_json(200, self.server.service.update_runtime_config(updates, note=note))
+                self._send_json(200, svc.update_runtime_config(updates, note=note))
                 return
-
             if path == "/config/rollback":
                 version = payload.get("version")
                 if version is None:
                     raise ValueError("rollback 需要 version")
                 note = str(payload.get("note") or "")
-                self._send_json(200, self.server.service.rollback_runtime_config(int(version), note=note))
+                self._send_json(200, svc.rollback_runtime_config(int(version), note=note))
                 return
 
             if path in ("/experiments/update", "/experiments/flags/update"):
@@ -1085,7 +1119,8 @@ class LoamHandler(BaseHTTPRequestHandler):
                     raise ValueError("flags 必须是对象")
                 note = str(payload.get("note") or "")
                 merge = _coerce_bool(payload.get("merge"), default=True)
-                self._send_json(200, self.server.service.update_experiment_flags(flags, note=note, merge=merge))
+                self._send_json(200, svc.update_experiment_flags(flags, note=note, merge=merge))
+                return
                 return
 
             if path == "/recompute":

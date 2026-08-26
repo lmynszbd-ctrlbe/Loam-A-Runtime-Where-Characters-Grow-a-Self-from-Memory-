@@ -518,15 +518,19 @@ class Handler(BaseHTTPRequestHandler):
 
             headers_low = {k.lower(): v for k, v in self.headers.items()}
             session = _session_from(req, headers_low)
+            character = str(headers_low.get("x-loam-character") or headers_low.get("x-character") or req.get("character") or "").strip()
             user_text = _last_user(messages)
 
-            # 1) 强制取 context（失败不中断主链路）
+            # 1) 强制取 context（动态路由目标角色，失败不中断主链路）
             ctx_text = ""
             if user_text:
                 try:
+                    ctx_payload: Dict[str, Any] = {"query": user_text, "learn": LEARN_ON_CONTEXT}
+                    if character:
+                        ctx_payload["character"] = character
                     c = _json_post(
                         f"{LOAM_URL}/context",
-                        {"query": user_text, "learn": LEARN_ON_CONTEXT},
+                        ctx_payload,
                         timeout=30,
                     )
                     ctx_text = str(c.get("text") or "")
@@ -571,22 +575,28 @@ class Handler(BaseHTTPRequestHandler):
             if user_text and assistant:
                 try:
                     turn = _next_turn(session)
+                    ingest_payload: Dict[str, Any] = {
+                        "session": session,
+                        "turns": [
+                            {"turn": turn, "role": "user", "content": user_text},
+                            {"turn": turn, "role": "assistant", "content": assistant},
+                        ],
+                        "client": "forced-flow-proxy",
+                        "model": exposed_model,
+                        "meta": {"provider": provider, "upstream_model": upstream_model},
+                    }
+                    if character:
+                        ingest_payload["character"] = character
                     _json_post(
                         f"{LOAM_URL}/ingest",
-                        {
-                            "session": session,
-                            "turns": [
-                                {"turn": turn, "role": "user", "content": user_text},
-                                {"turn": turn, "role": "assistant", "content": assistant},
-                            ],
-                            "client": "forced-flow-proxy",
-                            "model": exposed_model,
-                            "meta": {"provider": provider, "upstream_model": upstream_model},
-                        },
+                        ingest_payload,
                         timeout=30,
                     )
                     if FORCE_DIGEST:
-                        _json_post(f"{LOAM_URL}/digest", {}, timeout=60)
+                        digest_payload: Dict[str, Any] = {}
+                        if character:
+                            digest_payload["character"] = character
+                        _json_post(f"{LOAM_URL}/digest", digest_payload, timeout=60)
                 except Exception as exc:
                     print(f"[proxy] ingest failed: {type(exc).__name__}: {exc}")
 
