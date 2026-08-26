@@ -402,7 +402,20 @@ label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px;margin
 </head>
 <body>
 <nav>
-  <div class="logo">🧠 loam admin <button class="theme-btn" onclick="toggleTheme()" title="切换日间/夜间模式">☀️</button></div>
+  <div class="logo">
+    <div style="display:flex;align-items:center;gap:6px">
+      <span>🌱</span>
+      <span style="font-weight:800;background:linear-gradient(135deg,#7aa2ff,#c792ea);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">loam</span>
+      <span style="font-size:10px;padding:1px 5px;border-radius:6px;background:rgba(122,162,255,0.15);color:var(--accent);-webkit-text-fill-color:initial;font-weight:600">v0.7.0</span>
+    </div>
+    <button class="theme-btn" onclick="toggleTheme()" title="切换日间/夜间模式">☀️</button>
+  </div>
+  <div style="padding:0 14px 12px;margin-bottom:8px;border-bottom:1px solid var(--border)">
+    <label style="margin-top:0;font-size:10.5px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted)">🎭 当前角色 (Character)</label>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:4px">
+      <input id="active-character-input" value="default" placeholder="角色名 (如: lin_daiyu)" style="padding:5px 8px;font-size:12px;border-radius:8px;font-weight:600" onchange="switchAdminCharacter(this.value)">
+    </div>
+  </div>
   <button id="menu-toggle" onclick="this.nextElementSibling.classList.toggle('open')">☰</button>
   <div class="nav-links">
   <a href="#status" class="nav-link active" data-panel="status">📊 Status</a>
