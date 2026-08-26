@@ -472,13 +472,13 @@ label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px;margin
 
   <!-- MEMORY -->
   <div id="panel-memory" class="panel">
-    <h1>💾 Memory</h1>
-    <div class="sub">Events, narrative, changelog, and network topology</div>
+    <h1>💾 Memory & Neural Topology</h1>
+    <div class="sub">Events, narrative, changelog, and dynamic neural network graph</div>
     <div class="actions">
-      <button class="btn btn-sm" onclick="loadMemory()">🔄 Refresh</button>
+      <button class="btn btn-sm" onclick="loadMemory()">🔄 Refresh Events</button>
       <button class="btn btn-sm btn-outline" onclick="loadNarrative()">📝 Narrative</button>
       <button class="btn btn-sm btn-outline" onclick="loadChangelog()">📋 Changelog</button>
-      <button class="btn btn-sm btn-outline" onclick="loadNetwork()">🔗 Network</button>
+      <button class="btn btn-sm btn-ok" onclick="loadNetworkGraph()">🌐 动态神经拓扑图</button>
     </div>
     <div id="memory-content"></div>
   </div>
@@ -506,14 +506,111 @@ label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px;margin
 
   <!-- CONSTANTS -->
   <div id="panel-constants" class="panel">
-    <h1>🔧 Constants</h1>
-    <div class="sub">48 tunable parameters — hot-override in memory & persist to disk</div>
-    <div class="actions">
-      <button class="btn btn-sm" onclick="loadConstants()">🔄 Refresh</button>
-      <button class="btn btn-sm btn-ok" onclick="applyConstants()">💾 Save & Persist Overrides</button>
-      <button class="btn btn-sm btn-outline" onclick="clearConstants()">🗑 Reset All Defaults</button>
+    <h1>🔧 Constants & Persona (双模调参)</h1>
+    <div class="sub">支持 5 大性格宏观旋钮 / 一键预设卡，亦可精细微调 48 项底层物理常数并一键持久化</div>
+
+    <!-- 模式切换 Tabs -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:8px">
+      <button class="btn btn-sm btn-ok" id="tab-btn-macro" onclick="switchConstantsMode('macro')">🎭 性格气质大旋钮 (简易模式)</button>
+      <button class="btn btn-sm btn-outline" id="tab-btn-micro" onclick="switchConstantsMode('micro')">🔬 48 项物理常数 (专家模式)</button>
     </div>
-    <div class="card" id="constants-list"></div>
+
+    <!-- 简易模式：5大性格大旋钮 + 4套预设卡 -->
+    <div id="constants-macro-view">
+      <!-- 预设卡 -->
+      <div class="card" style="margin-bottom:16px">
+        <h3>✨ 一键性格预设 (Preset Personas)</h3>
+        <p class="muted" style="font-size:11px;margin-bottom:12px">点击直接应用预设性格模型，底层常数将自动按权重映射调节并持久化</p>
+        <div class="grid" style="grid-template-columns:repeat(4, 1fr);gap:10px">
+          <div class="card preset-card" onclick="applyPersonaPreset('aloof')" style="cursor:pointer;text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);transition:all 0.2s">
+            <div style="font-size:24px">🧊</div>
+            <div style="font-weight:600;font-size:13px;margin:4px 0">高冷孤傲</div>
+            <div class="muted" style="font-size:10px">慢热防备 · 自愈极强</div>
+          </div>
+          <div class="card preset-card" onclick="applyPersonaPreset('gentle')" style="cursor:pointer;text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);transition:all 0.2s">
+            <div style="font-size:24px">🌸</div>
+            <div style="font-weight:600;font-size:13px;margin:4px 0">温柔包容</div>
+            <div class="muted" style="font-size:10px">共情敏锐 · 富于理解</div>
+          </div>
+          <div class="card preset-card" onclick="applyPersonaPreset('cheerful')" style="cursor:pointer;text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);transition:all 0.2s">
+            <div style="font-size:24px">🐶</div>
+            <div style="font-weight:600;font-size:13px;margin:4px 0">乐天小狗</div>
+            <div class="muted" style="font-size:10px">超级易感 · 回血神速</div>
+          </div>
+          <div class="card preset-card" onclick="applyPersonaPreset('fragile')" style="cursor:pointer;text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);transition:all 0.2s">
+            <div style="font-size:24px">🥀</div>
+            <div style="font-weight:600;font-size:13px;margin:4px 0">敏感易碎</div>
+            <div class="muted" style="font-size:10px">多疑内耗 · 脑补发散</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5个大滑块 -->
+      <div class="card" style="margin-bottom:16px">
+        <h3>🎛️ 5 大性格气质大旋钮</h3>
+        <div style="display:flex;flex-direction:column;gap:16px;margin-top:14px">
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <label style="font-weight:600;font-size:13px">🌿 敏感度 / 易感性</label>
+              <span id="knob-val-sensitivity" style="font-family:monospace;font-size:13px;color:var(--accent)">0.50</span>
+            </div>
+            <input type="range" id="knob-sensitivity" min="0" max="1" step="0.01" value="0.5" style="width:100%" oninput="onKnobChange()">
+            <div class="muted" style="font-size:11px">钝感慢热 ↔ 极度敏锐脆皮（影响推动力与情绪冲顶速度）</div>
+          </div>
+
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <label style="font-weight:600;font-size:13px">🗿 沉稳度 / 执拗度</label>
+              <span id="knob-val-stubbornness" style="font-family:monospace;font-size:13px;color:var(--accent)">0.50</span>
+            </div>
+            <input type="range" id="knob-stubbornness" min="0" max="1" step="0.01" value="0.5" style="width:100%" oninput="onKnobChange()">
+            <div class="muted" style="font-size:11px">随和变通 ↔ 顽固不化（影响特质固化天花板与抗撼动门槛）</div>
+          </div>
+
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <label style="font-weight:600;font-size:13px">💧 自愈力 / 情绪消化</label>
+              <span id="knob-val-resilience" style="font-family:monospace;font-size:13px;color:var(--accent)">0.50</span>
+            </div>
+            <input type="range" id="knob-resilience" min="0" max="1" step="0.01" value="0.5" style="width:100%" oninput="onKnobChange()">
+            <div class="muted" style="font-size:11px">持久内耗 ↔ 迅速回血（影响快态消退速率与情绪渗漏）</div>
+          </div>
+
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <label style="font-weight:600;font-size:13px">🛡️ 戒备度 / 多疑性</label>
+              <span id="knob-val-vigilance" style="font-family:monospace;font-size:13px;color:var(--accent)">0.50</span>
+            </div>
+            <input type="range" id="knob-vigilance" min="0" max="1" step="0.01" value="0.5" style="width:100%" oninput="onKnobChange()">
+            <div class="muted" style="font-size:11px">单纯直率 ↔ 高度防备（影响入脑置信门槛与反讽识别）</div>
+          </div>
+
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <label style="font-weight:600;font-size:13px">✨ 联想力 / 脑洞发散</label>
+              <span id="knob-val-creativity" style="font-family:monospace;font-size:13px;color:var(--accent)">0.50</span>
+            </div>
+            <input type="range" id="knob-creativity" min="0" max="1" step="0.01" value="0.5" style="width:100%" oninput="onKnobChange()">
+            <div class="muted" style="font-size:11px">一板一眼 ↔ 发散连篇（影响神经连线扩散跨度与跳数）</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:18px">
+          <button class="btn btn-ok" onclick="savePersonaKnobs()">💾 保存并持久化此性格</button>
+          <button class="btn btn-outline" onclick="resetPersonaKnobs()">🔄 重置为默认平衡态</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 专家模式：48项物理常数 -->
+    <div id="constants-micro-view" style="display:none">
+      <div class="actions" style="margin-bottom:12px">
+        <button class="btn btn-sm" onclick="loadConstants()">🔄 Refresh</button>
+        <button class="btn btn-sm btn-ok" onclick="applyConstants()">💾 Save & Persist Overrides</button>
+        <button class="btn btn-sm btn-outline" onclick="clearConstants()">🗑 Reset All Defaults</button>
+      </div>
+      <div class="card" id="constants-list"></div>
+    </div>
   </div>
 
   <!-- CONNECT -->
@@ -645,7 +742,7 @@ label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px;margin
       <div id="growth-settings-status" style="margin-top:8px;font-size:12px"></div>
     </div>
 
-    <!-- 手动操作 -->
+    <!-- 手动操作与备份迁移 -->
     <div class="grid">
       <div class="card">
         <h3>🧪 手动消化</h3>
@@ -660,10 +757,10 @@ label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px;margin
         <div id="drain-result" style="margin-top:8px;font-size:12px"></div>
       </div>
       <div class="card">
-        <h3>📸 导出角色卡</h3>
-        <p class="muted" style="font-size:12px;margin-bottom:8px">导出当前所有记忆和特质</p>
-        <button class="btn" onclick="doAction('snapshot')">📦 导出</button>
-        <div id="snapshot-result" style="margin-top:8px;font-size:12px"></div>
+        <h3>📦 一键数据备份迁移</h3>
+        <p class="muted" style="font-size:12px;margin-bottom:8px">打包全套 SQLite + 状态文件为 tar.gz</p>
+        <button class="btn btn-ok" onclick="doAction('backup_export')">💾 导出完整备份包</button>
+        <div id="backup-result" style="margin-top:8px;font-size:12px"></div>
       </div>
       <div class="card">
         <h3>🔄 重建记忆</h3>
@@ -827,21 +924,103 @@ async function loadChangelog() {
         ${c.before ? `<span class="muted"> | ${c.before} → ${c.after}</span>` : ''}
       </div>`).join('')}</div>`;
 }
-async function loadNetwork() {
-  const net = await call('GET', '/network?limit=50');
+async function loadNetworkGraph() {
+  const net = await call('GET', '/network?limit=80');
+  const nodes = net.nodes || [];
+  const edges = net.edges || [];
+
   document.getElementById('memory-content').innerHTML = `
-    <h2>Network Topology</h2>
-    <div class="grid">
-      <div class="card"><h3>Nodes</h3><div class="val ok">${net.total_nodes||0}</div></div>
-      <div class="card"><h3>Edges</h3><div class="val">${net.total_edges||0}</div></div>
+    <h2>🌐 动态神经拓扑图 (Neural Topology)</h2>
+    <div class="grid" style="margin-bottom:12px">
+      <div class="card"><h3>神经元节点数 (Nodes)</h3><div class="val ok">${net.total_nodes || nodes.length}</div></div>
+      <div class="card"><h3>赫布突触连线 (Edges)</h3><div class="val">${net.total_edges || edges.length}</div></div>
     </div>
-    <div class="card" style="margin-top:12px">
-      <h3>Top Nodes by Weight</h3>
-      ${(net.nodes||[]).slice(0,20).map(n => `
-        <div class="stat"><span style="font-size:11px;max-width:300px;overflow:hidden;text-overflow:ellipsis">${esc(n.id||'?')}</span>
-        <span class="val">${(n.weight||0).toFixed(4)}</span></div>
-      `).join('')}
-    </div>`;
+    <div class="card" style="padding:10px;text-align:center">
+      <canvas id="neural-canvas" width="800" height="460" style="width:100%;max-width:800px;height:460px;background:#080c14;border-radius:6px;border:1px solid var(--border)"></canvas>
+      <div class="muted" style="font-size:11px;margin-top:8px">💡 节点大小代表回忆显著性，连线粗细代表赫布突触强度（共同激活越多连线越深）</div>
+    </div>
+  `;
+
+  drawNeuralCanvas(nodes, edges);
+}
+
+function drawNeuralCanvas(nodes, edges) {
+  const canvas = document.getElementById('neural-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  if (!nodes.length) {
+    ctx.fillStyle = '#6e7681';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('暂无记忆神经节点，请先进行对话或在试玩模式体验', w / 2, h / 2);
+    return;
+  }
+
+  // 计算节点布局（环形 + 随机发散力导向）
+  const nodeMap = {};
+  const cx = w / 2, cy = h / 2;
+  const count = Math.min(nodes.length, 36);
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * 2 * Math.PI;
+    const dist = 110 + (i % 3) * 55;
+    nodeMap[nodes[i].id] = {
+      x: cx + Math.cos(angle) * dist,
+      y: cy + Math.sin(angle) * dist,
+      weight: nodes[i].weight || 0.5,
+      id: nodes[i].id,
+    };
+  }
+
+  // 1. 画边（发光连线）
+  edges.forEach(e => {
+    const src = nodeMap[e.source];
+    const dst = nodeMap[e.target];
+    if (src && dst) {
+      ctx.beginPath();
+      ctx.moveTo(src.x, src.y);
+      ctx.lineTo(dst.x, dst.y);
+      ctx.strokeStyle = `rgba(122, 162, 255, ${Math.min(0.8, (e.weight || 0.3) * 1.5)})`;
+      ctx.lineWidth = Math.max(1, (e.weight || 0.2) * 3);
+      ctx.stroke();
+    }
+  });
+
+  // 2. 画节点（带外发光圆）
+  for (const n of Object.values(nodeMap)) {
+    const r = Math.max(5, Math.min(18, n.weight * 18));
+    
+    // 渐变外光晕
+    const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 2);
+    grad.addColorStop(0, 'rgba(88, 166, 255, 0.8)');
+    grad.addColorStop(1, 'rgba(88, 166, 255, 0)');
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r * 2, 0, 2 * Math.PI);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // 核心圆点
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+    ctx.fillStyle = '#7aa2ff';
+    ctx.shadowColor = '#58a6ff';
+    ctx.shadowBlur = 10;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // 节点标签
+    ctx.fillStyle = '#c9d1d9';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    const label = n.id.length > 12 ? n.id.slice(0, 10) + '..' : n.id;
+    ctx.fillText(label, n.x, n.y + r + 12);
+  }
+}
+
+async function loadNetwork() {
+  await loadNetworkGraph();
 }
 
 // ---- CONFIG ----
@@ -972,6 +1151,104 @@ function resetDemoSimulation() {
 window.addEventListener('DOMContentLoaded', () => {
   renderDemoTraits();
 });
+
+// ---- DUAL-MODE CONSTANTS & PERSONA KNOBS ----
+let _currentConstantsMode = 'macro';
+
+const PRESET_MAP = {
+  aloof:   { sensitivity: 0.25, stubbornness: 0.85, resilience: 0.80, vigilance: 0.85, creativity: 0.35 },
+  gentle:  { sensitivity: 0.75, stubbornness: 0.30, resilience: 0.70, vigilance: 0.20, creativity: 0.75 },
+  cheerful:{ sensitivity: 0.80, stubbornness: 0.20, resilience: 0.90, vigilance: 0.10, creativity: 0.60 },
+  fragile: { sensitivity: 0.90, stubbornness: 0.40, resilience: 0.15, vigilance: 0.80, creativity: 0.85 },
+};
+
+function switchConstantsMode(mode) {
+  _currentConstantsMode = mode;
+  const macroView = document.getElementById('constants-macro-view');
+  const microView = document.getElementById('constants-micro-view');
+  const btnMacro = document.getElementById('tab-btn-macro');
+  const btnMicro = document.getElementById('tab-btn-micro');
+  
+  if (mode === 'macro') {
+    macroView.style.display = 'block';
+    microView.style.display = 'none';
+    btnMacro.className = 'btn btn-sm btn-ok';
+    btnMicro.className = 'btn btn-sm btn-outline';
+  } else {
+    macroView.style.display = 'none';
+    microView.style.display = 'block';
+    btnMacro.className = 'btn btn-sm btn-outline';
+    btnMicro.className = 'btn btn-sm btn-ok';
+    loadConstants();
+  }
+}
+
+function onKnobChange() {
+  ['sensitivity', 'stubbornness', 'resilience', 'vigilance', 'creativity'].forEach(k => {
+    const val = parseFloat(document.getElementById('knob-' + k).value).toFixed(2);
+    document.getElementById('knob-val-' + k).innerText = val;
+  });
+}
+
+function applyPersonaPreset(name) {
+  const p = PRESET_MAP[name];
+  if (!p) return;
+  for (const [k, v] of Object.entries(p)) {
+    const inp = document.getElementById('knob-' + k);
+    if (inp) {
+      inp.value = v;
+      document.getElementById('knob-val-' + k).innerText = v.toFixed(2);
+    }
+  }
+  toast(`已选择预设：${name}，点击下方保存即可持久化生效`, 'ok');
+}
+
+function resetPersonaKnobs() {
+  ['sensitivity', 'stubbornness', 'resilience', 'vigilance', 'creativity'].forEach(k => {
+    const inp = document.getElementById('knob-' + k);
+    if (inp) {
+      inp.value = 0.5;
+      document.getElementById('knob-val-' + k).innerText = '0.50';
+    }
+  });
+  toast('已重置为标准平衡态', 'ok');
+}
+
+function computeKnobsToOverrides() {
+  const s = parseFloat(document.getElementById('knob-sensitivity').value);
+  const st = parseFloat(document.getElementById('knob-stubbornness').value);
+  const r = parseFloat(document.getElementById('knob-resilience').value);
+  const v = parseFloat(document.getElementById('knob-vigilance').value);
+  const c = parseFloat(document.getElementById('knob-creativity').value);
+
+  const overrides = {};
+  overrides["PLASTICITY"] = +(0.18 + 0.37 * s).toFixed(4);
+  overrides["BREAKTHROUGH"] = +(0.95 - 0.25 * s).toFixed(4);
+  overrides["FAST_LIMIT"] = +(0.15 + 0.27 * s).toFixed(4);
+  overrides["CEILING"] = +(0.90 + 0.09 * st).toFixed(4);
+  overrides["DECAY"] = +(0.995 + 0.0049 * st).toFixed(5);
+  overrides["GATE_LEVEL_MULTIPLIER"] = +(1.02 + 0.33 * st).toFixed(3);
+  overrides["FAST_DECAY"] = +(0.85 - 0.40 * r).toFixed(4);
+  overrides["LEAK"] = +(0.98 - 0.18 * r).toFixed(4);
+  overrides["PENDING_RESIDUAL"] = +(0.35 - 0.30 * r).toFixed(4);
+  overrides["UNCERTAINTY_GATE"] = +(0.35 + 0.40 * v).toFixed(4);
+  overrides["SARCASTIC_AMBIGUITY"] = +(0.88 - 0.38 * v).toFixed(4);
+  overrides["SPREAD_DECAY"] = +(0.60 + 0.28 * c).toFixed(4);
+  overrides["MAX_HOPS"] = Math.round(2 + 4 * c);
+  overrides["EDGE_STRENGTHEN"] = +(0.15 + 0.35 * c).toFixed(4);
+
+  return overrides;
+}
+
+async function savePersonaKnobs() {
+  const overrides = computeKnobsToOverrides();
+  try {
+    const r = await call('POST', '/constants', {overrides, persist: true});
+    toast(`性格气质已成功映射至 ${Object.keys(overrides).length} 项物理常数并永久落盘！`, 'ok');
+  } catch(e) {
+    toast('保存失败: ' + e.message, 'err');
+  }
+}
 
 // ---- CONSTANTS ----
 async function loadConstants() {
