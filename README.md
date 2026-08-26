@@ -95,8 +95,7 @@ Lived co-occurrence seeds edges at 0.22; recalled at 0.05. Spreading activation 
 | `/constants` | POST | Hot-override parameters (in-memory, reset on restart) |
 | `/explain` | GET | Explain recent trait changes |
 
-## CLI
-
+## CLI & Demos
 ```bash
 python -m loam run              # Start HTTP server
 python -m loam stats            # Print current state
@@ -104,7 +103,18 @@ python -m loam digest-once      # Manual digestion
 python -m loam context "query"  # Build context
 python -m loam snapshot -o ~/my-character  # Export living character card
 python -m loam init-secrets     # Generate secrets.json template
+
+# 🎮 零成本生命力演化沙盒推演 (无需 API Key，控制台直观体验 4 大核心机制)
+python scripts/demo_walkthrough.py
 ```
+
+## ✨ New in v0.7.0 (What's Evolved)
+- **🎛️ 5 Macro Persona Knobs & Presets**：在 Web 仪表盘提供「敏感度、固执度、自愈力、戒备度、联想力」5 大性格旋钮与 4 套开箱即用气质预设（高冷孤傲/温柔包容/乐天小狗/敏感易碎），自动权重联动 48 个底层物理常数。
+- **🕸️ Canvas 动态神经拓扑图**：Admin 面板实时可视化 Memory 节点分层（Sprout / Mature / Core）与赫布突触激活脉冲。
+- **🔀 消息摄入三通道分流管道 (Thought / Action / Dialogue)**：自动过滤 `<think>` 思考过程不污染 L0 永久回忆，提炼工具语义，纯净对话入库。
+- **⛏️ L0 原矿精准下钻系统 (Raw Drilldown)**：拒绝枯燥楼层总结，召回经历时直接顺着 `source_ids` 穿透回传真实对话原貌。
+- **☯️ 情绪动力学生克与阻尼引擎 (5-Element Resonance)**：模拟金木水火土生克循环与滑动窗口阻尼，让情绪起伏具备链式生克与自然释怀回荡。
+- **🛡️ 状态持久化地基 & 迁移备份**：常数覆盖持久化落盘（`overrides.json`），启动/Watchdog 自愈恢复，一键完整备份包迁移。
 
 ## Deployment
 
