@@ -32,6 +32,7 @@ from .core.state import (
 from .mind.context import ContextBuilder
 from .mind.digest import Digester, Grower
 from .mind.llm import Brain, load_brain
+from .mind.pipeline import sanitize_turns_for_ingest
 from .store.adapters import SQLiteStorageAdapters
 from .store.journal import MAX_INGEST_JOB_ATTEMPTS, Journal
 from .store.memory import Memory
@@ -200,6 +201,7 @@ class LoamService:
     def _build_context_builder(self, cfg: Dict[str, object]) -> ContextBuilder:
         return ContextBuilder(
             self.memory,
+            journal=self.journal,
             max_matches=int(cfg["context.max_matches"]),
             max_recall=int(cfg["context.max_recall"]),
             max_traits=int(cfg["context.max_traits"]),
@@ -646,6 +648,8 @@ class LoamService:
             overflow_trimmed = len(turns) - max_turns
             turns = turns[-max_turns:]
         turns = [_truncate_turn_content(t, max_chars) for t in turns]
+        # 三通道分流解析与过滤：thought 不落盘入 entries 污染记忆，action 挂载到 meta
+        turns, pipe_stats = sanitize_turns_for_ingest(turns)
 
         with self._lock:
             self._metric_inc("growth.ingest_requests", 1)

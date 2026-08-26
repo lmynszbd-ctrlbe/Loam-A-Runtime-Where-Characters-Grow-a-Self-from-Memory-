@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..core.network import seed_from_matches
 from ..core.growth import Trait
+from ..store.journal import Journal
 from ..store.memory import Event, Memory
 
 
@@ -83,6 +84,10 @@ class ContextPack:
                     tags.append(f"激活 {float(e['score']):.3f}")
                 suffix = f"（{'，'.join(tags)}）" if tags else ""
                 lines.append(f"- [{e['id']}] {e['summary']}{suffix}")
+                drilldown = e.get("drilldown") or []
+                if drilldown:
+                    for d in drilldown:
+                        lines.append(f"    ↳ [L0 现场] {d.get('role')}: {d.get('content')}")
         else:
             lines.append("- （无）")
 
@@ -102,20 +107,24 @@ class ContextBuilder:
     def __init__(
         self,
         memory: Memory,
+        journal: Optional[Journal] = None,
         max_matches: int = 8,
         max_recall: int = 16,
         max_traits: int = 12,
         trait_floor: float = 0.2,
         soft_token_budget: int = 2200,
         hard_token_budget: int = 2600,
+        drilldown_top_k: int = 2,
     ) -> None:
         self.memory = memory
+        self.journal = journal
         self.max_matches = max_matches
         self.max_recall = max_recall
         self.max_traits = max_traits
         self.trait_floor = trait_floor
         self.soft_token_budget = max(200, int(soft_token_budget))
         self.hard_token_budget = max(self.soft_token_budget, int(hard_token_budget))
+        self.drilldown_top_k = max(0, int(drilldown_top_k))
 
     def build(self, character: str, query: str, learn: bool = True) -> ContextPack:
         net = self.memory.load_network()
@@ -137,11 +146,25 @@ class ContextBuilder:
         anchor_ids = set(net.anchors())
 
         recalled: List[Dict[str, object]] = []
+        drilldown_quota = self.drilldown_top_k
         for eid, score in recalled_pairs:
             ev = by_id.get(eid)
             if ev is None:
                 continue
-            recalled.append(_event_view(ev, score=score, anchor=(eid in anchor_ids)))
+            view = _event_view(ev, score=score, anchor=(eid in anchor_ids))
+            # 核心机制：原矿下钻系统。对最强相关的 top-k 记忆，顺着 source_ids 从 Journal 取回 L0 现场
+            if self.journal and drilldown_quota > 0 and ev.source_ids:
+                try:
+                    entries = self.journal.entries_by_ids(ev.source_ids[:3])
+                    if entries:
+                        view["drilldown"] = [
+                            {"turn": ent.turn, "role": ent.role, "content": ent.content[:120]}
+                            for ent in entries
+                        ]
+                        drilldown_quota -= 1
+                except Exception:
+                    pass
+            recalled.append(view)
 
         match_events = self.memory.get_events([eid for eid, _ in matches])
         match_by_id = {e.id: e for e in match_events}
