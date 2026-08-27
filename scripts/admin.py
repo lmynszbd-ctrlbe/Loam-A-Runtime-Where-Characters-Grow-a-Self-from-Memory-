@@ -376,34 +376,176 @@ pre {
 ::-webkit-scrollbar-thumb { background: rgba(120,160,255,0.18); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(120,160,255,0.36); }
 
+
+/* 侧边栏折叠与移动端样式 */
+:root {
+  --sidebar-width: 250px;
+  --sidebar-collapsed-width: 70px;
+}
+
+body {
+  display: flex;
+  flex-direction: row;
+  overflow-x: hidden;
+}
+
+nav {
+  width: var(--sidebar-width);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 折叠状态 */
+body.sidebar-collapsed nav {
+  width: var(--sidebar-collapsed-width);
+}
+body.sidebar-collapsed .logo-text .gradient-text,
+body.sidebar-collapsed .logo-text .version-badge,
+body.sidebar-collapsed .nav-content label,
+body.sidebar-collapsed #current-persona-display,
+body.sidebar-collapsed .nav-links a {
+  display: none;
+  opacity: 0;
+}
+body.sidebar-collapsed .nav-links a {
+  justify-content: center;
+  padding: 10px 0;
+  display: flex;
+  font-size: 18px; /* 只显示图标(emoji) */
+  color: transparent;
+  text-shadow: 0 0 0 var(--text-color);
+}
+body.sidebar-collapsed #collapse-icon {
+  transform: rotate(180deg);
+}
+
+main {
+  flex: 1;
+  margin-left: 0;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-header {
+  display: none;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 90;
+}
+
+.nav-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-color);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 95;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* 移动端响应式 */
+@media (max-width: 768px) {
+  .mobile-header {
+    display: flex;
+  }
+  body {
+    flex-direction: column;
+  }
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    transform: translateX(-100%);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.2);
+  }
+  nav.mobile-open {
+    transform: translateX(0);
+  }
+  .sidebar-overlay.active {
+    display: block;
+    opacity: 1;
+  }
+  .desktop-only {
+    display: none !important;
+  }
+  main {
+    height: calc(100vh - 56px);
+  }
+}
 </style>
 </head>
 <body>
-<nav>
+<!-- 移动端顶部标题栏 -->
+<header class="mobile-header">
+  <div style="display:flex;align-items:center;gap:6px;font-size:18px;">
+    <span>🌱</span>
+    <span style="font-weight:800;background:linear-gradient(135deg,#7aa2ff,#c792ea);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">loam</span>
+  </div>
+  <button id="menu-btn" class="nav-toggle-btn" onclick="toggleSidebar()">
+    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </button>
+</header>
+<!-- 侧边栏遮罩 -->
+<div id="sidebar-overlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<nav id="sidebar">
   <div class="logo">
-    <div style="display:flex;align-items:center;gap:6px">
+    <div class="logo-text">
       <span>🌱</span>
-      <span style="font-weight:800;background:linear-gradient(135deg,#7aa2ff,#c792ea);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">loam</span>
-      <span style="font-size:10px;padding:1px 5px;border-radius:6px;background:rgba(122,162,255,0.15);color:var(--accent);-webkit-text-fill-color:initial;font-weight:600">v0.7.0</span>
+      <span class="gradient-text">loam</span>
+      <span class="version-badge">v0.7.0</span>
     </div>
-    <button class="theme-btn" onclick="toggleTheme()" title="切换日间/夜间模式">☀️</button>
-  </div>
-  <div style="padding:0 14px 12px;margin-bottom:8px;border-bottom:1px solid var(--border)">
-    <label style="margin-top:0;font-size:10.5px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted)">🎭 当前角色 (Character)</label>
-    <div style="display:flex;gap:6px;align-items:center;margin-top:4px">
-      <input id="active-character-input" value="default" placeholder="角色名 (如: lin_daiyu)" style="padding:5px 8px;font-size:12px;border-radius:8px;font-weight:600" onchange="switchAdminCharacter(this.value)">
+    <div style="display:flex;gap:4px;">
+        <button class="theme-btn" onclick="toggleTheme()" title="切换日间/夜间模式">☀️</button>
+        <button id="collapse-btn" class="theme-btn desktop-only" onclick="toggleCollapse()" title="折叠/展开侧边栏">
+            <svg id="collapse-icon" viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
     </div>
   </div>
-  <button id="menu-toggle" onclick="this.nextElementSibling.classList.toggle('open')">☰</button>
-  <div class="nav-links">
-  <a href="#status" class="nav-link active" data-panel="status">📊 Status</a>
-  <a href="#demo" class="nav-link" data-panel="demo" style="color:var(--accent);font-weight:600">✨ Demo (试玩)</a>
-  <a href="#traits" class="nav-link" data-panel="traits">🧬 Traits</a>
-  <a href="#memory" class="nav-link" data-panel="memory">💾 Memory</a>
-  <a href="#config" class="nav-link" data-panel="config">⚙ Config</a>
-  <a href="#constants" class="nav-link" data-panel="constants">🔧 Constants</a>
-  <a href="#connect" class="nav-link" data-panel="connect">🔌 Connect</a>
-  <a href="#actions" class="nav-link" data-panel="actions">🌱 Growth</a>
+  <div class="nav-content">
+    <div style="padding:0 14px 12px;margin-bottom:8px;border-bottom:1px solid var(--border)">
+      <label style="margin-top:0;font-size:10.5px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted)">🎭 当前角色</label>
+      <div style="font-size:13px;font-weight:600;padding:6px 0 0;"><span id="current-persona-display">-</span></div>
+    </div>
+    <div class="nav-links">
+      <a href="#" onclick="showPanel('status')" id="nav-status" class="active">✨ 运行状态</a>
+      <a href="#" onclick="showPanel('demo')" id="nav-demo">🎮 演示大厅</a>
+      <a href="#" onclick="showPanel('persona')" id="nav-persona">🎭 性格卡片</a>
+      <a href="#" onclick="showPanel('memory')" id="nav-memory">🧠 记忆总线</a>
+      <a href="#" onclick="showPanel('config')" id="nav-config">⚙️ 系统配置</a>
+      <a href="#" onclick="showPanel('constants')" id="nav-constants">🧊 常数环境</a>
+      <a href="#" onclick="showPanel('connections')" id="nav-connections">🔌 外部连接</a>
+      <a href="#" onclick="showPanel('actions')" id="nav-actions">⚡ 动作中心</a>
+    </div>
   </div>
 </nav>
 <main>
@@ -764,6 +906,39 @@ pre {
 </main>
 
 <script>
+// 侧边栏与移动端交互
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  sidebar.classList.toggle('mobile-open');
+  if (sidebar.classList.contains('mobile-open')) {
+    overlay.classList.add('active');
+  } else {
+    overlay.classList.remove('active');
+  }
+}
+
+function toggleCollapse() {
+  document.body.classList.toggle('sidebar-collapsed');
+  // 保存状态到 localStorage (可选)
+  localStorage.setItem('sidebar-collapsed', document.body.classList.contains('sidebar-collapsed'));
+}
+
+// 页面加载时恢复折叠状态
+document.addEventListener('DOMContentLoaded', () => {
+  if (localStorage.getItem('sidebar-collapsed') === 'true' && window.innerWidth > 768) {
+    document.body.classList.add('sidebar-collapsed');
+  }
+  // 点击面板链接时，如果是移动端，自动收起侧边栏
+  document.querySelectorAll('.nav-links a').forEach(link => {
+    link.addEventListener('click', () => {
+      if (window.innerWidth <= 768) {
+        toggleSidebar();
+      }
+    });
+  });
+});
+
 const API = '/api/proxy';
 
 async function call(method, path, body) {
@@ -1910,7 +2085,7 @@ class Handler(BaseHTTPRequestHandler):
                 if isinstance(val, (int, float, bool, str)):
                     all_consts[name] = val
         descriptions = getattr(C, 'DESCRIPTIONS', {})
-        overrides = load_persisted_overrides(home=CONFIG_DIR)
+        overrides = load_persisted_overrides(home=SECRETS_HOME)
         return {"constants": all_consts, "overrides": overrides, "descriptions": descriptions}
 
     def _restart_proxy(self):
