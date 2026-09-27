@@ -806,7 +806,13 @@ class LoamService:
 
     # ------------------------------------------------------------ 输出
 
-    def build_context(self, query: str, learn: bool = False, sync_grow: bool = False) -> Dict[str, Any]:
+    def build_context(
+        self,
+        query: str,
+        learn: bool = False,
+        sync_grow: bool = False,
+        partner_id: str = "user",
+    ) -> Dict[str, Any]:
         with self._lock:
             self._maybe_apply_decay_unlocked(force=False)
             # 对话链路指标与成长链路拆分统计。
@@ -826,6 +832,7 @@ class LoamService:
                 learn=learn,
                 mood=self.resonance.describe_mood(),
                 resonance=self.resonance.get_resonance_snapshot(),
+                partner_id=partner_id,
             )
             result = {
                 "context": pack.as_dict(),
@@ -1046,6 +1053,23 @@ class LoamService:
         except Exception:
             pass
 
+    def get_drives(self, limit: int = 10) -> List[Dict[str, Any]]:
+        with self._lock:
+            return [d.as_dict() for d in self.memory.get_active_drives(limit=limit)]
+
+    def resolve_drive(self, drive_id: str, reason: str = "") -> bool:
+        with self._lock:
+            return self.memory.resolve_drive(drive_id, reason=reason)
+
+    def get_mirror(self, target: str = "user") -> Optional[Dict[str, Any]]:
+        with self._lock:
+            m = self.memory.get_mirror(target=target)
+            return m.as_dict() if m else None
+
+    def trigger_dream(self) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            return self.digester.dream_cycle()
+
     def stats(self) -> Dict[str, Any]:
         with self._lock:
             return {
@@ -1056,6 +1080,8 @@ class LoamService:
                 "pending": self.digester.pending_count(),
                 "grower_alive": self.grower.alive,
                 "last_error": self.grower.last_error,
+                "active_drives": len(self.memory.get_active_drives(limit=20)),
+                "last_dream": self.memory.get_state("last_dream", "") or None,
             }
 
     def healthz(self) -> Dict[str, Any]:
@@ -1207,7 +1233,8 @@ class LoamHandler(BaseHTTPRequestHandler):
                 query = (qs.get("q") or [""])[0]
                 learn = _coerce_bool((qs.get("learn") or [None])[0], default=False)
                 sync_grow = _coerce_bool((qs.get("sync_grow") or [None])[0], default=False)
-                self._send_json(200, svc.build_context(query, learn=learn, sync_grow=sync_grow))
+                partner_id = (qs.get("partner_id") or ["user"])[0]
+                self._send_json(200, svc.build_context(query, learn=learn, sync_grow=sync_grow, partner_id=partner_id))
                 return
 
             if path == "/narrative":
@@ -1266,6 +1293,16 @@ class LoamHandler(BaseHTTPRequestHandler):
                 self._send_json(200, svc.get_resonance())
                 return
 
+            if path == "/drives":
+                limit = int((qs.get("limit") or ["10"])[0])
+                self._send_json(200, {"drives": svc.get_drives(limit=limit)})
+                return
+
+            if path == "/mirror":
+                target = (qs.get("target") or ["user"])[0]
+                self._send_json(200, {"mirror": svc.get_mirror(target=target)})
+                return
+
             self._send_json(404, {"error": f"unknown route: {path}"})
         except ValueError as exc:
             self._send_json(400, {"error": str(exc)})
@@ -1296,7 +1333,17 @@ class LoamHandler(BaseHTTPRequestHandler):
                 query = str(payload.get("query") or "")
                 learn = _coerce_bool(payload.get("learn"), default=False)
                 sync_grow = _coerce_bool(payload.get("sync_grow"), default=False)
-                self._send_json(200, svc.build_context(query, learn=learn, sync_grow=sync_grow))
+                partner_id = str(payload.get("partner_id") or "user")
+                self._send_json(200, svc.build_context(query, learn=learn, sync_grow=sync_grow, partner_id=partner_id))
+                return
+            if path == "/drives/resolve":
+                drive_id = str(payload.get("id") or "")
+                reason = str(payload.get("reason") or "")
+                self._send_json(200, {"ok": svc.resolve_drive(drive_id, reason=reason)})
+                return
+            if path == "/dream":
+                res = svc.trigger_dream()
+                self._send_json(200, {"ok": True, "dream": res})
                 return
             if path == "/persona/apply":
                 preset = payload.get("preset")

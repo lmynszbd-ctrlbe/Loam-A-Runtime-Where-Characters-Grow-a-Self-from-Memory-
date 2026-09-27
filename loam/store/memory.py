@@ -26,8 +26,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from loam.core.drive import Drive
 from loam.core.growth import Trait
 from loam.core.network import Network
+from loam.core.mirror import MirrorOfOther
 
 SCHEMA = """
 -- ---------------------------------------------------------------- 情景记忆
@@ -220,6 +222,33 @@ CREATE TABLE IF NOT EXISTS recompute_runs (
 
 CREATE INDEX IF NOT EXISTS idx_recompute_runs_created
     ON recompute_runs(created_at DESC);
+
+-- 蔡加尼克未解执念 / 悬念心结表。
+CREATE TABLE IF NOT EXISTS drives (
+    id              TEXT PRIMARY KEY,
+    theme           TEXT NOT NULL,
+    source_event_id TEXT NOT NULL,
+    tension         REAL NOT NULL DEFAULT 0.5,
+    questions_json  TEXT NOT NULL DEFAULT '[]',
+    status          TEXT NOT NULL DEFAULT 'active',
+    created_at      REAL NOT NULL,
+    updated_at      REAL NOT NULL,
+    resolved_at     REAL,
+    resolve_reason  TEXT NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_drives_status_tension
+    ON drives(status, tension DESC);
+
+-- 他者之镜（对对话者心智理论画像表）。
+CREATE TABLE IF NOT EXISTS mirrors (
+    target              TEXT PRIMARY KEY,
+    summary             TEXT NOT NULL DEFAULT '',
+    perceived_traits    TEXT NOT NULL DEFAULT '[]',
+    vulnerabilities     TEXT NOT NULL DEFAULT '[]',
+    interaction_advice  TEXT NOT NULL DEFAULT '',
+    updated_at          REAL NOT NULL
+);
 """
 #: FTS 索引由 add_event 显式维护，不用触发器 —— 入索引前要先在
 #: Python 里分词，SQL 里做不到。
@@ -698,6 +727,155 @@ class Memory:
     def kernel(self) -> List[Trait]:
         """已经硬到成为内核的那几条。不是谁指定的，是长出来的。"""
         return [t for t in self.load_traits() if t.is_kernel]
+
+    # ------------------------------------------------------------ 蔡加尼克内心执念 / 心结
+
+    def save_drive(self, drive: Drive) -> None:
+        """保存或更新一条内心执念。"""
+        self._db.execute(
+            """
+            INSERT INTO drives(
+                id, theme, source_event_id, tension, questions_json,
+                status, created_at, updated_at, resolved_at, resolve_reason
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                theme = excluded.theme,
+                tension = excluded.tension,
+                questions_json = excluded.questions_json,
+                status = excluded.status,
+                updated_at = excluded.updated_at,
+                resolved_at = excluded.resolved_at,
+                resolve_reason = excluded.resolve_reason
+            """,
+            (
+                drive.id,
+                drive.theme,
+                drive.source_event_id,
+                float(drive.tension),
+                json.dumps(drive.questions, ensure_ascii=False),
+                drive.status,
+                float(drive.created_at),
+                float(drive.updated_at),
+                drive.resolved_at,
+                drive.resolve_reason,
+            ),
+        )
+        self._db.commit()
+
+    def get_drive(self, drive_id: str) -> Optional[Drive]:
+        """获取特定 ID 的执念。"""
+        row = self._db.execute("SELECT * FROM drives WHERE id = ?", (drive_id,)).fetchone()
+        if not row:
+            return None
+        return self._row_to_drive(row)
+
+    def get_active_drives(self, limit: int = 5) -> List[Drive]:
+        """获取当前活跃的、按心理张力从高到低排序的执念。"""
+        rows = self._db.execute(
+            "SELECT * FROM drives WHERE status = 'active' ORDER BY tension DESC, updated_at DESC LIMIT ?",
+            (max(1, int(limit)),),
+        ).fetchall()
+        return [self._row_to_drive(r) for r in rows]
+
+    def resolve_drive(self, drive_id: str, reason: str = "") -> bool:
+        """化解执念并释放张力。"""
+        now = time.time()
+        cur = self._db.execute(
+            """
+            UPDATE drives
+            SET status = 'resolved', tension = 0.0, resolved_at = ?, resolve_reason = ?, updated_at = ?
+            WHERE id = ? AND status = 'active'
+            """,
+            (now, reason, now, drive_id),
+        )
+        self._db.commit()
+        return cur.rowcount > 0
+
+    def escalate_drives(self, delta: float = 0.05, max_tension: float = 1.0) -> int:
+        """周期推移未被解答时，自动递增所有活跃执念的心理张力。"""
+        now = time.time()
+        cur = self._db.execute(
+            """
+            UPDATE drives
+            SET tension = MIN(?, tension + ?), updated_at = ?
+            WHERE status = 'active'
+            """,
+            (float(max_tension), float(delta), now),
+        )
+        self._db.commit()
+        return cur.rowcount
+
+    def _row_to_drive(self, row: sqlite3.Row) -> Drive:
+        q_list = []
+        try:
+            q_list = json.loads(row["questions_json"])
+        except Exception:
+            pass
+        return Drive(
+            id=row["id"],
+            theme=row["theme"],
+            source_event_id=row["source_event_id"],
+            tension=float(row["tension"]),
+            questions=q_list,
+            status=row["status"],
+            created_at=float(row["created_at"]),
+            updated_at=float(row["updated_at"]),
+            resolved_at=float(row["resolved_at"]) if row["resolved_at"] is not None else None,
+            resolve_reason=row["resolve_reason"] or "",
+        )
+
+    # ------------------------------------------------------------ 他者之镜 (心智理论画像)
+
+    def save_mirror(self, mirror: MirrorOfOther) -> None:
+        """保存对对话者的心智揣摩画像。"""
+        self._db.execute(
+            """
+            INSERT INTO mirrors(
+                target, summary, perceived_traits, vulnerabilities,
+                interaction_advice, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(target) DO UPDATE SET
+                summary = excluded.summary,
+                perceived_traits = excluded.perceived_traits,
+                vulnerabilities = excluded.vulnerabilities,
+                interaction_advice = excluded.interaction_advice,
+                updated_at = excluded.updated_at
+            """,
+            (
+                mirror.target,
+                mirror.summary,
+                json.dumps(mirror.perceived_traits, ensure_ascii=False),
+                json.dumps(mirror.vulnerabilities, ensure_ascii=False),
+                mirror.interaction_advice,
+                float(mirror.updated_at),
+            ),
+        )
+        self._db.commit()
+
+    def get_mirror(self, target: str = "user") -> Optional[MirrorOfOther]:
+        """获取对指定对话者的心智画像。"""
+        row = self._db.execute("SELECT * FROM mirrors WHERE target = ?", (target,)).fetchone()
+        if not row:
+            return None
+        traits = []
+        vulns = []
+        try:
+            traits = json.loads(row["perceived_traits"])
+        except Exception:
+            pass
+        try:
+            vulns = json.loads(row["vulnerabilities"])
+        except Exception:
+            pass
+        return MirrorOfOther(
+            target=row["target"],
+            summary=row["summary"],
+            perceived_traits=traits,
+            vulnerabilities=vulns,
+            interaction_advice=row["interaction_advice"],
+            updated_at=float(row["updated_at"]),
+        )
+
 
     # ------------------------------------------------------------ 自述
 

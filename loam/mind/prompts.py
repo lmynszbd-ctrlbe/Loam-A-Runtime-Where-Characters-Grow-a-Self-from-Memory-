@@ -95,11 +95,95 @@ def seed_prompt(narrative: str) -> Dict[str, str]:
         "system": SEED_SYSTEM,
         "user": SEED_USER.format(narrative=narrative),
     }
-def extract_prompt(transcript: str) -> Dict[str, str]:
+def extract_prompt(
+    transcript: str,
+    mood_bias: Optional[str] = None,
+    kernel_traits: Optional[Sequence[str]] = None,
+) -> Dict[str, str]:
+    user_content = EXTRACT_USER.format(transcript=transcript)
+    if mood_bias or kernel_traits:
+        bias_lines = []
+        if mood_bias:
+            bias_lines.append(f"角色当前心境透镜：{mood_bias}")
+        if kernel_traits:
+            bias_lines.append(f"角色核心根基特质：{'；'.join(kernel_traits)}")
+        bias_text = "\n".join(bias_lines)
+        user_content = (
+            f"【主观感知透镜（Subjective Lens）】\n{bias_text}\n"
+            "认知说明：角色不是无感情的录音机。在保证事实发生过程真实的前提下，"
+            "以角色当前的心境与特质折射率去评估事件的情绪色彩（valence）与未解疑问（questions）。\n\n"
+            + user_content
+        )
     return {
         "system": EXTRACT_SYSTEM,
-        "user": EXTRACT_USER.format(transcript=transcript),
+        "user": user_content,
     }
+
+
+# ---------------------------------------------------------------- 梦境隐喻与他者心智
+
+
+DREAM_SYSTEM = """你是一套记忆梦境合成器。当角色进入深度空闲时，潜意识会尝试在两段看似不相干但暗含某种情绪或隐喻关联的记忆之间建立非线性的诗意桥梁。
+
+规则：
+1. 找出两段经历之间隐秘的情感、意象或哲学共鸣点。
+2. 形成一句简短但具意象感与沉淀感的梦境隐喻洞察（20-45字）。
+3. 给出隐喻关联度 score (0.1 ~ 0.8)。
+只输出 JSON 对象，不要解释：
+{
+  "metaphor": "梦境隐喻描述",
+  "score": 0.45,
+  "insight": "潜意识洞察"
+}"""
+
+DREAM_USER = """两段经历节点：
+【经历 A】：{summary_a}
+【经历 B】：{summary_b}
+
+角色当前自述背景：
+{narrative}
+
+请输出潜意识梦境隐喻 JSON："""
+
+
+def dream_prompt(summary_a: str, summary_b: str, narrative: str = "") -> Dict[str, str]:
+    return {
+        "system": DREAM_SYSTEM,
+        "user": DREAM_USER.format(
+            summary_a=summary_a,
+            summary_b=summary_b,
+            narrative=narrative or "（初生心智）",
+        ),
+    }
+
+
+MIRROR_SYSTEM = """你是一套心智理论（Theory of Mind）分析器。
+你的任务是站在角色的视角，分析与它对话的眼前这个人（对方），逐步建立对对方的心理画像。
+
+规则：
+1. 分析对方的语言风格、隐蔽诉求、表现出的性格倾向与可能的情感软肋。
+2. 保持角色视角的主观性，不要讨好，客观深刻。
+只输出 JSON 对象：
+{
+  "summary": "对眼前之人的总体印象（一句话）",
+  "perceived_traits": ["对方表现出的特质1", "特质2"],
+  "vulnerabilities": ["对方可能的情绪软肋或未说出口的顾虑"],
+  "interaction_advice": "角色在与此人相处时应保持的分寸感"
+}"""
+
+MIRROR_USER = """请分析以下对话中【对方】所表现出的心理状态与人格侧影：
+
+{transcript}
+
+只输出 JSON："""
+
+
+def mirror_prompt(transcript: str) -> Dict[str, str]:
+    return {
+        "system": MIRROR_SYSTEM,
+        "user": MIRROR_USER.format(transcript=transcript),
+    }
+
 
 
 # ---------------------------------------------------------------- 特质判定

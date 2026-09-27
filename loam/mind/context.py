@@ -38,6 +38,8 @@ class ContextPack:
     resonance: Optional[Dict[str, float]] = None
     mood: Optional[str] = None
     proactive_thought: Optional[str] = None
+    drives: List[Dict[str, object]] = field(default_factory=list)
+    mirror: Optional[Dict[str, object]] = None
 
     def as_dict(self) -> Dict[str, object]:
         return {
@@ -54,6 +56,8 @@ class ContextPack:
             "resonance": self.resonance,
             "mood": self.mood,
             "proactive_thought": self.proactive_thought,
+            "drives": self.drives,
+            "mirror": self.mirror,
         }
 
     def render(self) -> str:
@@ -84,6 +88,32 @@ class ContextPack:
         if self.mood:
             lines.append("\n[当下心境与情绪态]")
             lines.append(self.mood)
+
+        if self.drives:
+            lines.append("\n[内心未释怀的执念与悬念]")
+            for d in self.drives:
+                lines.append(f"- [{d['id']}] (张力 {float(d.get('tension', 0.5)):.2f}) {d.get('theme', '')}")
+                qs = d.get("questions") or []
+                if qs:
+                    lines.append(f"    -> 萦绕疑问：{' / '.join(str(q) for q in qs)}")
+
+        if self.mirror:
+            lines.append("\n[对眼前之人的心智揣摩]")
+            if isinstance(self.mirror, dict):
+                summary = self.mirror.get("summary")
+                traits = self.mirror.get("perceived_traits") or []
+                vulns = self.mirror.get("vulnerabilities") or []
+                advice = self.mirror.get("interaction_advice")
+                if summary:
+                    lines.append(f"- 印象：{summary}")
+                if traits:
+                    lines.append(f"- 揣摩特质：{'、'.join(str(x) for x in traits)}")
+                if vulns:
+                    lines.append(f"- 感知软肋：{'、'.join(str(x) for x in vulns)}")
+                if advice:
+                    lines.append(f"- 相处分寸：{advice}")
+            else:
+                lines.append(f"- {self.mirror}")
 
         if self.proactive_thought:
             lines.append("\n[独处时的自省与惦记]")
@@ -151,6 +181,9 @@ class ContextBuilder:
         mood: Optional[str] = None,
         proactive_thought: Optional[str] = None,
         resonance: Optional[Dict[str, float]] = None,
+        partner_id: str = "user",
+        active_drives: Optional[List[Dict[str, object]]] = None,
+        mirror: Optional[Dict[str, object]] = None,
     ) -> ContextPack:
         net = self.memory.load_network()
 
@@ -233,6 +266,27 @@ class ContextBuilder:
         if proactive_text is None:
             proactive_text = self.memory.get_state("last_proactive_thought", "") or None
 
+        # 加载蔡加尼克内心执念
+        drives_list: List[Dict[str, object]] = []
+        if active_drives is not None:
+            drives_list = active_drives
+        else:
+            try:
+                raw_drives = self.memory.get_active_drives(limit=3)
+                drives_list = [d.as_dict() for d in raw_drives]
+            except Exception:
+                pass
+
+        # 加载他者心智画像
+        mirror_data: Optional[Dict[str, object]] = mirror
+        if mirror_data is None and partner_id:
+            try:
+                m = self.memory.get_mirror(partner_id)
+                if m:
+                    mirror_data = m.as_dict()
+            except Exception:
+                pass
+
         nar = self.memory.current_narrative(kind="derived")
         pack = ContextPack(
             character=character,
@@ -247,6 +301,8 @@ class ContextBuilder:
             resonance=res_snapshot,
             mood=mood_text,
             proactive_thought=proactive_text,
+            drives=drives_list,
+            mirror=mirror_data,
         )
         pack.budget = self._apply_budget(pack)
         return pack
@@ -269,6 +325,12 @@ class ContextBuilder:
                 changed = True
             elif pack.proactive_thought and len(pack.proactive_thought) > 120:
                 pack.proactive_thought = pack.proactive_thought[:100].rstrip() + "…"
+                changed = True
+            elif pack.mirror and isinstance(pack.mirror, dict) and pack.mirror.get("summary") and len(str(pack.mirror["summary"])) > 80:
+                pack.mirror["summary"] = str(pack.mirror["summary"])[:70].rstrip() + "…"
+                changed = True
+            elif len(pack.drives) > 2:
+                pack.drives = pack.drives[:2]
                 changed = True
             elif pack.narrative and len(pack.narrative) > 380:
                 pack.narrative = pack.narrative[:360].rstrip() + "…"

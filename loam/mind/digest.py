@@ -35,6 +35,7 @@ import traceback
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from ..core.drive import Drive
 from ..core.growth import Evidence, Trait
 from ..core.network import Network
 from ..store.adapters import JobAdapter, PendingAdapter, TraitAdapter
@@ -42,6 +43,7 @@ from ..store.journal import Entry, Journal
 from ..store.memory import Event, Memory
 from . import prompts
 from .llm import Brain, BrainError, BrainUnavailable
+from .mirror import MirrorOfOther
 
 # ---------------------------------------------------------------- 参数
 
@@ -80,6 +82,10 @@ class DigestReport:
     traits_born: int = 0
     dossier_updates: int = 0
     narrated: bool = False
+    drives_created: int = 0
+    drives_resolved: int = 0
+    mirror_updated: bool = False
+    dreams_woven: int = 0
     errors: List[str] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
     usage: Dict[str, int] = field(default_factory=dict)
@@ -95,6 +101,10 @@ class DigestReport:
             "新长出的特质": self.traits_born,
             "档案更新": self.dossier_updates,
             "重写自述": self.narrated,
+            "执念新生": self.drives_created,
+            "执念释怀": self.drives_resolved,
+            "心智更新": self.mirror_updated,
+            "梦境隐喻": self.dreams_woven,
             "出错": self.errors,
             "提示": self.notes,
             "token": self.usage,
@@ -107,6 +117,10 @@ class DigestReport:
             "traits_born": self.traits_born,
             "dossier_updates": self.dossier_updates,
             "narrated": self.narrated,
+            "drives_created": self.drives_created,
+            "drives_resolved": self.drives_resolved,
+            "mirror_updated": self.mirror_updated,
+            "dreams_woven": self.dreams_woven,
             "errors": self.errors,
             "notes": self.notes,
         }
@@ -256,7 +270,21 @@ class Digester:
         except (BrainError, ValueError) as exc:
             report.errors.append(f"更新档案失败：{exc}")
 
-        # 七、自述（到点才写）
+        # 七、蔡加尼克内心执念演化与心结释怀
+        try:
+            c_drives, r_drives = self._process_drives(events, batch, cycle)
+            report.drives_created = c_drives
+            report.drives_resolved = r_drives
+        except Exception as exc:  # noqa: BLE001
+            report.errors.append(f"执念系统演化失败：{exc}")
+
+        # 八、他者之镜（心智理论认知更新）
+        try:
+            report.mirror_updated = self._update_mirror(batch, cycle)
+        except Exception as exc:  # noqa: BLE001
+            report.errors.append(f"他者之镜更新失败：{exc}")
+
+        # 九、自述（到点才写）
         if cycle % NARRATE_EVERY == 0:
             try:
                 report.narrated = self._narrate(cycle)
@@ -367,7 +395,17 @@ class Digester:
                 for e in batch
             ]
         )
-        p = prompts.extract_prompt(transcript)
+        mood_bias = self.memory.get_state("current_mood", "") or None
+        kernel_traits = [
+            t.text
+            for t in self.memory.load_traits()
+            if getattr(t, "is_kernel", False) or t.strength >= 0.75
+        ][:3]
+        p = prompts.extract_prompt(
+            transcript,
+            mood_bias=mood_bias,
+            kernel_traits=kernel_traits if kernel_traits else None,
+        )
         raw = self.brain.ask_json(
             p["system"],
             p["user"],
@@ -762,6 +800,203 @@ class Digester:
                 )
         return verdict if isinstance(verdict, dict) else {"结论": "看不懂的回答"}
 
+    # ------------------------------------------------------------ 执念系统与心结化解
+
+    def _process_drives(
+        self,
+        events: Sequence[Event],
+        batch: Sequence[Entry],
+        cycle: int,
+    ) -> Tuple[int, int]:
+        """蔡加尼克内心执念演化与心结释怀。
+        1. 推进现有未决执念的心理张力（随周期发酵递增）。
+        2. 扫描对话中是否化解了某些现有执念。
+        3. 对新事件中带未决疑问或强烈情感波动的，沉淀为新执念。
+        """
+        created = 0
+        resolved = 0
+
+        # 1. 活跃执念张力随时间发酵递增
+        self.memory.escalate_drives(delta=0.05, max_tension=1.0)
+
+        # 2. 检查是否有执念在本次对话中得到倾诉或解开
+        active = self.memory.get_active_drives(limit=10)
+        recent_text = " ".join(e.content for e in batch)
+        for drv in active:
+            hit = False
+            theme_words = [w for w in drv.theme.split() if len(w) >= 2]
+            if not theme_words:
+                theme_words = [drv.theme]
+            for kw in theme_words:
+                if kw in recent_text:
+                    hit = True
+                    break
+            if not hit:
+                for q in drv.questions:
+                    for qw in q.split():
+                        if len(qw) >= 2 and qw in recent_text:
+                            hit = True
+                            break
+                    if hit:
+                        break
+            if hit:
+                self.memory.resolve_drive(drv.id, reason=f"在第 {cycle} 周期对话中得到了回应与释怀")
+                resolved += 1
+
+        # 3. 新事件沉淀为新执念
+        for ev in events:
+            has_qs = bool(ev.questions)
+            high_valence = abs(ev.valence) >= 0.55
+            if has_qs or high_valence:
+                drv_id = f"drv_{cycle}_{ev.id}"
+                if self.memory.get_drive(drv_id):
+                    continue
+                questions = list(ev.questions)
+                if not questions:
+                    questions = [f"对【{ev.summary}】的心情与悬念"]
+                tension = min(0.9, 0.4 + 0.3 * abs(ev.valence) + 0.05 * len(questions))
+                d = Drive(
+                    id=drv_id,
+                    theme=ev.summary,
+                    source_event_id=ev.id,
+                    tension=tension,
+                    questions=questions,
+                    status="active",
+                )
+                self.memory.save_drive(d)
+                created += 1
+
+        return created, resolved
+
+    # ------------------------------------------------------------ 他者之镜 (心智理论认知更新)
+
+    def _update_mirror(self, batch: Sequence[Entry], cycle: int) -> bool:
+        """站在角色的第一人称视角，揣摩对方的心智理论画像。"""
+        other_entries = [
+            e for e in batch if e.role != self.character and e.role not in ("system", "__seed__")
+        ]
+        if not other_entries:
+            return False
+
+        target = other_entries[0].role
+        if target in ("user", "human"):
+            target = "user"
+
+        transcript = "\n".join([f"{e.role}: {e.content}" for e in batch[:12]])
+
+        if self.brain.available:
+            try:
+                p = prompts.mirror_prompt(transcript)
+                raw = self.brain.ask_json(p["system"], p["user"], max_tokens=1024, phase="appraise")
+                if isinstance(raw, dict):
+                    summary = str(raw.get("summary", "")).strip()
+                    traits = [str(x).strip() for x in raw.get("perceived_traits", []) if str(x).strip()]
+                    vulns = [str(x).strip() for x in raw.get("vulnerabilities", []) if str(x).strip()]
+                    advice = str(raw.get("interaction_advice", "")).strip()
+                    if summary or traits:
+                        mirror = MirrorOfOther(
+                            target=target,
+                            summary=summary,
+                            perceived_traits=traits,
+                            vulnerabilities=vulns,
+                            interaction_advice=advice,
+                        )
+                        self.memory.save_mirror(mirror)
+                        return True
+            except Exception:
+                pass
+
+        # 离线/模型不可用时的启发式心智建模
+        existing = self.memory.get_mirror(target)
+        total_len = sum(len(e.content) for e in other_entries)
+        avg_len = total_len / max(1, len(other_entries))
+        style = "言辞简练干脆" if avg_len < 25 else "善于细腻表达与探讨"
+
+        traits = list(existing.perceived_traits) if existing and existing.perceived_traits else [style]
+        if style not in traits:
+            traits.append(style)
+
+        mirror = MirrorOfOther(
+            target=target,
+            summary=existing.summary if existing and existing.summary else f"与{target}交流加深中，对方交流风格倾向于{style}",
+            perceived_traits=traits[:4],
+            vulnerabilities=list(existing.vulnerabilities) if existing else ["渴望在对话中被认真对待"],
+            interaction_advice=existing.interaction_advice if existing and existing.interaction_advice else "倾听其真实意图，在交流中给予真诚回应",
+        )
+        self.memory.save_mirror(mirror)
+        return True
+
+    # ------------------------------------------------------------ 梦境重构与诗意隐喻
+
+    def dream_cycle(self, cycle: Optional[int] = None) -> Optional[Dict[str, Any]]:
+        """深度梦境重构：在网络中远距离或未连接节点之间生成潜意识隐喻并架起桥梁。"""
+        net = self.memory.load_network()
+        node_ids = list(net._nodes.keys())
+        if len(node_ids) < 2:
+            return None
+
+        # 寻找缺乏直接高权重连线的一对节点
+        candidate_pair: Optional[Tuple[str, str]] = None
+        min_w = 999.0
+
+        scan_nodes = node_ids[-15:]
+        for i in range(len(scan_nodes)):
+            for j in range(i + 1, len(scan_nodes)):
+                u, v = scan_nodes[i], scan_nodes[j]
+                w = net.weight(u, v)
+                if w < 0.05:
+                    candidate_pair = (u, v)
+                    break
+                elif w < min_w:
+                    min_w = w
+                    candidate_pair = (u, v)
+            if candidate_pair and min_w < 0.05:
+                break
+
+        if not candidate_pair:
+            candidate_pair = (node_ids[0], node_ids[-1])
+
+        u, v = candidate_pair
+        ev_u = self.memory.get_event(u)
+        ev_v = self.memory.get_event(v)
+        if not ev_u or not ev_v:
+            return None
+
+        nar = self.memory.current_narrative(kind="derived")
+        narrative_text = str(nar.get("text", "")) if nar else ""
+
+        metaphor = ""
+        score = 0.38
+        if self.brain.available:
+            try:
+                p = prompts.dream_prompt(ev_u.summary, ev_v.summary, narrative=narrative_text)
+                raw = self.brain.ask_json(p["system"], p["user"], max_tokens=512, phase="appraise")
+                if isinstance(raw, dict):
+                    metaphor = str(raw.get("metaphor", "")).strip()
+                    score = float(raw.get("score", 0.38))
+            except Exception:
+                pass
+
+        if not metaphor:
+            metaphor = f"在【{ev_u.summary}】与【{ev_v.summary}】的缝隙中，潜意识觉察到某种隐秘的情感对称"
+            score = 0.38
+
+        # 连线入网
+        net.link(u, v, score)
+        self.memory.save_network(net)
+
+        c = cycle if cycle is not None else int(self.memory.get_state("cycle", "0"))
+        self.memory.log_change(
+            cycle=c,
+            kind="dream",
+            target=f"{u}<->{v}",
+            after=metaphor,
+            reason="潜意识梦境隐喻重构",
+            evidence=[u, v],
+        )
+        self.memory.set_state("last_dream", metaphor)
+        return {"u": u, "v": v, "metaphor": metaphor, "score": score}
+
 
 # ---------------------------------------------------------------- 后台
 
@@ -841,6 +1076,9 @@ class Grower:
 
         # 独处自省：无人对话时，在内心反刍记忆与心境
         self._maybe_daydream()
+
+        # 梦境重构：深度空闲时，非线性隐喻连接不同记忆
+        self._maybe_dream()
 
         # 0) 先把 pending_evidence 搬运进 entries（同 session 串行）
         if d.job_adapter is not None:
@@ -977,6 +1215,25 @@ class Grower:
                     self.on_daydream()
                 except Exception:  # noqa: BLE001
                     pass
+
+    def _maybe_dream(self) -> None:
+        """潜意识梦境重构：闲置时在远距离记忆节点间建立非线性诗意隐喻。"""
+        if not hasattr(self, "_dream_idle_count"):
+            self._dream_idle_count = 0
+
+        d = self.digester
+        if d.ready(idle_seconds=self.idle_seconds):
+            self._dream_idle_count = 0
+            return
+
+        self._dream_idle_count += 1
+        # 闲置累计 2 次 step 触发一次梦境重构
+        if self._dream_idle_count >= 2:
+            self._dream_idle_count = 0
+            try:
+                d.dream_cycle()
+            except Exception:  # noqa: BLE001
+                pass
 
     def drain(self, max_rounds: int = 50) -> List[DigestReport]:
         """一直煮到没料为止。用于导入历史记录，或者测试。"""
