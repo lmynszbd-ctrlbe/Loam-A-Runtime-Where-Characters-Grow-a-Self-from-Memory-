@@ -81,6 +81,7 @@ class DigestReport:
     dossier_updates: int = 0
     narrated: bool = False
     errors: List[str] = field(default_factory=list)
+    notes: List[str] = field(default_factory=list)
     usage: Dict[str, int] = field(default_factory=dict)
 
     def as_dict(self) -> Dict[str, object]:
@@ -95,7 +96,19 @@ class DigestReport:
             "档案更新": self.dossier_updates,
             "重写自述": self.narrated,
             "出错": self.errors,
+            "提示": self.notes,
             "token": self.usage,
+            "cycle": self.cycle,
+            "entries": self.entries,
+            "events": self.events,
+            "edges": self.edges,
+            "traits_touched": self.traits_touched,
+            "traits_moved": self.traits_moved,
+            "traits_born": self.traits_born,
+            "dossier_updates": self.dossier_updates,
+            "narrated": self.narrated,
+            "errors": self.errors,
+            "notes": self.notes,
         }
 
 
@@ -194,7 +207,7 @@ class Digester:
         if cycle == 1 and getattr(self.brain, 'seed_narrative', '').strip():
             try:
                 self._seed(self.brain.seed_narrative)
-                report.errors.append(f"冷启动: 种子叙述已消化")
+                report.notes.append("冷启动: 种子叙述已消化")
             except Exception as exc:
                 report.errors.append(f"种子叙述消化失败: {exc}")
 
@@ -274,17 +287,30 @@ class Digester:
 
         now = time.time()
         events: List[Event] = []
+        seed_entry_ids: List[int] = []
         for i, item in enumerate(raw):
             if not isinstance(item, dict):
                 continue
             summary = str(item.get("summary", "")).strip()
             if not summary:
                 continue
+            # 把种子叙述落盘到 Journal 形成合法的 L0 溯源
+            entry_id = self.journal.append(
+                self.character,
+                "__seed__",
+                i + 1,
+                "system",
+                f"[Seed Narrative] {summary}",
+                wrote_at=now,
+            )
+            if entry_id:
+                seed_entry_ids.append(entry_id)
+            source_ids = [entry_id] if entry_id else [1]
             eid = f"seed_{i:04d}"
             ev = Event(
                 id=eid,
                 summary=summary,
-                source_ids=[],
+                source_ids=source_ids,
                 session="__seed__",
                 salience=_num(item.get("salience"), 0.5, 0.0, 1.0),
                 valence=_num(item.get("valence"), 0.0, -1.0, 1.0),
@@ -294,6 +320,9 @@ class Digester:
             )
             self.memory.add_event(ev)
             events.append(ev)
+
+        if seed_entry_ids:
+            self.journal.mark_digested(seed_entry_ids)
 
         if events:
             self._weave(events, 0)
@@ -767,6 +796,7 @@ class Grower:
         self.last_step_at: float = 0.0
         self.last_report_at: float = 0.0
         self._step_lock = step_lock
+        self.on_daydream: Optional[Any] = None
 
 
     # ------------------------------------------------------------ 生命周期
@@ -809,6 +839,9 @@ class Grower:
         # 记忆沉淀：长时间无对话时，合并零碎事件为高级经验
         self._maybe_consolidate()
 
+        # 独处自省：无人对话时，在内心反刍记忆与心境
+        self._maybe_daydream()
+
         # 0) 先把 pending_evidence 搬运进 entries（同 session 串行）
         if d.job_adapter is not None:
             q = d.job_adapter.drain_ingest_jobs(d.character, max_jobs=1)
@@ -826,9 +859,9 @@ class Grower:
 
         report = d.digest_once()
         if filled:
-            report.errors.append(f"顺手关闭了 {filled} 个漏轮缺口")
+            report.notes.append(f"顺手关闭了 {filled} 个漏轮缺口")
         if stale:
-            report.errors.append(f"检测到 {len(stale)} 个长时间无新输入会话（仅提示）")
+            report.notes.append(f"检测到 {len(stale)} 个长时间无新输入会话（仅提示）")
         if q.get("jobs_failed_now"):
             report.errors.append(f"ingest queue 失败 {int(q.get('jobs_failed_now') or 0)} 次")
 
@@ -924,6 +957,26 @@ class Grower:
                 reason="记忆沉淀",
                 evidence=eids,
             )
+
+    def _maybe_daydream(self) -> None:
+        """独处自省机制：无人对话时，角色在内心默默反刍记忆与心境。"""
+        if not hasattr(self, "_daydream_idle_count"):
+            self._daydream_idle_count = 0
+
+        d = self.digester
+        if d.ready(idle_seconds=self.idle_seconds):
+            self._daydream_idle_count = 0
+            return
+
+        self._daydream_idle_count += 1
+        # 闲置累计 3 次 step 触发一次独处心理反思
+        if self._daydream_idle_count >= 3:
+            self._daydream_idle_count = 0
+            if getattr(self, "on_daydream", None):
+                try:
+                    self.on_daydream()
+                except Exception:  # noqa: BLE001
+                    pass
 
     def drain(self, max_rounds: int = 50) -> List[DigestReport]:
         """一直煮到没料为止。用于导入历史记录，或者测试。"""

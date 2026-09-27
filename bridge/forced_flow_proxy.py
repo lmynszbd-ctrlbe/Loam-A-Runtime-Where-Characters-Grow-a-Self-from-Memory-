@@ -474,9 +474,8 @@ def _models_merged() -> Dict[str, Any]:
                     c["id"] = f"{name}/{mid}"
                     c["owned_by"] = f"{name}:{m.get('owned_by', '')}".strip(":")
                     out.append(c)
-                continue
         except Exception as exc:
-            return {"object": "list", "data": [], "_error": f"{name}: {type(exc).__name__}: {exc}"}
+            print(f"[proxy] failed to fetch models from {name}: {type(exc).__name__}: {exc}", flush=True)
 
         # fallback: 至少用 default_model 生成一个条目，让用户能下拉选择
         dmodel = (UPSTREAMS.get(name) or {}).get("default_model", "").strip()
@@ -495,7 +494,8 @@ class Handler(BaseHTTPRequestHandler):
         if TOKEN_AUTH_REQUIRED and not self._check_token():
             self._send(401, {"error": {"message": "unauthorized: missing or invalid proxy token. Set PROXY_TOKEN env or check ~/.loam/proxy_token"}})
             return
-        if self.path != "/v1/chat/completions":
+        path = self.path.split("?", 1)[0]
+        if path != "/v1/chat/completions":
             self._send(404, {"error": {"message": "not found"}})
             return
 
@@ -626,7 +626,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         _maybe_reload_upstreams()
-        if self.path == "/health":
+        path = self.path.split("?", 1)[0]
+        if path == "/health":
             self._send(
                 200,
                 {
@@ -639,7 +640,7 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
 
-        if self.path == "/v1/models":
+        if path == "/v1/models":
             self._send(200, _models_merged())
             return
 
@@ -706,6 +707,14 @@ class Handler(BaseHTTPRequestHandler):
             }
             return ("data: " + json.dumps(payload, ensure_ascii=False) + "\n\n").encode("utf-8")
 
+        finish = "stop"
+        try:
+            choices = up_resp.get("choices")
+            if choices and isinstance(choices, list) and isinstance(choices[0], dict):
+                finish = choices[0].get("finish_reason") or "stop"
+        except Exception:
+            pass
+
         try:
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
@@ -719,7 +728,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(chunk({"content": content}))
             if tool_calls and isinstance(tool_calls, list) and len(tool_calls) > 0:
                 self.wfile.write(chunk({"tool_calls": tool_calls}))
-            self.wfile.write(chunk({}, finish="stop"))
+            self.wfile.write(chunk({}, finish=finish))
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError):

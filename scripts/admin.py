@@ -66,14 +66,19 @@ def write_json_file(path, data):
 
 def api(path, method="GET", body=None):
     try:
+        secrets = read_json_file(SECRETS_FILE)
+        api_key = os.environ.get("LOAM_API_KEY") or (secrets.get("api_key") if isinstance(secrets, dict) else "")
         if body is not None:
-            data = json.dumps(body).encode()
+            data = json.dumps(body, ensure_ascii=False).encode("utf-8")
             req = urllib.request.Request(f"{LOAM}{path}", data=data, method=method)
             req.add_header("Content-Type", "application/json")
         else:
             req = urllib.request.Request(f"{LOAM}{path}", method=method)
+        if api_key:
+            req.add_header("X-API-Key", str(api_key).strip())
         with urllib.request.urlopen(req, timeout=10) as r:
-            return json.loads(r.read())
+            raw = r.read().decode("utf-8")
+            return json.loads(raw) if raw else {}
     except Exception as e:
         return {"error": str(e)}
 
@@ -593,6 +598,42 @@ main {
     </div>
   </div>
 
+  <!-- PERSONA -->
+  <div id="panel-persona" class="panel">
+    <h1>🎭 性格预设与宏观气质</h1>
+    <div class="sub">将底层 48 个物理动力学参数抽象为 5 维直观气质大旋钮与 4 套经典预设卡</div>
+    
+    <div class="card" style="margin-bottom:16px;">
+      <h3>⚡ 快捷性格预设卡 (One-Click Presets)</h3>
+      <div id="persona-presets" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+        <!-- 预设卡按钮由 JS 动态生成 -->
+      </div>
+      <div id="current-preset-badge" style="margin-top:12px;font-size:13px;color:var(--muted)">当前状态：<span id="active-preset-name" style="font-weight:600;color:var(--accent)">自定义参数</span></div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <h3>🎛️ 五维气质宏观大旋钮 (Macro Knobs)</h3>
+      <div id="persona-knobs-list" style="margin-top:12px;display:flex;flex-direction:column;gap:14px;">
+        <!-- 旋钮滑块由 JS 动态生成 -->
+      </div>
+      <div style="display:flex;gap:10px;margin-top:20px;">
+        <button class="btn btn-ok" onclick="savePersonaKnobs()">💾 保存并应用参数</button>
+        <button class="btn btn-outline" onclick="resetPersona()">🔄 重置为默认平衡态</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🌊 当下心境共振与独处自省 (Resonance & Daydream)</h3>
+      <div id="persona-resonance-box" style="margin-top:10px;">
+        <!-- 心境与情绪共振状态 -->
+      </div>
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button class="btn btn-sm btn-outline" onclick="triggerProactiveThought()">💭 触发一次独处心理反思</button>
+        <button class="btn btn-sm" onclick="loadPersona()">🔄 刷新心境态</button>
+      </div>
+    </div>
+  </div>
+
   <!-- TRAITS -->
   <div id="panel-traits" class="panel">
     <h1>🧬 Traits</h1>
@@ -971,21 +1012,184 @@ function toast(msg, cls) {
 }
 
 // ---- navigation ----
+function showPanel(name) {
+  let target = name;
+  if (target === 'connections') target = 'connect';
+  document.querySelectorAll('.nav-links a').forEach(x => x.classList.remove('active'));
+  const navEl = document.getElementById('nav-' + name) || document.getElementById('nav-' + target);
+  if (navEl) navEl.classList.add('active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  const panelEl = document.getElementById('panel-' + target);
+  if (panelEl) panelEl.classList.add('active');
+  if (target === 'demo') {
+    renderDemoTraits();
+    return;
+  }
+  const fn = 'load' + target.charAt(0).toUpperCase() + target.slice(1);
+  if (typeof window[fn] === 'function') window[fn]();
+}
+
 document.querySelectorAll('.nav-link').forEach(a => {
   a.addEventListener('click', e => {
     e.preventDefault();
-    document.querySelectorAll('.nav-link').forEach(x => x.classList.remove('active'));
-    a.classList.add('active');
-    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-    document.getElementById('panel-' + a.dataset.panel).classList.add('active');
-    if (a.dataset.panel === 'demo') {
-      renderDemoTraits();
-      return;
-    }
-    const fn = 'load' + a.dataset.panel.charAt(0).toUpperCase() + a.dataset.panel.slice(1);
-    if (typeof window[fn] === 'function') window[fn]();
+    if (a.dataset.panel) showPanel(a.dataset.panel);
   });
 });
+
+// ---- PERSONA & VITALITY ----
+let currentPersonaData = null;
+
+async function loadPersona() {
+  try {
+    const [pData, resData, proData] = await Promise.all([
+      call('GET', '/persona'),
+      call('GET', '/resonance'),
+      call('GET', '/proactive'),
+    ]);
+    currentPersonaData = pData;
+
+    // 1. Presets
+    const presetsDiv = document.getElementById('persona-presets');
+    const presets = pData.presets || {};
+    const curPreset = pData.current_preset;
+    document.getElementById('active-preset-name').textContent = curPreset ? (presets[curPreset]?.name || curPreset) : '自定义参数模式';
+
+    let presetsHtml = '';
+    for (const [key, p] of Object.entries(presets)) {
+      const activeClass = (key === curPreset) ? 'btn-ok' : 'btn-outline';
+      presetsHtml += `
+        <div style="flex:1;min-width:180px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-subtle)">
+          <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${esc(p.name)}</div>
+          <div style="font-size:12px;color:var(--muted);min-height:36px;margin-bottom:10px;">${esc(p.desc)}</div>
+          <button class="btn btn-sm ${activeClass}" style="width:100%" onclick="applyPersonaPreset('${key}')">一键应用此卡片</button>
+        </div>
+      `;
+    }
+    presetsDiv.innerHTML = presetsHtml;
+
+    // 2. Knobs
+    const schema = pData.schema || {};
+    const currentKnobs = pData.current_knobs || {};
+    const knobsDiv = document.getElementById('persona-knobs-list');
+    let knobsHtml = '';
+    for (const [key, meta] of Object.entries(schema)) {
+      const val = (currentKnobs[key] !== undefined) ? currentKnobs[key] : (meta.default || 0.5);
+      knobsHtml += `
+        <div style="display:flex;flex-direction:column;gap:4px;padding:8px 12px;background:var(--bg-subtle);border-radius:6px;border:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-weight:600;font-size:13.5px;">${esc(meta.name)}</span>
+            <span id="knob-val-${key}" style="font-family:monospace;font-weight:bold;color:var(--accent);">${Number(val).toFixed(2)}</span>
+          </div>
+          <div style="font-size:11.5px;color:var(--muted);">${esc(meta.desc)}</div>
+          <input type="range" id="knob-slider-${key}" min="0" max="1" step="0.01" value="${val}"
+            oninput="document.getElementById('knob-val-${key}').textContent = Number(this.value).toFixed(2)"
+            style="width:100%;margin-top:6px;cursor:pointer;">
+        </div>
+      `;
+    }
+    knobsDiv.innerHTML = knobsHtml;
+
+    // 3. Resonance & Daydream
+    const resBox = document.getElementById('persona-resonance-box');
+    const moodDesc = resData.description || '心绪平稳均衡';
+    const elems = resData.elements || {};
+    const thought = (proData && proData.thought) ? proData.thought : '（暂无独处自省，角色正在静静观察外界）';
+    
+    let elemBarsHtml = '<div style="display:flex;gap:8px;margin-top:8px;margin-bottom:12px;flex-wrap:wrap;">';
+    const elemNames = { wood: '木·进取', fire: '火·热情', earth: '土·深思', metal: '金·清醒', water: '水·警惕' };
+    for (const [e, v] of Object.entries(elems)) {
+      const pct = Math.max(5, Math.min(100, Math.round((Math.abs(v)) * 100)));
+      elemBarsHtml += `
+        <div style="flex:1;min-width:90px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px 8px;text-align:center;">
+          <div style="font-size:11px;color:var(--muted)">${elemNames[e]||e}</div>
+          <div style="font-weight:bold;font-size:12px;margin:2px 0;color:${v>=0?'var(--ok)':'var(--err)'}">${v>0?'+':''}${Number(v).toFixed(2)}</div>
+          <div style="background:var(--border);height:4px;border-radius:2px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${v>=0?'var(--ok)':'var(--err)'}"></div>
+          </div>
+        </div>
+      `;
+    }
+    elemBarsHtml += '</div>';
+
+    resBox.innerHTML = `
+      <div style="padding:10px 14px;background:var(--bg-subtle);border-radius:6px;border:1px solid var(--border);margin-bottom:10px;">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:2px;">🎭 当下情绪态 / 主导心境</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);">${esc(moodDesc)}</div>
+        ${elemBarsHtml}
+      </div>
+      <div style="padding:10px 14px;background:var(--bg-subtle);border-radius:6px;border:1px solid var(--border)">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:2px;">💭 独处时的自省与惦记 (Daydreaming Thought)</div>
+        <div style="font-size:13.5px;color:var(--text);line-height:1.5;font-style:italic;">"${esc(thought)}"</div>
+      </div>
+    `;
+  } catch (e) {
+    toast('加载性格与心境数据失败: ' + e, 'err');
+  }
+}
+
+async function applyPersonaPreset(name) {
+  try {
+    const res = await call('POST', '/persona/apply', { preset: name });
+    if (res.ok) {
+      toast('成功应用预设: ' + name, 'ok');
+      await loadPersona();
+    } else {
+      toast(res.error || '应用预设失败', 'err');
+    }
+  } catch (e) {
+    toast('应用预设出错: ' + e, 'err');
+  }
+}
+
+async function savePersonaKnobs() {
+  if (!currentPersonaData || !currentPersonaData.schema) return;
+  const knobs = {};
+  for (const k of Object.keys(currentPersonaData.schema)) {
+    const el = document.getElementById('knob-slider-' + k);
+    if (el) knobs[k] = parseFloat(el.value);
+  }
+  try {
+    const res = await call('POST', '/persona/apply', { knobs });
+    if (res.ok) {
+      toast('性格大旋钮保存成功并已联动更新物理动力学常数！', 'ok');
+      await loadPersona();
+    } else {
+      toast(res.error || '保存失败', 'err');
+    }
+  } catch (e) {
+    toast('保存出错: ' + e, 'err');
+  }
+}
+
+async function resetPersona() {
+  if (!confirm('确定将角色性格大旋钮恢复为默认平衡态 (0.5) 并清空常数覆盖吗？')) return;
+  try {
+    const res = await call('POST', '/persona/reset');
+    if (res.ok) {
+      toast('已重置为默认平衡态', 'ok');
+      await loadPersona();
+    } else {
+      toast(res.error || '重置失败', 'err');
+    }
+  } catch (e) {
+    toast('重置出错: ' + e, 'err');
+  }
+}
+
+async function triggerProactiveThought() {
+  try {
+    toast('正在触发独处自省思考...', 'ok');
+    const res = await call('POST', '/proactive', { force: true });
+    if (res.ok) {
+      toast('独处自省思考已生成！', 'ok');
+      await loadPersona();
+    } else {
+      toast(res.error || '生成失败', 'err');
+    }
+  } catch (e) {
+    toast('生成出错: ' + e, 'err');
+  }
+}
 
 // ---- STATUS ----
 async function loadStatus() {
@@ -1836,11 +2040,17 @@ class Handler(BaseHTTPRequestHandler):
             hostname = socket.gethostname()
             addrs["hostname"] = hostname
             try:
-                ip = socket.gethostbyname(hostname)
-                if ip and not ip.startswith("127."):
-                    addrs["local"].append(ip)
+                for item in socket.getaddrinfo(hostname, None, socket.AF_INET):
+                    ip_cand = item[4][0]
+                    if ip_cand and not ip_cand.startswith("127.") and ip_cand not in addrs["local"]:
+                        addrs["local"].append(ip_cand)
             except Exception:
-                pass
+                try:
+                    ip = socket.gethostbyname(hostname)
+                    if ip and not ip.startswith("127.") and ip not in addrs["local"]:
+                        addrs["local"].append(ip)
+                except Exception:
+                    pass
 
             # fallback: parse ifconfig / ip addr
             seen = set(addrs["local"])
@@ -1885,9 +2095,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def _save_secrets(self):
         body = self._read_body()
+        base_url = (body.get("base_url") or "").strip().rstrip("/")
+        if base_url.endswith("/v1"):
+            base_url = base_url[:-3].rstrip("/")
         data = {
             "api_key": (body.get("api_key") or "").strip(),
-            "base_url": (body.get("base_url") or "").strip().rstrip("/v1").rstrip("/"),
+            "base_url": base_url,
             "model": (body.get("model") or "").strip(),
         }
         if not (data["api_key"] and data["base_url"] and data["model"]):
@@ -2034,20 +2247,21 @@ class Handler(BaseHTTPRequestHandler):
 
 
             restart = []
-            for proc_name in ["loam.__main__", "forced_flow_proxy", "scripts/admin.py", "scripts/dashboard.py"]:
-                try:
-                    subprocess.run(["pkill", "-f", proc_name], timeout=5)
-                    restart.append(proc_name)
-                except Exception:
-                    pass
+            if sys.platform != "win32":
+                for proc_name in ["loam.__main__", "forced_flow_proxy", "scripts/admin.py", "scripts/dashboard.py"]:
+                    try:
+                        subprocess.run(["pkill", "-f", proc_name], timeout=5)
+                        restart.append(proc_name)
+                    except Exception:
+                        pass
             try:
-                subprocess.Popen(["python3", "-m", "loam", "run", "--grow-interval", "60"],
+                subprocess.Popen([sys.executable, "-m", "loam", "run", "--grow-interval", "60"],
                                 cwd=repo_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 restart.append("loam-restarted")
             except Exception:
                 pass
             try:
-                subprocess.Popen(["python3", "bridge/forced_flow_proxy.py"],
+                subprocess.Popen([sys.executable, "bridge/forced_flow_proxy.py"],
                                 cwd=repo_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 restart.append("proxy-restarted")
             except Exception:
@@ -2096,18 +2310,19 @@ class Handler(BaseHTTPRequestHandler):
             write_json_file(UPSTREAMS_FILE, {"default":"relayA","providers":{"relayA":{"base_url":"","api_key":"","default_model":""}}})
         # 强杀端口占用
         import subprocess as sp
-        try:
-            sp.run(["fuser", "-k", "8781/tcp"], timeout=5, capture_output=True)
-        except Exception:
+        if sys.platform != "win32":
             try:
-                sp.run(["pkill", "-9", "-f", "forced_flow_proxy"], timeout=5)
+                sp.run(["fuser", "-k", "8781/tcp"], timeout=5, capture_output=True)
             except Exception:
-                pass
+                try:
+                    sp.run(["pkill", "-9", "-f", "forced_flow_proxy"], timeout=5)
+                except Exception:
+                    pass
         import time
         time.sleep(2)
         try:
             sp.Popen(
-                ["python3", "bridge/forced_flow_proxy.py"],
+                [sys.executable, "bridge/forced_flow_proxy.py"],
                 cwd=repo_dir,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 env={**os.environ, "PROXY_NO_AUTH": "1"}
@@ -2124,12 +2339,14 @@ class Handler(BaseHTTPRequestHandler):
         if not url or not key:
             return {"error": "base_url and api_key are required"}
         url = url.rstrip("/")
+        models_url = f"{url}/models" if url.endswith("/v1") else f"{url}/v1/models"
         try:
-            req = urllib.request.Request(f"{url}/models")
+            req = urllib.request.Request(models_url)
             req.add_header("Authorization", f"Bearer {key}")
             req.add_header("Content-Type", "application/json")
             with urllib.request.urlopen(req, timeout=15) as r:
-                data = json.loads(r.read())
+                raw = r.read().decode("utf-8")
+                data = json.loads(raw) if raw else {}
             models = []
             for m in data.get("data", []):
                 mid = m.get("id", "")

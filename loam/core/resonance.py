@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 # 基础情绪特质映射表 (五行情志模型)
@@ -117,3 +117,83 @@ class EmotionalResonanceEngine:
                 max_energy = abs(val)
                 best_elem = elem
         return best_elem, self._states[best_elem]
+
+    def to_dict(self) -> Dict[str, Any]:
+        """序列化引擎状态，用于跨周期持久化。"""
+        return {
+            "window_size": self.window_size,
+            "damping_factor": self.damping_factor,
+            "resonance_gain": self.resonance_gain,
+            "states": {k: round(v, 4) for k, v in self._states.items()},
+            "history": [
+                {
+                    "element": p.element,
+                    "intensity": p.intensity,
+                    "timestamp": p.timestamp,
+                    "note": p.note,
+                }
+                for p in self.history[-self.window_size :]
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> EmotionalResonanceEngine:
+        """从字典反序列化还原引擎状态。"""
+        engine = cls(
+            window_size=data.get("window_size", 10),
+            damping_factor=data.get("damping_factor", 0.85),
+            resonance_gain=data.get("resonance_gain", 0.15),
+        )
+        if "states" in data and isinstance(data["states"], dict):
+            for k, v in data["states"].items():
+                if k in engine._states:
+                    try:
+                        engine._states[k] = max(-1.0, min(1.0, float(v)))
+                    except (ValueError, TypeError):
+                        pass
+        if "history" in data and isinstance(data["history"], list):
+            for item in data["history"]:
+                if isinstance(item, dict) and "element" in item and "intensity" in item:
+                    engine.history.append(
+                        EmotionPulse(
+                            element=str(item["element"]),
+                            intensity=float(item["intensity"]),
+                            timestamp=float(item.get("timestamp", time.time())),
+                            note=str(item.get("note", "")),
+                        )
+                    )
+        return engine
+
+    def describe_mood(self) -> str:
+        """输出可直读的情绪与心境自然语言描述（用于上下文注入）。"""
+        elem, val = self.dominant_mood()
+        if abs(val) < 0.15:
+            return "心绪平和：当前处于均衡松弛状态，无剧烈情绪起伏。"
+
+        meta = ELEMENT_META.get(
+            elem,
+            {"name": elem, "positive": "活跃", "negative": "低落", "quality": "常态"},
+        )
+        tone = meta["positive"] if val > 0 else meta["negative"]
+        level = "充沛强烈" if abs(val) > 0.65 else ("明显" if abs(val) > 0.35 else "微澜")
+        return f"{meta['name']}气·{tone}（能量等级：{level}，当前强度：{val:+.2f}）。心智特质偏向【{meta['quality']}】。"
+
+    def mood_snapshot(self) -> Dict[str, Any]:
+        """返回结构化心境快照。"""
+        elem, val = self.dominant_mood()
+        return {
+            "dominant_element": elem,
+            "dominant_intensity": round(val, 4),
+            "description": self.describe_mood(),
+            "elements": self.get_resonance_snapshot(),
+        }
+
+
+ELEMENT_META: Dict[str, Dict[str, str]] = {
+    "wood": {"name": "木", "positive": "进取活跃", "negative": "烦闷躁动", "quality": "生发突破"},
+    "fire": {"name": "火", "positive": "热情开朗", "negative": "焦虑急躁", "quality": "喜悦共鸣"},
+    "earth": {"name": "土", "positive": "笃定沉稳", "negative": "凝滞迟缓", "quality": "包容深思"},
+    "metal": {"name": "金", "positive": "清醒决断", "negative": "清冷戒备", "quality": "秩序边界"},
+    "water": {"name": "水", "positive": "柔和变通", "negative": "不安疑虑", "quality": "内敛敏锐"},
+}
+

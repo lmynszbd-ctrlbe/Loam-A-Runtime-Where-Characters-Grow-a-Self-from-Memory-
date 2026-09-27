@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 import time
 from dataclasses import dataclass, field
@@ -13,6 +14,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..core.network import seed_from_matches
 from ..core.growth import Trait
+from ..core.resonance import EmotionalResonanceEngine
 from ..store.journal import Journal
 from ..store.memory import Event, Memory
 
@@ -33,6 +35,10 @@ class ContextPack:
     matches: List[Dict[str, object]] = field(default_factory=list)
     budget: Dict[str, object] = field(default_factory=dict)
 
+    resonance: Optional[Dict[str, float]] = None
+    mood: Optional[str] = None
+    proactive_thought: Optional[str] = None
+
     def as_dict(self) -> Dict[str, object]:
         return {
             "character": self.character,
@@ -45,6 +51,9 @@ class ContextPack:
             "recalled": self.recalled,
             "matches": self.matches,
             "budget": self.budget,
+            "resonance": self.resonance,
+            "mood": self.mood,
+            "proactive_thought": self.proactive_thought,
         }
 
     def render(self) -> str:
@@ -72,6 +81,14 @@ class ContextPack:
         else:
             lines.append("- （还没有）")
 
+        if self.mood:
+            lines.append("\n[当下心境与情绪态]")
+            lines.append(self.mood)
+
+        if self.proactive_thought:
+            lines.append("\n[独处时的自省与惦记]")
+            lines.append(self.proactive_thought)
+
         lines.append("\n[被想起的经历]")
         if self.recalled:
             for e in self.recalled:
@@ -87,7 +104,7 @@ class ContextPack:
                 drilldown = e.get("drilldown") or []
                 if drilldown:
                     for d in drilldown:
-                        lines.append(f"    ↳ [L0 现场] {d.get('role')}: {d.get('content')}")
+                        lines.append(f"    -> [L0 现场] {d.get('role')}: {d.get('content')}")
         else:
             lines.append("- （无）")
 
@@ -126,7 +143,15 @@ class ContextBuilder:
         self.hard_token_budget = max(self.soft_token_budget, int(hard_token_budget))
         self.drilldown_top_k = max(0, int(drilldown_top_k))
 
-    def build(self, character: str, query: str, learn: bool = True) -> ContextPack:
+    def build(
+        self,
+        character: str,
+        query: str,
+        learn: bool = True,
+        mood: Optional[str] = None,
+        proactive_thought: Optional[str] = None,
+        resonance: Optional[Dict[str, float]] = None,
+    ) -> ContextPack:
         net = self.memory.load_network()
 
         matches: List[Tuple[str, float]] = []
@@ -182,6 +207,32 @@ class ContextBuilder:
             if t.strength >= self.trait_floor
         ][: self.max_traits]
 
+        # 加载情绪共振态与主导心境
+        res_snapshot = resonance
+        if res_snapshot is None:
+            raw_res = self.memory.get_state("resonance_state", "")
+            if raw_res:
+                try:
+                    res_data = json.loads(raw_res)
+                    res_snapshot = res_data.get("states")
+                except Exception:
+                    pass
+
+        mood_text = mood
+        if mood_text is None:
+            mood_text = self.memory.get_state("current_mood", "") or None
+            if not mood_text and res_snapshot:
+                try:
+                    eng = EmotionalResonanceEngine.from_dict({"states": res_snapshot})
+                    mood_text = eng.describe_mood()
+                except Exception:
+                    pass
+
+        # 加载独处自省与惦记
+        proactive_text = proactive_thought
+        if proactive_text is None:
+            proactive_text = self.memory.get_state("last_proactive_thought", "") or None
+
         nar = self.memory.current_narrative(kind="derived")
         pack = ContextPack(
             character=character,
@@ -193,6 +244,9 @@ class ContextBuilder:
             traits=traits,
             recalled=recalled,
             matches=match_view,
+            resonance=res_snapshot,
+            mood=mood_text,
+            proactive_thought=proactive_text,
         )
         pack.budget = self._apply_budget(pack)
         return pack
@@ -201,7 +255,7 @@ class ContextBuilder:
         """上下文预算器：先尽量贴近软预算，再用硬上限兜底。"""
         before = _estimate_tokens(pack.render())
 
-        # 软预算：优先裁剪最可替代部分（字面命中 / 召回尾部 / 低强度倾向）
+        # 软预算：优先裁剪最可替代部分（字面命中 / 召回尾部 / 低强度倾向 / 冗长惦记）
         while _estimate_tokens(pack.render()) > self.soft_token_budget:
             changed = False
             if len(pack.matches) > 3:
@@ -212,6 +266,9 @@ class ContextBuilder:
                 changed = True
             elif len(pack.traits) > 8:
                 pack.traits = pack.traits[: max(8, len(pack.traits) - 1)]
+                changed = True
+            elif pack.proactive_thought and len(pack.proactive_thought) > 120:
+                pack.proactive_thought = pack.proactive_thought[:100].rstrip() + "…"
                 changed = True
             elif pack.narrative and len(pack.narrative) > 380:
                 pack.narrative = pack.narrative[:360].rstrip() + "…"

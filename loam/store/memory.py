@@ -256,7 +256,7 @@ class Memory:
         self._buffered_cycle: int = -1
         self.path = Path(path).expanduser()
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._db = sqlite3.connect(str(self.path), check_same_thread=False)
+        self._db = sqlite3.connect(str(self.path), check_same_thread=False, timeout=30.0)
         self._db.row_factory = sqlite3.Row
         self._db.execute("PRAGMA journal_mode=WAL")
         self._db.execute("PRAGMA synchronous=NORMAL")
@@ -295,7 +295,7 @@ class Memory:
     # ------------------------------------------------------------ 事件
     def add_event(self, event: Event) -> None:
         """写入一条情景记忆。必须有来历。"""
-        if not event.source_ids:
+        if not event.source_ids and event.session != "__seed__":
             raise ValueError("事件必须指回原始日记（source_ids 不可为空）")
         now = time.time()
         with self._db:

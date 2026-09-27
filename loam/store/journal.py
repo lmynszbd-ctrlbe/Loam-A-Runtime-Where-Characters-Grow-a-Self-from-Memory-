@@ -180,7 +180,7 @@ class Journal:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path).expanduser()
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._db = sqlite3.connect(str(self.path), check_same_thread=False)
+        self._db = sqlite3.connect(str(self.path), check_same_thread=False, timeout=30.0)
         self._db.row_factory = sqlite3.Row
         # WAL 让写入更难失败，也允许后台边煮边有新料进来
         self._db.execute("PRAGMA journal_mode=WAL")

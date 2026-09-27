@@ -14,6 +14,13 @@ from .server import LoamService, ServiceConfig, build_server
 
 
 def main(argv: list[str] | None = None) -> int:
+    if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
     parser = _parser()
     args = parser.parse_args(argv)
 

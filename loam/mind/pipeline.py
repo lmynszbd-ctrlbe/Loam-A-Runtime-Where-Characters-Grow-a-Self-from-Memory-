@@ -84,16 +84,20 @@ def parse_turn_channels(role: str, content: str) -> ParsedTurn:
 
     residual = _TOOL_CALL_RE.sub(_extract_tool, residual)
 
-    # 3. 检查残留文本中的独立 JSON tool call 代码块
-    for jm in _JSON_BLOCK_RE.finditer(residual):
-        block_text = jm.group(1).strip()
+    # 3. 检查残留文本中的独立 JSON tool call 代码块并剥离
+    def _extract_json_block(match: re.Match) -> str:
+        block_text = match.group(1).strip()
         try:
             val = json.loads(block_text)
             if isinstance(val, dict) and ("tool" in val or "tool_name" in val or "action" in val or "name" in val):
                 actions.append(val)
                 segments.append(ChannelSegment(channel="action", content=block_text, meta={"type": "json_block"}))
+                return ""
         except Exception:
             pass
+        return match.group(0)
+
+    residual = _JSON_BLOCK_RE.sub(_extract_json_block, residual)
 
     # 4. 剩余文本即为纯净的对外对话
     clean_dialogue = residual.strip()

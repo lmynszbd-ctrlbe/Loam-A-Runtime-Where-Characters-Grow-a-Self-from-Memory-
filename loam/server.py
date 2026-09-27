@@ -22,6 +22,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs, urlparse
 
+from .core.persona import KNOBS_SCHEMA, PRESET_PERSONAS, map_knobs_to_constants
+from .core.resonance import EmotionalResonanceEngine
 from .core.state import (
     apply_overrides_to_constants,
     clear_persisted_overrides,
@@ -127,9 +129,18 @@ class LoamService:
         self._runtime_const_overrides: Dict[str, Dict[str, Any]] = {}
         self._restore_persisted_constants()
 
+        # 情绪共振系统 (五行生克与阻尼矩阵)
+        raw_res = self.memory.get_state("resonance_state", "")
+        if raw_res:
+            try:
+                self.resonance = EmotionalResonanceEngine.from_dict(json.loads(raw_res))
+            except Exception:
+                self.resonance = EmotionalResonanceEngine()
+        else:
+            self.resonance = EmotionalResonanceEngine()
+
         # 所有 journal/memory 操作都走同一把锁，避免 HTTP 请求与后台 grower 竞态。
         self._lock = threading.RLock()
-
 
         self.grower = Grower(
             self.digester,
@@ -138,6 +149,7 @@ class LoamService:
             audit_every=config.audit_every,
             step_lock=self._lock,
         )
+        self.grower.on_daydream = self._on_grower_daydream
 
         if config.auto_start_grower:
             self.grower.start()
@@ -731,6 +743,29 @@ class LoamService:
 
             report = self.digester.digest_once(limit=safe_limit)
             out = report.as_dict()
+
+            # 情绪共振更新：若本轮消化产生了新事件，根据事件的情感价与显著度注入共振脉冲
+            if report.events > 0:
+                try:
+                    new_events = self.memory.recent_events(limit=min(report.events, 10))
+                    for ev in reversed(new_events):
+                        sal = float(getattr(ev, "salience", 0.5) or 0.5)
+                        val = float(getattr(ev, "valence", 0.0) or 0.0)
+                        if getattr(ev, "stood_firm", False):
+                            self.resonance.pulse("metal", 0.4 * sal, note=f"坚持立场: {ev.summary[:20]}")
+                        if val > 0.15:
+                            self.resonance.pulse("fire", val * sal, note=f"正向刺激: {ev.summary[:20]}")
+                        elif val < -0.15:
+                            self.resonance.pulse("water", abs(val) * sal, note=f"防御警惕: {ev.summary[:20]}")
+                        if getattr(ev, "questions", None):
+                            self.resonance.pulse("earth", 0.3 * sal, note=f"思索疑问: {ev.summary[:20]}")
+                        if sal >= 0.7:
+                            self.resonance.pulse("wood", 0.4 * sal, note=f"高刺激事件: {ev.summary[:20]}")
+                    self.memory.set_state("resonance_state", json.dumps(self.resonance.to_dict()))
+                    self.memory.set_state("current_mood", self.resonance.describe_mood())
+                except Exception:
+                    pass
+
             pending = self.digester.pending_count()
             qstats = self.adapters.jobs.queue_stats(self.character)
             open_gaps = len(self.journal.open_gaps(self.character))
@@ -740,6 +775,8 @@ class LoamService:
             out["alerts"] = self._build_alerts(qstats, pending, open_gaps)
             out["limit"] = safe_limit
             out["decay"] = self._maybe_apply_decay_unlocked(force=False)
+            out["resonance"] = self.resonance.get_resonance_snapshot()
+            out["mood"] = self.resonance.describe_mood()
             return out
 
     def drain(self, max_rounds: int = 50) -> Dict[str, Any]:
@@ -783,8 +820,19 @@ class LoamService:
                     sync_report = self.digest_once(limit=20)
                 except Exception:
                     pass
-            pack = self.context.build(self.character, query=query, learn=learn)
-            result = {"context": pack.as_dict(), "text": pack.render()}
+            pack = self.context.build(
+                self.character,
+                query=query,
+                learn=learn,
+                mood=self.resonance.describe_mood(),
+                resonance=self.resonance.get_resonance_snapshot(),
+            )
+            result = {
+                "context": pack.as_dict(),
+                "text": pack.render(),
+                "resonance": self.resonance.get_resonance_snapshot(),
+                "mood": self.resonance.describe_mood(),
+            }
             if sync_report is not None:
                 result["sync_grow"] = {
                     "entries": sync_report.get("entries", 0),
@@ -841,6 +889,162 @@ class LoamService:
         self._runtime_const_overrides = {}
         clear_persisted_overrides(home=self.loam_home)
         return {"cleared": cleared_count, "ok": True}
+
+    def get_resonance(self) -> Dict[str, Any]:
+        with self._lock:
+            return self.resonance.mood_snapshot()
+
+    def pulse_resonance(self, element: str, intensity: float, note: str = "") -> Dict[str, Any]:
+        with self._lock:
+            snap = self.resonance.pulse(element, intensity, note=note)
+            self.memory.set_state("resonance_state", json.dumps(self.resonance.to_dict()))
+            mood_desc = self.resonance.describe_mood()
+            self.memory.set_state("current_mood", mood_desc)
+            return {
+                "ok": True,
+                "element": element,
+                "intensity": intensity,
+                "resonance": snap,
+                "mood": mood_desc,
+            }
+
+    def get_persona(self) -> Dict[str, Any]:
+        with self._lock:
+            raw_knobs = self.memory.get_state("persona_knobs", "")
+            knobs = json.loads(raw_knobs) if raw_knobs else {k: v["default"] for k, v in KNOBS_SCHEMA.items()}
+            preset = self.memory.get_state("persona_preset", "") or None
+            overrides = self._runtime_const_overrides if hasattr(self, "_runtime_const_overrides") else {}
+            return {
+                "schema": KNOBS_SCHEMA,
+                "presets": PRESET_PERSONAS,
+                "current_knobs": knobs,
+                "current_preset": preset,
+                "active_overrides": overrides,
+            }
+
+    def apply_persona(self, preset: Optional[str] = None, knobs: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
+        with self._lock:
+            applied_knobs: Dict[str, float] = {}
+            applied_preset = None
+            if preset and preset in PRESET_PERSONAS:
+                applied_preset = preset
+                applied_knobs = dict(PRESET_PERSONAS[preset]["knobs"])
+            elif knobs:
+                raw_knobs = self.memory.get_state("persona_knobs", "")
+                base = json.loads(raw_knobs) if raw_knobs else {k: v["default"] for k, v in KNOBS_SCHEMA.items()}
+                for k, v in knobs.items():
+                    if k in KNOBS_SCHEMA:
+                        try:
+                            base[k] = max(0.0, min(1.0, float(v)))
+                        except (ValueError, TypeError):
+                            pass
+                applied_knobs = base
+                for pname, pdata in PRESET_PERSONAS.items():
+                    if all(abs(applied_knobs.get(k, 0) - pdata["knobs"].get(k, 0)) < 0.01 for k in KNOBS_SCHEMA):
+                        applied_preset = pname
+                        break
+            else:
+                raise ValueError("必须提供 preset 或 knobs")
+
+            const_overrides = map_knobs_to_constants(applied_knobs)
+            override_res = self.override_constants(const_overrides, persist=True)
+
+            self.memory.set_state("persona_knobs", json.dumps(applied_knobs))
+            self.memory.set_state("persona_preset", applied_preset or "")
+
+            return {
+                "ok": True,
+                "preset": applied_preset,
+                "knobs": applied_knobs,
+                "overrides": override_res,
+            }
+
+    def reset_persona(self) -> Dict[str, Any]:
+        with self._lock:
+            self.clear_constants_overrides()
+            default_knobs = {k: v["default"] for k, v in KNOBS_SCHEMA.items()}
+            self.memory.set_state("persona_knobs", json.dumps(default_knobs))
+            self.memory.set_state("persona_preset", "")
+            return {"ok": True, "knobs": default_knobs}
+
+    def proactive_thought(self) -> Dict[str, Any]:
+        with self._lock:
+            thought = self.memory.get_state("last_proactive_thought", "")
+            created_at = float(self.memory.get_state("last_proactive_thought_at", "0") or 0.0)
+            mood = self.resonance.describe_mood()
+            return {
+                "thought": thought or None,
+                "created_at": created_at if created_at > 0 else None,
+                "mood": mood,
+                "resonance": self.resonance.get_resonance_snapshot(),
+            }
+
+    def generate_proactive_thought(self, force: bool = False) -> Dict[str, Any]:
+        with self._lock:
+            now = time.time()
+            last_at = float(self.memory.get_state("last_proactive_thought_at", "0") or 0.0)
+            if not force and (now - last_at) < 60.0 and self.memory.get_state("last_proactive_thought", ""):
+                return self.proactive_thought()
+
+            recent_events = self.memory.recent_events(limit=5)
+            nar = self.memory.current_narrative(kind="derived")
+            nar_text = str(nar.get("text") if nar else "")
+            traits = self.memory.load_traits()[:4]
+            mood_desc = self.resonance.describe_mood()
+
+            thought_text = ""
+            if self.brain and self.brain.available:
+                system_prompt = (
+                    "你正在进行角色的内心独白与独处时的自省惦念。\n"
+                    "这不是对用户说的对话，而是角色在没有对话、独自一人时的内心活动。\n"
+                    "请根据角色当前的性格、近期经历与当前心境，生成一段简短、自然、真实的独处心理活动（80字以内）。\n"
+                    "内容可以是对某段未解思绪的琢磨、对对方的默默惦记、或者对某种状态的体悟。不要客套，真实自然。"
+                )
+                events_summary = "\n".join([f"- {e.summary}" for e in recent_events]) if recent_events else "（暂无具体近期事件）"
+                traits_summary = "，".join([f"{t.text}" for t in traits]) if traits else "（性格特质正在形成）"
+                user_prompt = (
+                    f"【角色自述】\n{nar_text or '（初生自述）'}\n\n"
+                    f"【当前性格特质】\n{traits_summary}\n\n"
+                    f"【当前心境】\n{mood_desc}\n\n"
+                    f"【近期经历】\n{events_summary}\n\n"
+                    f"请生成一段当下的内心独白："
+                )
+                try:
+                    text, _ = self.brain.ask(system_prompt, user_prompt, max_tokens=256, temperature=0.7)
+                    thought_text = text.strip().strip('"').strip('“').strip('”')
+                except Exception:
+                    thought_text = ""
+
+            if not thought_text:
+                if recent_events:
+                    ev = recent_events[0]
+                    if getattr(ev, "questions", None):
+                        q = ev.questions[0]
+                        thought_text = f"闲下来的时候，心里还在盘算着：{q}……等下次见面时，或许可以多了解一些。"
+                    elif getattr(ev, "valence", 0) > 0.2:
+                        thought_text = f"回想起刚才关于【{ev.summary[:24]}】的交流，心情挺轻快的，感觉距离更近了一点。"
+                    elif getattr(ev, "valence", 0) < -0.2:
+                        thought_text = f"刚才经历的【{ev.summary[:24]}】让人有点在意……不知对方是怎么想的，下次要更留心一点。"
+                    else:
+                        thought_text = f"四周安静下来了，脑海里不自觉闪过【{ev.summary[:24]}】……顺其自然吧。"
+                else:
+                    thought_text = "周围很安静。心绪逐渐沉淀下来，感觉有一点期待下一次的相遇与对话。"
+
+            self.memory.set_state("last_proactive_thought", thought_text)
+            self.memory.set_state("last_proactive_thought_at", str(now))
+            return {
+                "ok": True,
+                "thought": thought_text,
+                "created_at": now,
+                "mood": mood_desc,
+                "resonance": self.resonance.get_resonance_snapshot(),
+            }
+
+    def _on_grower_daydream(self) -> None:
+        try:
+            self.generate_proactive_thought(force=False)
+        except Exception:
+            pass
 
     def stats(self) -> Dict[str, Any]:
         with self._lock:
@@ -1049,7 +1253,19 @@ class LoamHandler(BaseHTTPRequestHandler):
                 descriptions = getattr(C, 'DESCRIPTIONS', {})
                 self._send_json(200, {"constants": all_consts, "overrides": overrides, "descriptions": descriptions})
                 return
+
+            if path == "/persona":
+                self._send_json(200, svc.get_persona())
                 return
+
+            if path == "/proactive":
+                self._send_json(200, svc.proactive_thought())
+                return
+
+            if path == "/resonance":
+                self._send_json(200, svc.get_resonance())
+                return
+
             self._send_json(404, {"error": f"unknown route: {path}"})
         except ValueError as exc:
             self._send_json(400, {"error": str(exc)})
@@ -1081,6 +1297,24 @@ class LoamHandler(BaseHTTPRequestHandler):
                 learn = _coerce_bool(payload.get("learn"), default=False)
                 sync_grow = _coerce_bool(payload.get("sync_grow"), default=False)
                 self._send_json(200, svc.build_context(query, learn=learn, sync_grow=sync_grow))
+                return
+            if path == "/persona/apply":
+                preset = payload.get("preset")
+                knobs = payload.get("knobs")
+                self._send_json(200, svc.apply_persona(preset=preset, knobs=knobs))
+                return
+            if path == "/persona/reset":
+                self._send_json(200, svc.reset_persona())
+                return
+            if path == "/proactive":
+                force = _coerce_bool(payload.get("force"), default=False)
+                self._send_json(200, svc.generate_proactive_thought(force=force))
+                return
+            if path == "/resonance/pulse":
+                elem = str(payload.get("element") or "wood")
+                intensity = float(payload.get("intensity") or 0.0)
+                note = str(payload.get("note") or "")
+                self._send_json(200, svc.pulse_resonance(elem, intensity, note=note))
                 return
             if path == "/constants":
                 overrides = payload.get("overrides") or {}
@@ -1121,7 +1355,6 @@ class LoamHandler(BaseHTTPRequestHandler):
                 merge = _coerce_bool(payload.get("merge"), default=True)
                 self._send_json(200, svc.update_experiment_flags(flags, note=note, merge=merge))
                 return
-                return
 
             if path == "/recompute":
                 mode = str(payload.get("mode") or "incremental")
@@ -1129,7 +1362,7 @@ class LoamHandler(BaseHTTPRequestHandler):
                 note = str(payload.get("note") or "")
                 self._send_json(
                     200,
-                    self.server.service.recompute(
+                    svc.recompute(
                         mode=mode,
                         max_rounds=int(rounds) if rounds is not None else None,
                         note=note,

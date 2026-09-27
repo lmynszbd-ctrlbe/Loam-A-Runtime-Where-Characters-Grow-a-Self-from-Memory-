@@ -113,6 +113,7 @@ class Brain:
     low_cost_phases: Sequence[str] = field(
         default_factory=lambda: ("extract", "observe", "dossier", "drift")
     )
+    seed_narrative: str = ""
 
     timeout: float = 120.0
     retries: int = RETRIES
@@ -201,7 +202,10 @@ class Brain:
             raise BrainUnavailable(
                 "还没配后台反思用的模型。把 key 写进 ~/.loam/secrets.json 的 api_key。"
             )
-        url = route["base_url"].rstrip("/").rstrip("/v1") + "/v1/chat/completions"
+        base = route["base_url"].rstrip("/")
+        if base.endswith("/v1"):
+            base = base[:-3]
+        url = base + "/v1/chat/completions"
         payload: Dict[str, Any] = {
             "_api_key": route["api_key"],
             "model": route["model"],
