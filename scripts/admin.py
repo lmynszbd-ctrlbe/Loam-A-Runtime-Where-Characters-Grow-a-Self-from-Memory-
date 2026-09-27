@@ -545,6 +545,7 @@ main {
       <a href="#" onclick="showPanel('status')" id="nav-status" class="active">✨ 运行状态</a>
       <a href="#" onclick="showPanel('demo')" id="nav-demo">🎮 演示大厅</a>
       <a href="#" onclick="showPanel('persona')" id="nav-persona">🎭 性格卡片</a>
+      <a href="#" onclick="showPanel('selfhood')" id="nav-selfhood">🌱 自性体系</a>
       <a href="#" onclick="showPanel('memory')" id="nav-memory">🧠 记忆总线</a>
       <a href="#" onclick="showPanel('config')" id="nav-config">⚙️ 系统配置</a>
       <a href="#" onclick="showPanel('constants')" id="nav-constants">🧊 常数环境</a>
@@ -630,6 +631,46 @@ main {
       <div style="display:flex;gap:10px;margin-top:16px;">
         <button class="btn btn-sm btn-outline" onclick="triggerProactiveThought()">💭 触发一次独处心理反思</button>
         <button class="btn btn-sm" onclick="loadPersona()">🔄 刷新心境态</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SELFHOOD -->
+  <div id="panel-selfhood" class="panel">
+    <h1>🌱 自性体系 (Selfhood Genesis)</h1>
+    <div class="sub">监控角色的内心执念 (Zeigarnik Effect)、潜意识梦境 (Dream Replay) 与他者之镜 (Theory of Mind)。</div>
+    <div class="actions">
+      <button class="btn btn-sm btn-outline" onclick="loadSelfhood()">🔄 刷新自性状态</button>
+      <button class="btn btn-sm" onclick="triggerDream()">💭 触发梦境重构</button>
+    </div>
+    
+    <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 16px;">
+      <!-- Drives -->
+      <div class="card">
+        <h3>🌀 内心执念 (Latent Drives)</h3>
+        <div class="sub">随时间发酵的蔡加尼克心理张力。</div>
+        <div id="selfhood-drives-list" style="margin-top:12px; display:flex; flex-direction:column; gap:12px;">
+          <!-- JS 注入 -->
+        </div>
+      </div>
+
+      <!-- Mirror & Dream -->
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div class="card">
+          <h3>👥 他者之镜 (Mirror of Other)</h3>
+          <div class="sub">角色对当前交谈对象的心智揣摩。</div>
+          <div id="selfhood-mirror-box" style="margin-top:12px;">
+            <!-- JS 注入 -->
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>🌙 潜意识梦境 (Recent Dreams)</h3>
+          <div class="sub">闲置时潜意识在远距离记忆间建立的隐喻桥梁。</div>
+          <div id="selfhood-dream-box" style="margin-top:12px;">
+            <!-- JS 注入 -->
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1188,6 +1229,98 @@ async function triggerProactiveThought() {
     }
   } catch (e) {
     toast('生成出错: ' + e, 'err');
+  }
+}
+
+// ---- SELFHOOD ----
+async function loadSelfhood() {
+  try {
+    const [drivesRes, mirrorRes, statsRes] = await Promise.all([
+      call('GET', '/drives?limit=10'),
+      call('GET', '/mirror'),
+      call('GET', '/stats')
+    ]);
+    
+    // 1. Drives
+    const drivesBox = document.getElementById('selfhood-drives-list');
+    const drives = drivesRes.drives || [];
+    let dHtml = '';
+    if (drives.length === 0) {
+      dHtml = '<div style="color:var(--muted); font-size:13px; text-align:center; padding: 20px;">当前角色心中毫无波澜，没有未解的悬念与执念。</div>';
+    } else {
+      for (const d of drives) {
+        const pct = Math.min(100, Math.round((d.tension || 0) * 100));
+        let qsHtml = '';
+        if (d.questions && d.questions.length > 0) {
+          qsHtml = `<div style="font-size:12px; color:var(--muted); margin-top:6px; padding-left:8px; border-left:2px solid var(--border);">萦绕疑问：${esc(d.questions.join(' / '))}</div>`;
+        }
+        dHtml += `
+          <div style="padding:12px; background:var(--bg-subtle); border-radius:6px; border:1px solid var(--border);">
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+              <span style="font-weight:600; font-size:14px; color:var(--text);">${esc(d.theme)}</span>
+              <span style="font-family:monospace; font-size:12px; color:var(--accent); font-weight:bold;">${pct}%</span>
+            </div>
+            <div style="background:var(--bg); height:6px; border-radius:3px; overflow:hidden; border:1px solid var(--border);">
+              <div style="width:${pct}%; height:100%; background:linear-gradient(90deg, #7aa2ff, #c792ea);"></div>
+            </div>
+            ${qsHtml}
+          </div>
+        `;
+      }
+    }
+    drivesBox.innerHTML = dHtml;
+
+    // 2. Mirror
+    const mirrorBox = document.getElementById('selfhood-mirror-box');
+    const m = mirrorRes.mirror;
+    if (!m) {
+      mirrorBox.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center; padding: 20px;">还在静静观察，未形成明显心智画像。</div>';
+    } else {
+      let traitsHtml = '';
+      if (m.perceived_traits && m.perceived_traits.length > 0) {
+        traitsHtml = `<div style="font-size:13px; margin-top:8px;"><strong>揣摩特质：</strong>${esc(m.perceived_traits.join('、'))}</div>`;
+      }
+      let vulnsHtml = '';
+      if (m.vulnerabilities && m.vulnerabilities.length > 0) {
+        vulnsHtml = `<div style="font-size:13px; margin-top:4px;"><strong>感知软肋：</strong>${esc(m.vulnerabilities.join('、'))}</div>`;
+      }
+      mirrorBox.innerHTML = `
+        <div style="padding:12px; background:var(--bg-subtle); border-radius:6px; border:1px solid var(--border);">
+          <div style="font-size:14px; font-weight:600; color:var(--accent); margin-bottom:8px;">总体印象：${esc(m.summary || '-')}</div>
+          ${traitsHtml}
+          ${vulnsHtml}
+          <div style="font-size:13px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--border);">
+            <strong>相处分寸建议：</strong> ${esc(m.interaction_advice || '-')}
+          </div>
+        </div>
+      `;
+    }
+
+    // 3. Dream
+    const dreamBox = document.getElementById('selfhood-dream-box');
+    const lastDream = (statsRes.memory && statsRes.memory['上次梦境隐喻']) || '暂无梦境记忆';
+    dreamBox.innerHTML = `
+      <div style="padding:16px; background:var(--bg-subtle); border-radius:6px; border:1px solid var(--border); font-style:italic; color:var(--text); line-height:1.6; font-size:13.5px;">
+        "${esc(lastDream)}"
+      </div>
+    `;
+  } catch (e) {
+    toast('加载自性体系数据失败: ' + e, 'err');
+  }
+}
+
+async function triggerDream() {
+  try {
+    toast('正在触发潜意识梦境重构...', 'ok');
+    const res = await call('POST', '/dream');
+    if (res.ok) {
+      toast('梦境重构已产生隐喻！', 'ok');
+      await loadSelfhood();
+    } else {
+      toast(res.error || '重构失败，可能是因为记忆节点不足。', 'err');
+    }
+  } catch (e) {
+    toast('重构出错: ' + e, 'err');
   }
 }
 
