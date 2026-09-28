@@ -108,7 +108,13 @@ python -m loam init-secrets     # Generate secrets.json template
 python scripts/demo_walkthrough.py
 ```
 
-## ✨ New in v0.7.0 (What's Evolved)
+## 🎉 New in v0.7.0 (What's Evolved)
+- **🌱 五重自性生长体系 (Five-Tier Selfhood Genesis)**：
+  - **Tier 1 - 主观感知透镜 (Subjective Lens)**：带偏见与情绪的记忆折射，不再是无情的录音机。
+  - **Tier 2 - 蔡加尼克内心执念 (Latent Drives)**：未解悬念与情感冲击发酵为执念，提供自发倾诉与质问动机。
+  - **Tier 3 - 潜意识梦境重构 (Dream Replay)**：深度闲置时自动在远距离记忆节点间建立诗意隐喻桥梁。
+  - **Tier 4 - 他者之镜 (Mirror of Other)**：基于心智理论 (Theory of Mind)，主动生成并更新对交谈对象的心智画像与相处分寸感。
+  - **Tier 5 - 虚拟剧场舞台总线 (Theater Stage Bus)**：多角色共处一室，基于心理张力决选发言权，真实复刻群像心智对抗。
 - **🎛️ 5 Macro Persona Knobs & Presets**：在 Web 仪表盘提供「敏感度、固执度、自愈力、戒备度、联想力」5 大性格旋钮与 4 套开箱即用气质预设（高冷孤傲/温柔包容/乐天小狗/敏感易碎），自动权重联动 48 个底层物理常数。
 - **🕸️ Canvas 动态神经拓扑图**：Admin 面板实时可视化 Memory 节点分层（Sprout / Mature / Core）与赫布突触激活脉冲。
 - **🔀 消息摄入三通道分流管道 (Thought / Action / Dialogue)**：自动过滤 `<think>` 思考过程不污染 L0 永久回忆，提炼工具语义，纯净对话入库。
