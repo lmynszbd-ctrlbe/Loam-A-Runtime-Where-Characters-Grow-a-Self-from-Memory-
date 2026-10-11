@@ -93,31 +93,30 @@ bash scripts/termux/final_stop_all.sh
 bash scripts/termux/final_status_all.sh
 ```
 
-### Windows
+### Windows PowerShell 5.1
 
-```bash
-# Prerequisites: install Python (check "Add to PATH") + Git from https://git-scm.com
+Windows PowerShell 5.1 does not support `&&`. Run each command separately:
 
-# Clone
-cd %USERPROFILE%
+```powershell
+# Prerequisites: install Python (enable "Add Python to PATH") and Git.
+Set-Location $HOME
 git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git loam
-cd loam
+Set-Location "$HOME\loam"
+git pull origin main
 
-# Configure
-mkdir %USERPROFILE%\.loam
-python -m loam init-secrets --secrets-home %USERPROFILE%\.loam
-copy bridge\upstreams.example.json %USERPROFILE%\.loam\upstreams.json
-# Edit %USERPROFILE%\.loam\secrets.json and upstreams.json in Notepad
-
-# Start (two terminals)
-# Terminal 1:
-python -m loam run --home %USERPROFILE%\.loam\characters --secrets-home %USERPROFILE%\.loam
-
-# Terminal 2:
-set UPSTREAMS_CONFIG=%USERPROFILE%\.loam\upstreams.json
-set UPSTREAM_DEFAULT=relayA
-python bridge\forced_flow_proxy.py
+# If the project already exists, skip git clone and run the commands below.
+python -m loam init-secrets
+python start.py
 ```
+
+If `python` is not recognized, use `py` instead:
+
+```powershell
+py -m loam init-secrets
+py start.py
+```
+
+Open the only public endpoint at `http://127.0.0.1:8783/`. The OpenAI-compatible base URL is `http://127.0.0.1:8783/v1`.
 
 ### macOS
 

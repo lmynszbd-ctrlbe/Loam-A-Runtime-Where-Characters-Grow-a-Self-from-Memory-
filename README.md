@@ -21,19 +21,49 @@ Two steps. Step 1 installs loam (skip it if you already have the folder); Step 2
 
 **Step 1 — Install loam** (skip if already installed)
 
-```bash
-cd ~ && git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git loam
+### Windows PowerShell 5.1
+
+Windows PowerShell 5.1 does **not** support the `&&` command separator. Run these commands one at a time:
+
+```powershell
+Set-Location $HOME
+git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git loam
+Set-Location "$HOME\loam"
+git pull origin main
 ```
 
-> ✅ Already have the `~/loam` folder? Skip Step 1. (A `destination path 'loam' already exists` error just means it's already installed — go to Step 2.)
+If the `loam` folder already exists, do not clone again. Run:
 
-**Step 2 — Set up & launch**
-
-```bash
-cd ~/loam && git pull && bash scripts/setup.sh
+```powershell
+Set-Location "$HOME\loam"
+git pull origin main
 ```
 
-`setup.sh` auto-detects your OS, installs prerequisites, walks you through the API keys, starts all three processes, and opens the admin panel.
+Initialize the local secrets template and start the single-port runtime:
+
+```powershell
+python -m loam init-secrets
+python start.py
+```
+
+If `python` is not recognized, try the Python launcher:
+
+```powershell
+py -m loam init-secrets
+py start.py
+```
+
+### Bash, Git Bash, macOS, Linux, or Termux
+
+```bash
+cd ~
+git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-.git loam
+cd ~/loam
+git pull origin main
+bash scripts/setup.sh
+```
+
+> ✅ Already have the project folder? Skip `git clone` and run the update command from inside the project folder.
 
 After setup, open `http://127.0.0.1:8783/`. The same public port serves the admin panel and the OpenAI-compatible endpoint at `http://127.0.0.1:8783/v1`. Local one-click setup keeps proxy token auth disabled for compatibility; set `PROXY_NO_AUTH=0` and `PROXY_TOKEN` when exposing the gateway beyond localhost. Prefer per-platform manual commands? See [docs/DEPLOY.md](docs/DEPLOY.md).
 
@@ -123,7 +153,7 @@ python scripts/demo_walkthrough.py
 
 ## Deployment
 
-See [docs/DEPLOY.md](docs/DEPLOY.md) for all platforms and extras (MCP, systemd, Docker) — or just run `bash scripts/setup.sh` for one-click setup.
+See [docs/DEPLOY.md](docs/DEPLOY.md) for all platforms and extras (MCP, systemd, Docker). On Windows PowerShell 5.1, use the separate commands shown above and start with `python start.py`; do not use Bash commands or `&&`.
 
 ## Tech stack
 
