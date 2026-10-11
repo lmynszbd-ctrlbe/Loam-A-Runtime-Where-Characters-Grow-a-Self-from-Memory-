@@ -35,7 +35,7 @@
 
 | Addition | Description |
 |----------|-------------|
-| **Dashboard** | Single-page HTML dashboard on port 8899 with trait evolution, event timeline, and changelog. |
+| **Dashboard** | Single-page HTML dashboard served through the unified gateway on port 8783. |
 | **`/network` endpoint** | `GET /network?limit=80` returns full node + edge JSON for topology visualization. |
 | **`/narrative` endpoint** | `GET /narrative` returns the current self-narrative. |
 | **Snapshot CLI** | `python -m loam snapshot -o ~/my-character` exports a living character card (memory.db + JSON). |

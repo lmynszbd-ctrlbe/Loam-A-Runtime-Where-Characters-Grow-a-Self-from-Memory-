@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# loam 最终版一键启动：先 loam，再 forced proxy，并做健康检查
+# loam 一键启动：所有内部服务由 start.py 管理，只对外暴露统一网关端口
 
 set -u
 
@@ -9,7 +9,8 @@ REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOAM_HOME="${LOAM_HOME:-$HOME/.loam}"
 LOAM_CHARACTER="${LOAM_CHARACTER:-default}"
 LOAM_PORT="${LOAM_PORT:-8765}"
-PROXY_PORT="${PROXY_PORT:-8780}"
+UNIFIED_PORT="${UNIFIED_PORT:-8783}"
+PROXY_PORT="${PROXY_PORT:-8781}"
 
 # 让子脚本共用这些环境变量
 export LOAM_HOME
@@ -29,6 +30,10 @@ export UPSTREAM_BASE_URL
 export UPSTREAM_API_KEY
 export UPSTREAM_MODEL
 export PROXY_PORT
+export UNIFIED_PORT
+export UNIFIED_HOST="${UNIFIED_HOST:-0.0.0.0}"
+export PROXY_HOST="127.0.0.1"
+export ADMIN_HOST="127.0.0.1"
 
 cd "$REPO_DIR" || {
   echo "无法进入项目目录: $REPO_DIR"
@@ -45,35 +50,24 @@ if ! command -v curl >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "[1/4] 启动 loam（必须 key+model）"
-bash "$SCRIPT_DIR/bootstrap_and_start.sh" || exit 1
+echo "[1/2] 启动完整单端口栈"
+cd "$REPO_DIR" || exit 1
+nohup env LOAM_HOME="$LOAM_HOME" python start.py > "$LOAM_HOME/run/loam-stack.log" 2>&1 &
+echo $! > "$LOAM_HOME/run/stack.pid"
+sleep 2
 
-echo "[2/4] 启动 forced proxy"
-bash "$SCRIPT_DIR/start_forced_proxy.sh" || exit 1
-
-echo "[3/4] 健康检查 loam"
-LOAM_HEALTH="$(curl -s "http://127.0.0.1:$LOAM_PORT/health" || true)"
-if [ -z "$LOAM_HEALTH" ]; then
-  echo "loam 健康检查失败"
+echo "[2/2] 检查统一网关"
+HEALTH="$(curl -s "http://127.0.0.1:$UNIFIED_PORT/health" || true)"
+if [ -z "$HEALTH" ]; then
+  echo "统一网关健康检查失败，请查看 $LOAM_HOME/run/loam-stack.log"
   exit 1
 fi
-echo "$LOAM_HEALTH"
-
-echo "[4/4] 健康检查 proxy + 模型列表"
-PROXY_HEALTH="$(curl -s "http://127.0.0.1:$PROXY_PORT/health" || true)"
-if [ -z "$PROXY_HEALTH" ]; then
-  echo "proxy 健康检查失败"
-  exit 1
-fi
-echo "$PROXY_HEALTH"
-
-# models 只展示前几行，避免太长
-curl -s "http://127.0.0.1:$PROXY_PORT/v1/models" | sed -n '1,40p'
+echo "$HEALTH"
 
 echo
-echo "✅ 全部启动完成"
+echo "✅ 全部启动完成（仅对外端口 $UNIFIED_PORT）"
 echo "Agent 配置："
-echo "  Base URL: http://127.0.0.1:$PROXY_PORT/v1"
+echo "  Base URL: http://127.0.0.1:$UNIFIED_PORT/v1"
 echo "  Model:    provider/model（例如 relayA/gpt-4o-mini）"
 echo
 echo "管理命令："

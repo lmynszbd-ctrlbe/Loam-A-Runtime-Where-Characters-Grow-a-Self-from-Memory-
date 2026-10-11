@@ -28,7 +28,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-PROXY_HOST = os.environ.get("PROXY_HOST", "0.0.0.0")
+PROXY_HOST = os.environ.get("PROXY_HOST", "127.0.0.1")
 PROXY_PORT = int(os.environ.get("PROXY_PORT", "8781"))
 
 # Security: proxy requires a local token to prevent unauthorized access
@@ -641,6 +641,9 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/v1/models":
+            if TOKEN_AUTH_REQUIRED and not self._check_token():
+                self._send(401, {"error": {"message": "unauthorized: missing or invalid proxy token"}})
+                return
             self._send(200, _models_merged())
             return
 

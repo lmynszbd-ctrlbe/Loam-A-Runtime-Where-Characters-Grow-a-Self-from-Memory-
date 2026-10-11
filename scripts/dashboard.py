@@ -3,7 +3,7 @@
 
 用法:
   python scripts/dashboard.py
-  # 然后浏览器打开 http://127.0.0.1:8899
+  # 然后浏览器打开统一入口 http://127.0.0.1:8783/
 """
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -14,7 +14,7 @@ import os
 import time
 
 LOAM_URL = os.environ.get("LOAM_URL", "http://127.0.0.1:8765").rstrip("/")
-DASH_PORT = int(os.environ.get("DASH_PORT", "8899"))
+DASH_PORT = int(os.environ.get("DASH_PORT", "8900"))
 
 
 def _fetch(path: str) -> dict:

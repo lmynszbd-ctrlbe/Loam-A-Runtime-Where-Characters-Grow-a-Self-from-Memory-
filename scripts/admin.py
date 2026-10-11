@@ -3,7 +3,7 @@
 
 Usage:
   python scripts/admin.py
-  → http://127.0.0.1:8899
+  → http://127.0.0.1:8900 (internal; use the unified gateway externally)
 """
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -19,6 +19,7 @@ import re
 from pathlib import Path
 
 LOAM = os.environ.get("LOAM_URL", "http://127.0.0.1:8765").rstrip("/")
+ADMIN_HOST = os.environ.get("ADMIN_HOST", "127.0.0.1")
 PORT = int(os.environ.get("ADMIN_PORT", "8900"))
 def _loam_home() -> Path:
     """Return the loam config directory, with LOAM_HOME/Termux fallbacks."""
@@ -837,7 +838,7 @@ main {
     <div class="grid" style="grid-template-columns:repeat(3, 1fr); margin-bottom:20px">
       <div class="card">
         <h3>🔗 填到聊天软件的 Base URL</h3>
-        <div id="client-base-url" style="font-family:monospace;font-size:14px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">http://127.0.0.1:8781/v1</div>
+        <div id="client-base-url" style="font-family:monospace;font-size:14px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">http://127.0.0.1:8783/v1</div>
         <div id="client-base-url-alt" style="font-family:monospace;font-size:12px;text-align:center;padding:4px;background:var(--bg);border-radius:4px;margin-top:4px;color:var(--accent);min-height:1.5em"><span class="spinner"></span> 正在检测可用地址...</div>
         <div id="client-base-url-err" style="color:var(--err);font-size:11px;text-align:center;margin-top:4px;min-height:1.5em"></div>
         <p class="muted" style="font-size:11px;margin-top:4px"><b>同一设备：</b>用 127.0.0.1。<b>不同 App（如 Operit）：</b>用下方带 IP 的地址。<b>不同设备：</b>手机和电脑必须连同一个 WiFi。</b></p>
@@ -1833,7 +1834,7 @@ async function updateBaseUrlDisplay() {
     const addrs = await callAdmin('GET', '/admin/addresses');
     if (addrs.local && addrs.local.length) {
       const primary = addrs.local[0];
-      altEl.innerHTML = `跨 App 用：http://${primary}:8781/v1`;
+      altEl.innerHTML = `跨 App 用：http://${primary}:8783/v1`;
       if (errEl) errEl.textContent = '';
     } else {
       altEl.textContent = '未检测到局域网 IP，跨 App 请手动输入本机 IP';
@@ -2522,9 +2523,9 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     import socket
-    print(f"loam admin panel → http://127.0.0.1:{PORT}")
+    print(f"loam admin panel (internal) → http://{ADMIN_HOST}:{PORT}")
     print(f"loam backend → {LOAM}")
-    srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    srv = ThreadingHTTPServer((ADMIN_HOST, PORT), Handler)
     srv.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         srv.serve_forever()

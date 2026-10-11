@@ -9,7 +9,15 @@ COPY . /app
 # loam 仅依赖标准库；这里不安装第三方包。
 RUN python -m compileall -q loam
 
-EXPOSE 8765
+EXPOSE 8783
 VOLUME ["/data"]
 
-CMD ["python", "-m", "loam", "run", "--host", "0.0.0.0", "--port", "8765", "--character", "demo", "--home", "/data/characters"]
+# The launcher starts core, proxy, admin, and the unified gateway. Only 8783
+# is exposed; all other service ports stay inside the container.
+ENV UNIFIED_HOST=0.0.0.0 \
+    UNIFIED_PORT=8783 \
+    LOAM_PORT=8765 \
+    PROXY_PORT=8781 \
+    ADMIN_PORT=8900 \
+    LOAM_HOME=/data
+CMD ["python", "start.py"]

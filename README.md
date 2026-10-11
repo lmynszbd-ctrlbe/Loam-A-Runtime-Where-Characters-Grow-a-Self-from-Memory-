@@ -7,14 +7,13 @@ All of this technology serves one purpose: to turn AI from a tool that forgets y
 
 ## What it is
 
-loam gives AI characters real memory that grows over time. It runs locally — two processes behind any OpenAI-compatible chat client:
+loam gives AI characters real memory that grows over time. It exposes one public port (`8783`) through a unified gateway. Core services remain on loopback:
 
-1. **loam** (port 8765) — stores dialogue turns, digests them into structured memory, grows traits
-2. **forced proxy** (port 8781) — OpenAI-compatible gateway that enforces `context → upstream LLM → ingest` on every turn
+1. **loam core** (internal port 8765) — stores dialogue turns, digests them into structured memory, grows traits
+2. **forced proxy** (internal port 8781) — OpenAI-compatible gateway that enforces `context → upstream LLM → ingest` on every turn
+3. **admin panel** (internal port 8900) — 6-tab web UI: Status, Traits, Memory, Config, Constants, Actions
 
-Optional extras:
-- **admin panel** (port 8900) — 6-tab web UI: Status, Traits, Memory, Config, Constants, Actions
-- **watchdog** — keeps both processes alive, auto-restarts on crash
+The startup manager keeps these internal services behind the single public port.
 
 ## Getting started
 
@@ -36,7 +35,7 @@ cd ~/loam && git pull && bash scripts/setup.sh
 
 `setup.sh` auto-detects your OS, installs prerequisites, walks you through the API keys, starts all three processes, and opens the admin panel.
 
-After setup, open `http://127.0.0.1:8900` — the admin panel lets you view traits, browse memory, hot-tune constants, trigger digest, and set both API keys (see the **Connect** tab). Prefer per-platform manual commands? See [docs/DEPLOY.md](docs/DEPLOY.md).
+After setup, open `http://127.0.0.1:8783/`. The same public port serves the admin panel and the OpenAI-compatible endpoint at `http://127.0.0.1:8783/v1`. Local one-click setup keeps proxy token auth disabled for compatibility; set `PROXY_NO_AUTH=0` and `PROXY_TOKEN` when exposing the gateway beyond localhost. Prefer per-platform manual commands? See [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Why the design decisions are what they are
 
@@ -128,7 +127,7 @@ See [docs/DEPLOY.md](docs/DEPLOY.md) for all platforms and extras (MCP, systemd,
 
 ## Tech stack
 
-Python 3 (stdlib-first), SQLite (WAL mode, FTS5 with Chinese bigram tokenizer), ThreadingHTTPServer, model-agnostic LLM backend. Admin panel: single-file HTML on port 8899.
+Python 3 (stdlib-first), SQLite (WAL mode, FTS5 with Chinese bigram tokenizer), ThreadingHTTPServer, model-agnostic LLM backend. Only the unified gateway is externally exposed; internal services bind to loopback.
 
 ## Self-benchmark
 

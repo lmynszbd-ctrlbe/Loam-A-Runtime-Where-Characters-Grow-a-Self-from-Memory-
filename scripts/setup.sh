@@ -202,44 +202,32 @@ start_services() {
         sleep 2
     fi
 
-    # Start loam
+    # Start the complete stack behind one external port. Internal services bind
+    # to loopback only and are reachable through scripts/unified_gateway.py.
     export LOAM_HOME="${HOME}/.loam"
     mkdir -p "${LOAM_HOME}/run" "${LOAM_HOME}/state"
-    nohup python3 -m loam run --grow-interval 60 --secrets-home "${LOAM_HOME}" > "${LOAM_HOME}/run/loam.log" 2>&1 &
-    echo $! > "${LOAM_HOME}/run/loam.pid"
-    say "loam started (port 8765, pid $(cat "${LOAM_HOME}/run/loam.pid"))"
+    export UNIFIED_HOST="${UNIFIED_HOST:-127.0.0.1}"
+    export UNIFIED_PORT="${UNIFIED_PORT:-8783}"
+    export LOAM_PORT="${LOAM_PORT:-8765}"
+    export PROXY_PORT="${PROXY_PORT:-8781}"
+    export ADMIN_PORT="${ADMIN_PORT:-8900}"
+    export LOAM_URL="http://127.0.0.1:${LOAM_PORT}"
+    export PROXY_URL="http://127.0.0.1:${PROXY_PORT}"
+    export ADMIN_URL="http://127.0.0.1:${ADMIN_PORT}"
+    export PROXY_HOST="127.0.0.1"
+    export ADMIN_HOST="127.0.0.1"
+    export PROXY_NO_AUTH="${PROXY_NO_AUTH:-1}"
 
-    # Start proxy
-    # IMPORTANT: on Android the proxy may run as a system service with HOME=/,
-    # so force it to read the same ~/.loam directory that the user sees.
-    export LOAM_HOME="${HOME}/.loam"
-    # Listen on all interfaces so other apps (e.g. Operit on Android) can reach proxy.
-    export PROXY_HOST="0.0.0.0"
-
-    if [ -f bridge/forced_flow_proxy.py ]; then
-        PROXY_NO_AUTH=1 nohup python3 bridge/forced_flow_proxy.py > "${LOAM_HOME}/run/forced_proxy.log" 2>&1 &
-        echo $! > "${LOAM_HOME}/run/forced_proxy.pid"
-        say "proxy started (port 8781, pid $(cat "${LOAM_HOME}/run/forced_proxy.pid"))"
-    fi
-
-    # Start admin panel
-    if [ -f scripts/admin.py ]; then
-        nohup python3 scripts/admin.py > "${LOAM_HOME}/run/admin.log" 2>&1 &
-        echo $! > "${LOAM_HOME}/run/admin.pid"
-        say "admin panel started (port 8900, pid $(cat "${LOAM_HOME}/run/admin.pid"))"
-    elif [ -f scripts/dashboard.py ]; then
-        nohup python3 scripts/dashboard.py > "${LOAM_HOME}/run/admin.log" 2>&1 &
-        echo $! > "${LOAM_HOME}/run/admin.pid"
-        say "dashboard started (port 8900, pid $(cat "${LOAM_HOME}/run/admin.pid"))"
-    fi
+    nohup python3 start.py > "${LOAM_HOME}/run/loam-stack.log" 2>&1 &
+    echo $! > "${LOAM_HOME}/run/stack.pid"
+    say "loam stack started (public port ${UNIFIED_PORT}, pid $(cat "${LOAM_HOME}/run/stack.pid"))"
 
     sleep 2
 
-    # Verify
-    if curl -sf http://127.0.0.1:8765/health > /dev/null 2>&1; then
-        say "loam health check: OK"
+    if curl -sf "http://127.0.0.1:${UNIFIED_PORT}/health" > /dev/null 2>&1; then
+        say "unified gateway health check: OK"
     else
-        warn "loam health check failed — check the logs"
+        warn "unified gateway health check failed — check ${LOAM_HOME}/run/loam-stack.log"
     fi
 }
 
@@ -247,7 +235,7 @@ start_services() {
 open_browser() {
     heading "Opening admin panel"
 
-    URL="http://127.0.0.1:8900"
+    URL="http://127.0.0.1:${UNIFIED_PORT:-8783}"
     case $OS in
         macos)  open "$URL" ;;
         linux|wsl) xdg-open "$URL" 2>/dev/null || true ;;
@@ -257,11 +245,8 @@ open_browser() {
     echo ""
     echo -e "${BOLD}${GREEN}✓ loam is running!${NC}"
     echo ""
-    echo "  Admin panel:  ${BLUE}http://127.0.0.1:8900${NC}"
-    echo "  API:          ${BLUE}http://127.0.0.1:8765${NC}"
-    echo "  Proxy:        ${BLUE}http://127.0.0.1:8781/v1${NC}"
-    echo ""
-    echo "  Client base URL: ${BLUE}http://127.0.0.1:8781/v1${NC}"
+    echo "  Admin + API:  ${BLUE}http://127.0.0.1:${UNIFIED_PORT:-8783}${NC}"
+    echo "  Client base URL: ${BLUE}http://127.0.0.1:${UNIFIED_PORT:-8783}/v1${NC}"
     echo "  Model name:      ${BLUE}relayA/deepseek-chat${NC} (or whatever you configured)"
     echo ""
     echo -e "${BOLD}${YELLOW}⚠  IMPORTANT — Keep these processes running!${NC}"
@@ -271,7 +256,7 @@ open_browser() {
     echo "    • nohup:    nohup bash scripts/setup.sh &"
     echo "    • Docker:   docker compose up -d"
     echo ""
-    echo "  To stop:  kill \$(pgrep -f 'loam.__main__\|forced_flow_proxy\|dashboard\|admin')"
+    echo "  To stop:  kill \$(cat "${LOAM_HOME}/run/stack.pid" 2>/dev/null || true)"
     echo ""
 }
 

@@ -25,7 +25,7 @@ cd ~ && git clone https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Charac
 cd ~/loam && git pull && bash scripts/setup.sh
 ```
 
-`setup.sh` auto-detects your OS, installs prerequisites, walks you through the API keys, starts all three processes, and opens the admin panel at `http://127.0.0.1:8900`.
+`setup.sh` auto-detects your OS, installs prerequisites, walks you through the API keys, starts the internal services, and opens the unified entry point at `http://127.0.0.1:8783/`.
 
 > 📖 Prefer to do it by hand? See **Manual setup** below for per-platform commands.
 
@@ -40,7 +40,7 @@ cd ~/loam && git pull && bash scripts/setup.sh
 | forced proxy | 8781 | OpenAI-compatible gateway, routes to your LLM provider |
 | admin panel | 8900 | Web UI: Status, Traits, Memory, Config, Constants, Connect, Actions |
 
-Client connects to `http://127.0.0.1:8781/v1`
+Client connects to `http://127.0.0.1:8783/v1`. For non-local access, set `PROXY_NO_AUTH=0` and configure `PROXY_TOKEN`.
 Model name: `provider/model` (e.g. `relayA/deepseek-chat`, configured in the Connect tab)
 
 > ⚠️ **ALL THREE processes must keep running.**
@@ -60,7 +60,7 @@ loam is **not a static website** — it's three live processes. If you close the
 | **Termux** | Android | `termux-wake-lock` + keep Termux app open |
 | **nohup** | Quick & dirty | `nohup bash scripts/setup.sh &` (won't survive reboot) |
 
-> 💡 The admin panel itself (port 8899) is also a process — it must stay running too. It's not a static HTML file. `setup.sh` starts it automatically.
+> 💡 The admin panel is an internal process behind the unified gateway. Only port 8783 should be exposed to clients.
 
 ---
 
@@ -192,13 +192,13 @@ sudo systemctl enable --now loam
 cd ~/loam && docker compose up -d --build
 ```
 
-Note: docker-compose only starts loam server (8765). Run proxy separately or add a second service to docker-compose.yml with port 8780.
+Docker Compose exposes only the unified gateway on port `8783`; core, proxy, and admin ports remain internal to the container.
 
 ---
 
 ## Configuration reference
 
-You can set both API keys **visually in the admin panel** (open `http://127.0.0.1:8899` → **Connect** tab → *Set Your API Keys*), or edit these two files in `~/.loam/` by hand.
+You can set both API keys **visually in the admin panel** (open `http://127.0.0.1:8783/` → **Connect** tab → *Set Your API Keys*), or edit these two files in `~/.loam/` by hand.
 
 loam uses **two** separate keys, one per file:
 
@@ -256,7 +256,7 @@ Add to your MCP client config:
   "mcpServers": {
     "loam": {
       "type": "openai-compatible",
-      "baseURL": "http://127.0.0.1:8780/v1",
+      "baseURL": "http://127.0.0.1:8783/v1",
       "apiKey": "local-key",
       "model": "relayA/deepseek-chat"
     }
@@ -279,8 +279,8 @@ Client config locations:
 
 ```bash
 curl -s http://127.0.0.1:8765/health
-curl -s http://127.0.0.1:8780/health
-curl -s http://127.0.0.1:8780/v1/models
+curl -s http://127.0.0.1:8783/health
+curl -s http://127.0.0.1:8783/v1/models
 ```
 
 ## Troubleshooting

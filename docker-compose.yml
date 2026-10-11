@@ -5,10 +5,16 @@ services:
     build: .
     container_name: loam
     ports:
-      - "8765:8765"
+      - "8783:8783"
     environment:
-      # 可选：启用 API Key 鉴权
+      # 对外只暴露统一网关端口 8783；内部服务不映射到宿主机。
       LOAM_API_KEY: ""
+      UNIFIED_HOST: "0.0.0.0"
+      UNIFIED_PORT: "8783"
+      PROXY_HOST: "127.0.0.1"
+      ADMIN_HOST: "127.0.0.1"
+      # Set PROXY_NO_AUTH=0 and PROXY_TOKEN for an authenticated gateway.
+      PROXY_NO_AUTH: "1"
       # 可选：低成本记忆模型路由
       LOAM_LOW_COST_ENABLED: "false"
       LOAM_LOW_COST_MODEL: ""

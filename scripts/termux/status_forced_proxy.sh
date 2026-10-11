@@ -6,7 +6,7 @@ LOAM_HOME="${LOAM_HOME:-$HOME/.loam}"
 PID_FILE="$LOAM_HOME/run/forced_proxy.pid"
 LOG_FILE="$LOAM_HOME/run/forced_proxy.log"
 PROXY_HOST="${PROXY_HOST:-127.0.0.1}"
-PROXY_PORT="${PROXY_PORT:-8780}"
+PROXY_PORT="${PROXY_PORT:-8781}"
 
 if [ -f "$PID_FILE" ]; then
   pid="$(cat "$PID_FILE" 2>/dev/null || true)"

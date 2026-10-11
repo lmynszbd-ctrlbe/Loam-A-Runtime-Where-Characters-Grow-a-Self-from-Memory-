@@ -70,9 +70,8 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "`n=========================================" -ForegroundColor Green
 Write-Host "  环境配置完备，组件就绪！" -ForegroundColor Green
-Write-Host "  后端端口: http://127.0.0.1:8765" -ForegroundColor Gray
-Write-Host "  代理端口: http://127.0.0.1:8781" -ForegroundColor Gray
-Write-Host "  管理后台: http://127.0.0.1:8900" -ForegroundColor Gray
+Write-Host "  统一入口: http://127.0.0.1:8783" -ForegroundColor Gray
+Write-Host "  客户端 API: http://127.0.0.1:8783/v1" -ForegroundColor Gray
 Write-Host "=========================================" -ForegroundColor Green
 Write-Host "输入 1 启动核心服务 (Loam + Proxy + Admin)" -ForegroundColor Yellow
 Write-Host "输入 2 启动终端演化沙盒 (Demo Walkthrough)" -ForegroundColor Yellow
@@ -84,14 +83,10 @@ if ([string]::IsNullOrWhiteSpace($choice)) { $choice = "1" }
 
 switch ($choice) {
     "1" {
-        Write-Host "启动 Loam 后端..." -ForegroundColor Cyan
-        Start-Process $pythonCmd -ArgumentList "-m loam run"
-        Write-Host "启动强制代理..." -ForegroundColor Cyan
-        Start-Process $pythonCmd -ArgumentList "bridge/forced_flow_proxy.py"
-        Write-Host "启动 Admin 后台..." -ForegroundColor Cyan
-        Start-Process $pythonCmd -ArgumentList "scripts/admin.py"
-        Start-Sleep -Seconds 1
-        Start-Process "http://127.0.0.1:8900"
+        Write-Host "启动单端口 Loam 栈..." -ForegroundColor Cyan
+        Start-Process $pythonCmd -ArgumentList "start.py"
+        Start-Sleep -Seconds 2
+        Start-Process "http://127.0.0.1:8783/"
     }
     "2" {
         & $pythonCmd scripts/demo_walkthrough.py
