@@ -212,6 +212,107 @@ def test_context_drilldown_cross_platform_encoding() -> None:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+
+
+def test_network_endpoint_salience_and_degree() -> None:
+    import urllib.request
+    from loam.server import build_server
+    from loam.core.network import Network
+
+    tmp = tempfile.mkdtemp(prefix="loam_net_ep_")
+    try:
+        cfg = ServiceConfig(character="net_char", home=tmp, auto_start_grower=False)
+        svc = LoamService(cfg)
+        net = Network()
+        net.add("ev_001", salience=0.85, anchor=True)
+        net.add("ev_002", salience=0.45, anchor=False)
+        net.co_activate({"ev_001": 1.0, "ev_002": 1.0}, lived=True)
+        svc.memory.save_network(net)
+
+        httpd = build_server(svc, host="127.0.0.1", port=0)
+        import threading
+        t = threading.Thread(target=httpd.serve_forever, daemon=True)
+        t.start()
+        try:
+            url = f"http://127.0.0.1:{httpd.server_port}/network?limit=10"
+            with urllib.request.urlopen(url, timeout=5) as r:
+                data = json.loads(r.read().decode("utf-8"))
+            nodes = {n["id"]: n for n in data["nodes"]}
+            assert abs(nodes["ev_001"]["weight"] - 0.85) < 0.01, f"ev_001 weight should be 0.85, got {nodes['ev_001']}"
+            assert nodes["ev_001"]["degree"] == 1, f"ev_001 degree should be 1, got {nodes['ev_001']}"
+            assert len(data["edges"]) == 1
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+            svc.close()
+        print("  PASS test_network_endpoint_salience_and_degree")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_growth_settings_and_backup_export() -> None:
+    tmp = tempfile.mkdtemp(prefix="loam_growth_bk_")
+    try:
+        chars_dir = Path(tmp) / "characters"
+        cfg = ServiceConfig(character="bk_char", home=str(chars_dir), auto_start_grower=False)
+        svc = LoamService(cfg)
+        svc.journal.append("bk_char", "s1", 1, "user", "测试备份与消化参数")
+        res = svc.update_growth_settings(batch_turns=35, idle_seconds=600.0, grow_interval=45.0)
+        assert res["ok"] is True
+        assert svc.digester.batch_turns == 35
+        assert svc.grower.idle_seconds == 600.0
+        assert svc.grower.interval == 45.0
+
+        bk = svc.export_backup()
+        assert bk["ok"] is True
+        assert Path(bk["path"]).exists()
+        assert bk["size_bytes"] > 0
+        svc.close()
+
+        # Re-open service and verify persisted growth_settings are restored
+        svc2 = LoamService(cfg)
+        gs = svc2.get_growth_settings()
+        assert gs["batch_turns"] == 35
+        assert gs["idle_seconds"] == 600.0
+        assert gs["grow_interval"] == 45.0
+        svc2.close()
+        print("  PASS test_growth_settings_and_backup_export")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_admin_ui_integrity() -> None:
+    import re
+    import scripts.admin as admin_mod
+
+    html = admin_mod.HTML
+    # 1. Verify no duplicate JS function declarations in HTML
+    fn_names = re.findall(r"(?:async\s+)?function\s+([a-zA-Z0-9_]+)\s*\(", html)
+    seen = set()
+    dups = []
+    for fn in fn_names:
+        if fn in seen:
+            dups.append(fn)
+        seen.add(fn)
+    assert not dups, f"Duplicate JS functions found in admin.py: {dups}"
+
+    # 2. Verify no duplicate static HTML IDs
+    static_html = html.split("<script>")[0]
+    ids = re.findall(r'\bid="([^"$]+)"', static_html)
+    seen_ids = set()
+    dup_ids = []
+    for i in ids:
+        if i in seen_ids:
+            dup_ids.append(i)
+        seen_ids.add(i)
+    assert not dup_ids, f"Duplicate HTML element IDs found in admin.py: {dup_ids}"
+
+    # 3. Verify upstream row has default_model input (.up-model-inp) and doesn't overwrite .up-key-inp
+    assert "up-model-inp" in html, "Upstream rows must include .up-model-inp for default_model"
+    assert "sel.className = 'up-key-inp'" not in html, "fetchModels must never overwrite .up-key-inp"
+    print("  PASS test_admin_ui_integrity")
+
+
 if __name__ == "__main__":
     test_seed_narrative_cold_start()
     test_base_url_rstrip_safety()
@@ -219,4 +320,7 @@ if __name__ == "__main__":
     test_recompute_character_routing()
     test_proxy_models_merged_fault_tolerance()
     test_context_drilldown_cross_platform_encoding()
+    test_network_endpoint_salience_and_degree()
+    test_growth_settings_and_backup_export()
+    test_admin_ui_integrity()
     print("\nAll regression fix tests passed!")

@@ -36,6 +36,12 @@ class UnifiedHandler(BaseHTTPRequestHandler):
     def do_PUT(self) -> None:
         self._proxy_request()
 
+    def do_PATCH(self) -> None:
+        self._proxy_request()
+
+    def do_DELETE(self) -> None:
+        self._proxy_request()
+
     def do_OPTIONS(self) -> None:
         self._proxy_request()
 
@@ -64,7 +70,7 @@ class UnifiedHandler(BaseHTTPRequestHandler):
                 if key.lower() not in hop_by_hop:
                     req.add_header(key, value)
 
-            with urllib.request.urlopen(req, timeout=60) as response:
+            with urllib.request.urlopen(req, timeout=180) as response:
                 self._send_response(response.status, response.headers, response.read())
         except urllib.error.HTTPError as exc:
             self._send_response(exc.code, exc.headers, exc.read())

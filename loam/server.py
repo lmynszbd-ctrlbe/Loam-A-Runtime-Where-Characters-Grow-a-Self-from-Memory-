@@ -150,6 +150,7 @@ class LoamService:
             step_lock=self._lock,
         )
         self.grower.on_daydream = self._on_grower_daydream
+        self._restore_growth_settings()
 
         if config.auto_start_grower:
             self.grower.start()
@@ -1070,6 +1071,74 @@ class LoamService:
         with self._lock:
             return self.digester.dream_cycle()
 
+    def _restore_growth_settings(self) -> None:
+        raw = self.memory.get_state("growth_settings", "")
+        if not raw:
+            return
+        try:
+            data = json.loads(raw)
+            if isinstance(data, dict):
+                if "batch_turns" in data and data["batch_turns"] is not None:
+                    bt = max(1, min(200, int(data["batch_turns"])))
+                    self.config.batch_turns = bt
+                    self.digester.batch_turns = bt
+                if "idle_seconds" in data and data["idle_seconds"] is not None:
+                    idle = max(10.0, min(86400.0, float(data["idle_seconds"])))
+                    self.config.idle_seconds = idle
+                    self.grower.idle_seconds = idle
+                if "grow_interval" in data and data["grow_interval"] is not None:
+                    iv = max(5.0, min(3600.0, float(data["grow_interval"])))
+                    self.config.grow_interval = iv
+                    self.grower.interval = iv
+        except Exception:
+            pass
+
+    def get_growth_settings(self) -> Dict[str, Any]:
+        with self._lock:
+            return {
+                "batch_turns": int(self.digester.batch_turns),
+                "idle_seconds": float(self.grower.idle_seconds),
+                "grow_interval": float(self.grower.interval),
+            }
+
+    def update_growth_settings(
+        self,
+        batch_turns: Optional[int] = None,
+        idle_seconds: Optional[float] = None,
+        grow_interval: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        with self._lock:
+            if batch_turns is not None:
+                bt = max(1, min(200, int(batch_turns)))
+                self.config.batch_turns = bt
+                self.digester.batch_turns = bt
+            if idle_seconds is not None:
+                idle = max(10.0, min(86400.0, float(idle_seconds)))
+                self.config.idle_seconds = idle
+                self.grower.idle_seconds = idle
+            if grow_interval is not None:
+                iv = max(5.0, min(3600.0, float(grow_interval)))
+                self.config.grow_interval = iv
+                self.grower.interval = iv
+            current = {
+                "batch_turns": int(self.digester.batch_turns),
+                "idle_seconds": float(self.grower.idle_seconds),
+                "grow_interval": float(self.grower.interval),
+            }
+            self.memory.set_state("growth_settings", json.dumps(current))
+            return {"ok": True, **current}
+
+    def export_backup(self) -> Dict[str, Any]:
+        from .core.backup import export_bundle
+        with self._lock:
+            out_path = export_bundle(loam_home=self.loam_home, character=self.character)
+            return {
+                "ok": True,
+                "character": self.character,
+                "path": str(out_path),
+                "size_bytes": out_path.stat().st_size if out_path.exists() else 0,
+            }
+
     def stats(self) -> Dict[str, Any]:
         with self._lock:
             return {
@@ -1244,27 +1313,45 @@ class LoamHandler(BaseHTTPRequestHandler):
             if path == "/network" or path.startswith("/network?"):
                 net = svc.memory.load_network()
                 limit = int((qs.get("limit") or ["80"])[0])
-                nodes = []
+                exported = net.to_dict()
+                raw_nodes = exported.get("nodes", [])
+                raw_edges = exported.get("edges", [])
+                degree_map: Dict[str, int] = {}
                 edges = []
-                for nid, ndata in net.nodes.items():
-                    d = ndata if isinstance(ndata, dict) else getattr(ndata, '__dict__', {})
+                for item in raw_edges:
+                    if isinstance(item, (list, tuple)) and len(item) >= 3:
+                        src, dst, w = str(item[0]), str(item[1]), float(item[2])
+                        edges.append({"source": src, "target": dst, "weight": round(w, 4)})
+                        degree_map[src] = degree_map.get(src, 0) + 1
+                        degree_map[dst] = degree_map.get(dst, 0) + 1
+                nodes = []
+                for d in raw_nodes:
+                    if not isinstance(d, dict):
+                        continue
+                    nid = str(d.get("id", ""))
+                    salience = float(d.get("salience", d.get("weight", 0.5)))
+                    activations = int(d.get("activations", 0))
+                    anchor = bool(d.get("anchor", False))
+                    deg = degree_map.get(nid, 0)
                     nodes.append({
                         "id": nid,
-                        "weight": round(float(d.get("weight", 0)), 4),
-                        "degree": int(d.get("degree", 0)),
+                        "weight": round(salience, 4),
+                        "salience": round(salience, 4),
+                        "activations": activations,
+                        "anchor": anchor,
+                        "degree": deg,
                     })
-                for (src, dst), edata in net.edges.items():
-                    w = float(edata) if isinstance(edata, (int, float)) else float(getattr(edata, 'weight', 0))
-                    edges.append({"source": src, "target": dst, "weight": round(w, 4)})
-                nodes.sort(key=lambda x: x["weight"], reverse=True)
+                nodes.sort(key=lambda x: (x["weight"], x["degree"], x["activations"]), reverse=True)
                 nodes = nodes[:limit]
+                kept_ids = {n["id"] for n in nodes}
+                edges = [e for e in edges if e["source"] in kept_ids and e["target"] in kept_ids]
                 edges.sort(key=lambda x: x["weight"], reverse=True)
                 edges = edges[:limit * 2]
                 self._send_json(200, {
                     "nodes": nodes,
                     "edges": edges,
-                    "total_nodes": len(net.nodes),
-                    "total_edges": len(net.edges),
+                    "total_nodes": len(raw_nodes),
+                    "total_edges": len(raw_edges),
                 })
                 return
 
@@ -1301,6 +1388,10 @@ class LoamHandler(BaseHTTPRequestHandler):
             if path == "/mirror":
                 target = (qs.get("target") or ["user"])[0]
                 self._send_json(200, {"mirror": svc.get_mirror(target=target)})
+                return
+
+            if path == "/growth-settings":
+                self._send_json(200, svc.get_growth_settings())
                 return
 
             self._send_json(404, {"error": f"unknown route: {path}"})
@@ -1401,6 +1492,21 @@ class LoamHandler(BaseHTTPRequestHandler):
                 note = str(payload.get("note") or "")
                 merge = _coerce_bool(payload.get("merge"), default=True)
                 self._send_json(200, svc.update_experiment_flags(flags, note=note, merge=merge))
+                return
+
+            if path == "/growth-settings":
+                self._send_json(
+                    200,
+                    svc.update_growth_settings(
+                        batch_turns=payload.get("batch_turns"),
+                        idle_seconds=payload.get("idle_seconds"),
+                        grow_interval=payload.get("grow_interval"),
+                    ),
+                )
+                return
+
+            if path == "/backup/export":
+                self._send_json(200, svc.export_backup())
                 return
 
             if path == "/recompute":

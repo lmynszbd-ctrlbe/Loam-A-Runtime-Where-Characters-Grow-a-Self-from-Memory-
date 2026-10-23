@@ -6,6 +6,8 @@ set +e
 
 echo "[reset] Stopping loam / proxy / admin processes..."
 
+pkill -f "start.py" 2>/dev/null || true
+pkill -f "unified_gateway" 2>/dev/null || true
 pkill -f "loam.__main__" 2>/dev/null || true
 pkill -f "forced_flow_proxy" 2>/dev/null || true
 pkill -f "scripts/admin.py" 2>/dev/null || true

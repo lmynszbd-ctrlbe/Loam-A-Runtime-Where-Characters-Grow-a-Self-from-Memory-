@@ -91,11 +91,21 @@ def main() -> int:
         print(f"  OpenAI API: http://{PUBLIC_HOST}:{PUBLIC_PORT}/v1")
         print("  Press Ctrl+C to stop all services.\n")
 
+        restart_counts = [0] * len(commands)
         while True:
             time.sleep(1)
-            exited = [p for p in processes if p.poll() is not None]
-            if exited:
-                raise RuntimeError(f"a backend service exited with code {exited[0].returncode}")
+            for idx, proc in enumerate(processes):
+                if proc.poll() is not None:
+                    restart_counts[idx] += 1
+                    if restart_counts[idx] > 5:
+                        raise RuntimeError(
+                            f"service exited repeatedly (code {proc.returncode}): {' '.join(commands[idx])}"
+                        )
+                    print(
+                        f"[start] service exited (code {proc.returncode}), auto-restarting ({restart_counts[idx]}/5): {' '.join(commands[idx])}",
+                        flush=True,
+                    )
+                    processes[idx] = subprocess.Popen(commands[idx], cwd=root, env=env)
     except KeyboardInterrupt:
         print("\nShutting down Loam...")
         return 0

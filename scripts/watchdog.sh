@@ -47,6 +47,9 @@ while true; do
         log "unified gateway DOWN (fail $gateway_fails/$MAX_FAILURES)"
         if [ "$gateway_fails" -ge "$MAX_FAILURES" ]; then
             log "stack: restarting after $MAX_FAILURES failures"
+            if [ -f "$REPO_DIR/scripts/reset.sh" ]; then
+                bash "$REPO_DIR/scripts/reset.sh" >> "$LOAM_HOME/loam-stack.log" 2>&1 || true
+            fi
             nohup python3 "$REPO_DIR/start.py" >> "$LOAM_HOME/loam-stack.log" 2>&1 &
             gateway_fails=0
             sleep 5

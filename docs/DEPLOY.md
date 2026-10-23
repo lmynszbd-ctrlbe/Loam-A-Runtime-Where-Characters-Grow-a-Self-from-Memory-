@@ -132,12 +132,8 @@ python3 -m loam init-secrets --secrets-home ~/.loam
 cp bridge/upstreams.example.json ~/.loam/upstreams.json
 # Edit ~/.loam/secrets.json and ~/.loam/upstreams.json
 
-# Start (two terminals)
-# Terminal 1:
-python3 -m loam run
-
-# Terminal 2:
-UPSTREAMS_CONFIG="$HOME/.loam/upstreams.json" UPSTREAM_DEFAULT=relayA python3 bridge/forced_flow_proxy.py
+# Start — single command, single port
+python3 start.py
 ```
 
 ### Linux (Ubuntu/Debian)
@@ -154,12 +150,8 @@ python3 -m loam init-secrets --secrets-home ~/.loam
 cp bridge/upstreams.example.json ~/.loam/upstreams.json
 # Edit ~/.loam/secrets.json and ~/.loam/upstreams.json
 
-# Start (two terminals)
-# Terminal 1:
-python3 -m loam run
-
-# Terminal 2:
-UPSTREAMS_CONFIG="$HOME/.loam/upstreams.json" UPSTREAM_DEFAULT=relayA python3 bridge/forced_flow_proxy.py
+# Start — single command, single port
+python3 start.py
 ```
 
 ### systemd (server auto-restart)
@@ -174,7 +166,7 @@ After=network.target
 Type=simple
 User=your-username
 WorkingDirectory=/home/your-username/loam
-ExecStart=/usr/bin/python3 -m loam run
+ExecStart=/usr/bin/python3 start.py
 Restart=on-failure
 
 [Install]

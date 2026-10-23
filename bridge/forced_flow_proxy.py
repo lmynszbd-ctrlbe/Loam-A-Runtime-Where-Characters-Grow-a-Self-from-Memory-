@@ -54,7 +54,10 @@ if not PROXY_TOKEN:
         PROXY_TOKEN = "loam-" + secrets.token_hex(16)
         PROXY_TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
         PROXY_TOKEN_FILE.write_text(PROXY_TOKEN, encoding="utf-8")
-        os.chmod(PROXY_TOKEN_FILE, 0o600)
+        try:
+            os.chmod(PROXY_TOKEN_FILE, 0o600)
+        except OSError:
+            pass  # Windows NTFS does not support Unix permission bits
 TOKEN_AUTH_REQUIRED = os.environ.get("PROXY_NO_AUTH", "0") not in ("1", "true", "True")
 
 

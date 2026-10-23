@@ -77,7 +77,7 @@ def api(path, method="GET", body=None):
             req = urllib.request.Request(f"{LOAM}{path}", method=method)
         if api_key:
             req.add_header("X-API-Key", str(api_key).strip())
-        with urllib.request.urlopen(req, timeout=10) as r:
+        with urllib.request.urlopen(req, timeout=90) as r:
             raw = r.read().decode("utf-8")
             return json.loads(raw) if raw else {}
     except Exception as e:
@@ -101,6 +101,9 @@ HTML = r"""<!DOCTYPE html>
   --border-hover: rgba(120, 160, 255, 0.35);
   --border-strong: rgba(120, 160, 255, 0.45);
   --fg: #e2e8f4;
+  --text: #e2e8f4;
+  --text-color: #e2e8f4;
+  --surface: #121a2b;
   --fg-dim: #94a3b8;
   --muted: #64748b;
   --accent: #60a5fa;
@@ -133,6 +136,9 @@ HTML = r"""<!DOCTYPE html>
   --border-hover: rgba(59, 130, 246, 0.45);
   --border-strong: rgba(59, 130, 246, 0.55);
   --fg: #0f172a;
+  --text: #0f172a;
+  --text-color: #0f172a;
+  --surface: #ffffff;
   --fg-dim: #475569;
   --muted: #94a3b8;
   --accent: #2563eb;
@@ -528,7 +534,7 @@ main {
     <div class="logo-text">
       <span>🌱</span>
       <span class="gradient-text">loam</span>
-      <span class="version-badge">v0.7.0</span>
+      <span class="version-badge">v0.8.0</span>
     </div>
     <div style="display:flex;gap:4px;">
         <button class="theme-btn" onclick="toggleTheme()" title="切换日间/夜间模式">☀️</button>
@@ -550,7 +556,8 @@ main {
       <a href="#" onclick="showPanel('memory')" id="nav-memory">🧠 记忆总线</a>
       <a href="#" onclick="showPanel('config')" id="nav-config">⚙️ 系统配置</a>
       <a href="#" onclick="showPanel('constants')" id="nav-constants">🧊 常数环境</a>
-      <a href="#" onclick="showPanel('connections')" id="nav-connections">🔌 外部连接</a>
+      <a href="#" onclick="showPanel('traits')" id="nav-traits">🧬 特质快照</a>
+      <a href="#" onclick="showPanel('connect')" id="nav-connections">🔌 外部连接</a>
       <a href="#" onclick="showPanel('actions')" id="nav-actions">⚡ 动作中心</a>
     </div>
   </div>
@@ -714,7 +721,7 @@ main {
       <h3>Update Config</h3>
       <div class="form-group">
         <label>JSON updates (merge)</label>
-        <textarea id="config-updates" placeholder="{"context.max_matches": 12}"></textarea>
+        <textarea id="config-updates" placeholder='{"context.max_matches": 12}'></textarea>
       </div>
       <button class="btn" onclick="updateConfig()">Apply</button>
     </div>
@@ -738,22 +745,22 @@ main {
         <h3>✨ 一键性格预设 (Preset Personas)</h3>
         <p class="muted" style="font-size:11px;margin-bottom:12px">点击直接应用预设性格模型，底层常数将自动按权重映射调节并持久化</p>
         <div class="grid" style="grid-template-columns:repeat(4, 1fr);gap:10px">
-          <div class="card preset-card" onclick="applyPersonaPreset('aloof')" style="cursor:pointer;text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);transition:all 0.2s">
+          <div class="card preset-card" onclick="applyConstantsPreset('aloof')" style="cursor:pointer;text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);transition:all 0.2s">
             <div style="font-size:24px">🧊</div>
             <div style="font-weight:600;font-size:13px;margin:4px 0">高冷孤傲</div>
             <div class="muted" style="font-size:10px">慢热防备 · 自愈极强</div>
           </div>
-          <div class="card preset-card" onclick="applyPersonaPreset('gentle')" style="cursor:pointer;text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);transition:all 0.2s">
+          <div class="card preset-card" onclick="applyConstantsPreset('gentle')" style="cursor:pointer;text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);transition:all 0.2s">
             <div style="font-size:24px">🌸</div>
             <div style="font-weight:600;font-size:13px;margin:4px 0">温柔包容</div>
             <div class="muted" style="font-size:10px">共情敏锐 · 富于理解</div>
           </div>
-          <div class="card preset-card" onclick="applyPersonaPreset('cheerful')" style="cursor:pointer;text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);transition:all 0.2s">
+          <div class="card preset-card" onclick="applyConstantsPreset('cheerful')" style="cursor:pointer;text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);transition:all 0.2s">
             <div style="font-size:24px">🐶</div>
             <div style="font-weight:600;font-size:13px;margin:4px 0">乐天小狗</div>
             <div class="muted" style="font-size:10px">超级易感 · 回血神速</div>
           </div>
-          <div class="card preset-card" onclick="applyPersonaPreset('fragile')" style="cursor:pointer;text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);transition:all 0.2s">
+          <div class="card preset-card" onclick="applyConstantsPreset('fragile')" style="cursor:pointer;text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);transition:all 0.2s">
             <div style="font-size:24px">🥀</div>
             <div style="font-weight:600;font-size:13px;margin:4px 0">敏感易碎</div>
             <div class="muted" style="font-size:10px">多疑内耗 · 脑补发散</div>
@@ -812,7 +819,7 @@ main {
         </div>
 
         <div style="display:flex;gap:10px;margin-top:18px">
-          <button class="btn btn-ok" onclick="savePersonaKnobs()">💾 保存并持久化此性格</button>
+          <button class="btn btn-ok" onclick="saveConstantsMacroKnobs()">💾 保存并持久化此性格</button>
           <button class="btn btn-outline" onclick="resetPersonaKnobs()">🔄 重置为默认平衡态</button>
         </div>
       </div>
@@ -878,7 +885,7 @@ main {
           <input id="sec-model" placeholder="请填写" list="sec-models-list">
           <datalist id="sec-models-list"></datalist>
         </div>
-        <button class="btn btn-sm btn-outline" style="height:38px;align-self:end" class="btn-fetch" onclick="fetchModels('sec')" title="从提供商拉取可用模型列表">拉取</button>
+        <button class="btn btn-sm btn-outline btn-fetch" style="height:38px;align-self:end" onclick="fetchModels('sec')" title="从提供商拉取可用模型列表">拉取</button>
         <button class="btn btn-ok" style="height:38px;align-self:end" onclick="saveSecrets()">💾 保存</button>
       </div>
       <div id="sec-status" style="margin-top:8px;font-size:12px" class="muted"></div>
@@ -976,7 +983,7 @@ main {
         <h3>📦 一键数据备份迁移</h3>
         <p class="muted" style="font-size:12px;margin-bottom:8px">打包全套 SQLite + 状态文件为 tar.gz</p>
         <button class="btn btn-ok" onclick="doAction('backup_export')">💾 导出完整备份包</button>
-        <div id="backup-result" style="margin-top:8px;font-size:12px"></div>
+        <div id="backup_export-result" style="margin-top:8px;font-size:12px"></div>
       </div>
       <div class="card">
         <h3>🔄 重建记忆</h3>
@@ -1094,7 +1101,10 @@ async function loadPersona() {
     const presetsDiv = document.getElementById('persona-presets');
     const presets = pData.presets || {};
     const curPreset = pData.current_preset;
-    document.getElementById('active-preset-name').textContent = curPreset ? (presets[curPreset]?.name || curPreset) : '自定义参数模式';
+    const presetLabel = curPreset ? (presets[curPreset]?.name || curPreset) : '自定义参数模式';
+    document.getElementById('active-preset-name').textContent = presetLabel;
+    const sideDisplay = document.getElementById('current-persona-display');
+    if (sideDisplay) sideDisplay.textContent = presetLabel;
 
     let presetsHtml = '';
     for (const [key, p] of Object.entries(presets)) {
@@ -1120,11 +1130,11 @@ async function loadPersona() {
         <div style="display:flex;flex-direction:column;gap:4px;padding:8px 12px;background:var(--bg-subtle);border-radius:6px;border:1px solid var(--border)">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <span style="font-weight:600;font-size:13.5px;">${esc(meta.name)}</span>
-            <span id="knob-val-${key}" style="font-family:monospace;font-weight:bold;color:var(--accent);">${Number(val).toFixed(2)}</span>
+            <span id="p-knob-val-${key}" style="font-family:monospace;font-weight:bold;color:var(--accent);">${Number(val).toFixed(2)}</span>
           </div>
           <div style="font-size:11.5px;color:var(--muted);">${esc(meta.desc)}</div>
-          <input type="range" id="knob-slider-${key}" min="0" max="1" step="0.01" value="${val}"
-            oninput="document.getElementById('knob-val-${key}').textContent = Number(this.value).toFixed(2)"
+          <input type="range" id="p-knob-slider-${key}" min="0" max="1" step="0.01" value="${val}"
+            oninput="document.getElementById('p-knob-val-${key}').textContent = Number(this.value).toFixed(2)"
             style="width:100%;margin-top:6px;cursor:pointer;">
         </div>
       `;
@@ -1187,7 +1197,7 @@ async function savePersonaKnobs() {
   if (!currentPersonaData || !currentPersonaData.schema) return;
   const knobs = {};
   for (const k of Object.keys(currentPersonaData.schema)) {
-    const el = document.getElementById('knob-slider-' + k);
+    const el = document.getElementById('p-knob-slider-' + k);
     if (el) knobs[k] = parseFloat(el.value);
   }
   try {
@@ -1327,10 +1337,18 @@ async function triggerDream() {
 
 // ---- STATUS ----
 async function loadStatus() {
-  const [stats, healthz] = await Promise.all([
-    call('GET', '/stats'), call('GET', '/healthz')
+  const [stats, healthz, pData] = await Promise.all([
+    call('GET', '/stats'), call('GET', '/healthz'), call('GET', '/persona').catch(() => ({}))
   ]);
   document.getElementById('status-time').textContent = new Date().toLocaleString();
+  const sideDisplay = document.getElementById('current-persona-display');
+  if (sideDisplay) {
+    const charName = stats.character || 'default';
+    const curPre = pData && pData.current_preset && pData.presets && pData.presets[pData.current_preset]
+      ? pData.presets[pData.current_preset].name
+      : '';
+    sideDisplay.textContent = curPre ? `${charName} (${curPre})` : charName;
+  }
 
   const mem = stats.memory || {};
   const grid = document.getElementById('status-grid');
@@ -1372,7 +1390,7 @@ async function loadTraits() {
   const ctx = await call('GET', '/context?q=status');
   const traits = (ctx.context||{}).traits||[];
   const explain = await call('GET', '/explain?kind=trait&limit=50');
-  const changes = explain.changes||[];
+  const changes = explain.items||explain.changes||[];
 
   document.getElementById('traits-table').innerHTML = traits.length
     ? `<table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -1417,16 +1435,18 @@ async function loadNarrative() {
     <div class="card"><div class="narrative">${esc(narr.text||'No narrative yet.')}</div></div>`;
 }
 async function loadChangelog() {
-  const explain = await call('GET', '/explain?kind=trait&limit=50');
-  const changes = explain.changes||[];
-  document.getElementById('memory-content').innerHTML = `<h2>Changelog (${changes.length})</h2>
-    <div class="timeline">${changes.map(c => `
-      <div class="changelog-entry">
-        <span class="ts">${c.when||'?'}</span>
-        <strong>${esc(c.target||'?')}</strong>
-        <span class="muted">${esc(c.reason||'')}</span>
-        ${c.before ? `<span class="muted"> | ${c.before} → ${c.after}</span>` : ''}
-      </div>`).join('')}</div>`;
+  const explain = await call('GET', '/explain?limit=50');
+  const changes = explain.items||explain.changes||[];
+  document.getElementById('memory-content').innerHTML = changes.length
+    ? `<h2>Changelog (${changes.length})</h2>
+      <div class="timeline">${changes.map(c => `
+        <div class="changelog-entry" style="padding:8px 0;border-bottom:1px solid var(--border)">
+          <span class="ts" style="font-family:monospace;font-size:11px;color:var(--muted);margin-right:8px">${esc(c.when||'?')}</span>
+          <strong style="color:var(--accent);margin-right:8px">[${esc(c.kind||'change')}] ${esc(c.target||'?')}</strong>
+          <span class="muted">${esc(c.reason||'')}</span>
+          ${(c.before !== null && c.before !== undefined && c.before !== '') ? `<span class="muted"> | ${esc(c.before)} → ${esc(c.after)}</span>` : ''}
+        </div>`).join('')}</div>`
+    : '<span class="muted">No changelog entries yet.</span>';
 }
 async function loadNetworkGraph() {
   const net = await call('GET', '/network?limit=80');
@@ -1694,7 +1714,7 @@ function onKnobChange() {
   });
 }
 
-function applyPersonaPreset(name) {
+async function applyConstantsPreset(name) {
   const p = PRESET_MAP[name];
   if (!p) return;
   for (const [k, v] of Object.entries(p)) {
@@ -1704,10 +1724,15 @@ function applyPersonaPreset(name) {
       document.getElementById('knob-val-' + k).innerText = v.toFixed(2);
     }
   }
-  toast(`已选择预设：${name}，点击下方保存即可持久化生效`, 'ok');
+  try {
+    await call('POST', '/persona/apply', { preset: name });
+    toast(`已应用并持久化预设：${name}`, 'ok');
+  } catch (e) {
+    toast(`已选择预设：${name}，点击下方保存即可生效`, 'ok');
+  }
 }
 
-function resetPersonaKnobs() {
+async function resetPersonaKnobs() {
   ['sensitivity', 'stubbornness', 'resilience', 'vigilance', 'creativity'].forEach(k => {
     const inp = document.getElementById('knob-' + k);
     if (inp) {
@@ -1715,40 +1740,25 @@ function resetPersonaKnobs() {
       document.getElementById('knob-val-' + k).innerText = '0.50';
     }
   });
+  try {
+    await call('POST', '/persona/reset');
+  } catch (e) {}
   toast('已重置为标准平衡态', 'ok');
 }
 
-function computeKnobsToOverrides() {
-  const s = parseFloat(document.getElementById('knob-sensitivity').value);
-  const st = parseFloat(document.getElementById('knob-stubbornness').value);
-  const r = parseFloat(document.getElementById('knob-resilience').value);
-  const v = parseFloat(document.getElementById('knob-vigilance').value);
-  const c = parseFloat(document.getElementById('knob-creativity').value);
-
-  const overrides = {};
-  overrides["PLASTICITY"] = +(0.18 + 0.37 * s).toFixed(4);
-  overrides["BREAKTHROUGH"] = +(0.95 - 0.25 * s).toFixed(4);
-  overrides["FAST_LIMIT"] = +(0.15 + 0.27 * s).toFixed(4);
-  overrides["CEILING"] = +(0.90 + 0.09 * st).toFixed(4);
-  overrides["DECAY"] = +(0.995 + 0.0049 * st).toFixed(5);
-  overrides["GATE_LEVEL_MULTIPLIER"] = +(1.02 + 0.33 * st).toFixed(3);
-  overrides["FAST_DECAY"] = +(0.85 - 0.40 * r).toFixed(4);
-  overrides["LEAK"] = +(0.98 - 0.18 * r).toFixed(4);
-  overrides["PENDING_RESIDUAL"] = +(0.35 - 0.30 * r).toFixed(4);
-  overrides["UNCERTAINTY_GATE"] = +(0.35 + 0.40 * v).toFixed(4);
-  overrides["SARCASTIC_AMBIGUITY"] = +(0.88 - 0.38 * v).toFixed(4);
-  overrides["SPREAD_DECAY"] = +(0.60 + 0.28 * c).toFixed(4);
-  overrides["MAX_HOPS"] = Math.round(2 + 4 * c);
-  overrides["EDGE_STRENGTHEN"] = +(0.15 + 0.35 * c).toFixed(4);
-
-  return overrides;
-}
-
-async function savePersonaKnobs() {
-  const overrides = computeKnobsToOverrides();
+async function saveConstantsMacroKnobs() {
+  const knobs = {};
+  ['sensitivity', 'stubbornness', 'resilience', 'vigilance', 'creativity'].forEach(k => {
+    const inp = document.getElementById('knob-' + k);
+    if (inp) knobs[k] = parseFloat(inp.value);
+  });
   try {
-    const r = await call('POST', '/constants', {overrides, persist: true});
-    toast(`性格气质已成功映射至 ${Object.keys(overrides).length} 项物理常数并永久落盘！`, 'ok');
+    const res = await call('POST', '/persona/apply', { knobs });
+    if (res.ok) {
+      toast('性格气质已映射至物理常数并永久落盘！', 'ok');
+    } else {
+      toast(res.error || '保存失败', 'err');
+    }
   } catch(e) {
     toast('保存失败: ' + e.message, 'err');
   }
@@ -1756,6 +1766,17 @@ async function savePersonaKnobs() {
 
 // ---- CONSTANTS ----
 async function loadConstants() {
+  try {
+    const pData = await call('GET', '/persona');
+    if (pData && pData.current_knobs) {
+      for (const [k, v] of Object.entries(pData.current_knobs)) {
+        const inp = document.getElementById('knob-' + k);
+        const valSpan = document.getElementById('knob-val-' + k);
+        if (inp) inp.value = v;
+        if (valSpan) valSpan.innerText = Number(v).toFixed(2);
+      }
+    }
+  } catch (e) {}
   const data = await callAdmin('GET', '/admin/constants');  // direct from admin, no loam needed
   const consts = data.constants||{};
   const overrides = data.overrides||{};
@@ -1855,20 +1876,27 @@ function renderUpstreamRows(defName) {
 
   container.innerHTML = sorted.map(name => {
     const p = _upstreamData[name] || {};
-    return `<div class="upstream-row" id="up-row-${escAttr(name)}" style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:8px;align-items:end;padding:8px 0;border-bottom:1px solid var(--border)">
+    const dmodel = p.default_model || p.model || '';
+    const dlId = `up-models-list-${escAttr(name)}`;
+    return `<div class="upstream-row" id="up-row-${escAttr(name)}" style="display:grid;grid-template-columns:0.8fr 1.2fr 1.2fr 1fr auto auto;gap:8px;align-items:end;padding:8px 0;border-bottom:1px solid var(--border)">
       <div class="form-group" style="margin:0">
         <label>提供商名称</label>
-        <input class="up-name-inp" value="${escAttr(name)}" placeholder="请填写" style="font-weight:600">
+        <input class="up-name-inp" value="${escAttr(name)}" placeholder="如 relay1" style="font-weight:600">
       </div>
       <div class="form-group" style="margin:0">
         <label>Base URL（如 https://api.deepseek.com）</label>
-        <input class="up-url-inp" value="${escAttr(p.base_url||'')}" placeholder="请填写">
+        <input class="up-url-inp" value="${escAttr(p.base_url||'')}" placeholder="请填写 API 地址">
       </div>
       <div class="form-group" style="margin:0">
         <label>API Key（sk-...）</label>
-        <input class="up-key-inp" type="password" value="${escAttr(p.api_key||'')}" placeholder="请填写">
+        <input class="up-key-inp" type="password" value="${escAttr(p.api_key||'')}" placeholder="请填写密钥">
       </div>
-      <button class="btn btn-sm btn-outline" style="height:38px;align-self:end" class="btn-fetch" onclick="fetchModels('${escAttr(name)}')" title="拉取模型列表">拉取</button>
+      <div class="form-group" style="margin:0">
+        <label>默认模型（Default Model）</label>
+        <input class="up-model-inp" value="${escAttr(dmodel)}" list="${dlId}" placeholder="如 deepseek-chat">
+        <datalist id="${dlId}"></datalist>
+      </div>
+      <button class="btn btn-sm btn-outline btn-fetch" style="height:38px;align-self:end" onclick="fetchModels('${escAttr(name)}')" title="拉取模型列表">拉取</button>
       <button class="btn btn-sm btn-danger" style="height:38px;align-self:end" onclick="removeUpstreamRow('${escAttr(name)}')">✕</button>
     </div>`;
   }).join('');
@@ -1879,18 +1907,19 @@ function renderUpstreamRows(defName) {
 }
 
 function addUpstreamRow(name) {
+  _upstreamData = collectUpstreamFromDOM();
   name = (name || '').trim();
   if (!name) {
-    // generate a unique name
     let i = 1;
     while (_upstreamData['relay'+i]) i++;
     name = 'relay'+i;
   }
   if (!_upstreamData[name]) _upstreamData[name] = {base_url:'', api_key:'', default_model:''};
-  renderUpstreamRows(document.getElementById('up-default').value);
+  renderUpstreamRows(document.getElementById('up-default').value || name);
 }
 
 function removeUpstreamRow(name) {
+  _upstreamData = collectUpstreamFromDOM();
   delete _upstreamData[name];
   renderUpstreamRows(document.getElementById('up-default').value);
 }
@@ -1902,10 +1931,12 @@ function collectUpstreamFromDOM() {
     const name = (row.querySelector('.up-name-inp')?.value || '').trim();
     if (!name) return;
     const existing = _upstreamData[name] || {};
+    const modelInp = row.querySelector('.up-model-inp');
+    const modelVal = (modelInp ? modelInp.value : (existing.default_model || '')).trim();
     data[name] = {
       base_url: (row.querySelector('.up-url-inp')?.value || '').trim(),
       api_key: (row.querySelector('.up-key-inp')?.value || '').trim(),
-      default_model: existing.default_model || '',
+      default_model: modelVal,
     };
   });
   return data;
@@ -1913,19 +1944,19 @@ function collectUpstreamFromDOM() {
 
 async function saveSecrets() {
   const modelEl = document.getElementById('sec-model');
-  const modelVal = (modelEl.tagName === 'SELECT' ? modelEl.value : modelEl.value).trim();
+  const modelVal = (modelEl.value || '').trim();
   const body = {
     api_key: document.getElementById('sec-key').value.trim(),
     base_url: document.getElementById('sec-url').value.trim(),
     model: modelVal,
   };
   if (!body.api_key || !body.base_url || !body.model) {
-    toast('Fill in all three fields for loam Memory API', 'err'); return;
+    toast('请完整填写记忆生长模型的 Base URL、API Key 和 Model', 'err'); return;
   }
   const r = await callAdmin('POST', '/admin/secrets', body);
   const el = document.getElementById('sec-status');
-  if (r.ok) { el.innerHTML = '<span class="ok">✓ saved — restart loam to apply</span>'; toast('Memory API saved', 'ok'); }
-  else { el.innerHTML = '<span class="err">'+esc(r.error||'failed')+'</span>'; toast('save failed', 'err'); }
+  if (r.ok) { el.innerHTML = '<span class="ok">✓ 已保存</span>'; toast('记忆生长模型配置已保存', 'ok'); }
+  else { el.innerHTML = '<span class="err">'+esc(r.error||'failed')+'</span>'; toast('保存失败', 'err'); }
 }
 
 async function saveUpstreams() {
@@ -1933,21 +1964,19 @@ async function saveUpstreams() {
   if (!Object.keys(providers).length) { toast('请至少添加一个提供商', 'err'); return; }
   for (const [name, p] of Object.entries(providers)) {
     if (!p.base_url || !p.api_key || !p.default_model) {
-      toast('提供商 "'+name+'": 请填写所有字段', 'err'); return;
+      toast('提供商 "' + name + '": 请完整填写 Base URL、API Key 和默认模型', 'err'); return;
     }
   }
   const defName = document.getElementById('up-default').value;
   const body = {providers};
   if (defName && providers[defName]) body.default = defName;
   const el = document.getElementById('up-status');
-  el.innerHTML = '<span class="spinner"></span> 正在保存并重启 proxy...';
+  el.innerHTML = '<span class="spinner"></span> 正在保存配置...';
   const r = await callAdmin('POST', '/admin/upstreams', body);
   if (r.ok) {
     _upstreamData = providers;
-    // 自动重启 proxy 让它加载新配置
-    try { await callAdmin('POST', '/admin/restart-proxy'); } catch(e) {}
-    el.innerHTML = '<span class="ok">✓ 已保存并重启 proxy — 现在可以拉取模型了</span>';
-    toast('聊天 API 已保存，proxy 已重启', 'ok');
+    el.innerHTML = '<span class="ok">✓ 已保存并热加载生效！</span>';
+    toast('聊天回复模型 API 已保存并热生效', 'ok');
   } else { el.innerHTML = '<span class="err">'+esc(r.error||'保存失败')+'</span>'; toast('保存失败', 'err'); }
 }
 
@@ -1955,18 +1984,16 @@ function loadConnect() { loadApiConfig(); }
 
 // ---- FETCH MODELS ----
 async function fetchModels(section) {
-  let url, key, targetId, btnId;
+  let url, key, btnId;
   if (section === 'sec') {
     url = document.getElementById('sec-url').value.trim();
     key = document.getElementById('sec-key').value.trim();
-    targetId = 'sec-model';
     btnId = 'sec-status';
   } else {
     const row = document.getElementById('up-row-'+section);
-    if (!row) { toast('Provider row not found', 'err'); return; }
+    if (!row) { toast('找不到该提供商行', 'err'); return; }
     url = row.querySelector('.up-url-inp')?.value.trim() || '';
     key = row.querySelector('.up-key-inp')?.value.trim() || '';
-    targetId = null; // will find in row
     btnId = 'up-status';
   }
   if (!url || !key) { toast('请先填写 Base URL 和 API Key', 'err'); return; }
@@ -1976,39 +2003,41 @@ async function fetchModels(section) {
   try {
     const r = await callAdmin('POST', '/admin/fetch-models', {base_url: url, api_key: key});
     if (r.models && r.models.length) {
-      if (targetId) {
-        // replace input with select
-        const inp = document.getElementById(targetId);
+      if (section === 'sec') {
+        const dl = document.getElementById('sec-models-list');
+        if (dl) dl.innerHTML = r.models.map(m => `<option value="${escAttr(m)}">`).join('');
+        const inp = document.getElementById('sec-model');
         if (inp) {
           const sel = document.createElement('select');
-          sel.id = targetId;
+          sel.id = 'sec-model';
           sel.style.cssText = inp.style.cssText;
-          sel.innerHTML = r.models.map(m => `<option value="${m}">${m}</option>`).join('');
+          const cur = inp.value;
+          sel.innerHTML = r.models.map(m => `<option value="${escAttr(m)}" ${m===cur?'selected':''}>${esc(m)}</option>`).join('');
           inp.parentNode.replaceChild(sel, inp);
         }
       } else {
-        // upstream row: find model input and replace with select
         const row = document.getElementById('up-row-'+section);
         if (row) {
-          const inp = row.querySelector('.up-key-inp');
+          const inp = row.querySelector('.up-model-inp');
           if (inp) {
+            const cur = inp.value;
             const sel = document.createElement('select');
-            sel.className = 'up-key-inp';
+            sel.className = 'up-model-inp';
             sel.style.cssText = inp.style.cssText;
-            sel.innerHTML = r.models.map(m => `<option value="${m}">${m}</option>`).join('');
+            sel.innerHTML = r.models.map(m => `<option value="${escAttr(m)}" ${m===cur?'selected':''}>${esc(m)}</option>`).join('');
             inp.parentNode.replaceChild(sel, inp);
           }
         }
       }
       toast(`${r.models.length} 个模型已加载`, 'ok');
-      if (statusEl) statusEl.innerHTML = `<span class="ok">✓ 已加载 ${r.models.length} 个模型</span>`;
+      if (statusEl) statusEl.innerHTML = `<span class="ok">✓ 已加载 ${r.models.length} 个模型，请选择后点击保存</span>`;
     } else {
       toast('拉取失败：' + (r.error||'未返回模型'), 'err');
-      if (statusEl) statusEl.innerHTML = `<span class="err">✗ ${r.error||'未返回模型'}</span>`;
+      if (statusEl) statusEl.innerHTML = `<span class="err">✗ ${esc(r.error||'未返回模型')}</span>`;
     }
   } catch(e) {
     toast('拉取出错：' + e.message, 'err');
-    if (statusEl) statusEl.innerHTML = `<span class="err">✗ ${e.message}</span>`;
+    if (statusEl) statusEl.innerHTML = `<span class="err">✗ ${esc(e.message)}</span>`;
   } finally {
     document.querySelectorAll('.btn-fetch').forEach(b => { b.disabled = false; b.classList.remove('btn-fetching'); });
   }
@@ -2053,25 +2082,29 @@ async function checkVersion() {
 
 // ---- ACTIONS ----
 async function doAction(action) {
-  const el = document.getElementById(action+'-result');
-  el.innerHTML = '<span class="spinner"></span> running...';
+  const el = document.getElementById(action+'-result') || document.getElementById('backup-result');
+  if (el) el.innerHTML = '<span class="spinner"></span> 正在执行...';
   try {
     let r;
     switch(action) {
       case 'digest': r = await call('POST', '/digest', {limit: 20}); break;
       case 'drain': r = await call('POST', '/drain', {max_rounds: 50}); break;
-      case 'snapshot':
-        r = {message: 'Snapshot not available via API. Use CLI: python -m loam snapshot'};
-        break;
+      case 'backup_export': r = await call('POST', '/backup/export', {}); break;
       case 'recompute':
-        r = {message: 'Recompute not available via API. Use CLI.'};
+        if (!confirm('确定要从原始对话重新整理与索引记忆吗？')) {
+          if (el) el.innerHTML = '';
+          return;
+        }
+        r = await call('POST', '/recompute', {mode: 'incremental', note: 'admin panel'});
         break;
+      default:
+        r = {error: '未知动作: ' + action};
     }
-    el.innerHTML = `<pre style="font-size:11px;max-height:200px;overflow-y:auto">${JSON.stringify(r,null,2)}</pre>`;
-    toast(action + ' done', 'ok');
+    if (el) el.innerHTML = `<pre style="font-size:11px;max-height:200px;overflow-y:auto">${esc(JSON.stringify(r,null,2))}</pre>`;
+    toast(action + ' 执行完成', 'ok');
   } catch(e) {
-    el.innerHTML = `<span class="err">${esc(e.message)}</span>`;
-    toast(action + ' failed: ' + e.message, 'err');
+    if (el) el.innerHTML = `<span class="err">${esc(e.message)}</span>`;
+    toast(action + ' 失败: ' + e.message, 'err');
   }
 }
 
@@ -2102,7 +2135,7 @@ async function saveGrowthSettings() {
   try {
     const r = await callAdmin('POST', '/admin/growth-settings', {batch_turns: batch, idle_seconds: idle, grow_interval: interval});
     if (r.ok) {
-      statusEl.innerHTML = '<span class="ok">✅ 已保存。重启 loam 后生效。</span>';
+      statusEl.innerHTML = '<span class="ok">✅ 已保存并立即生效！</span>';
       document.getElementById('growth-batch').textContent = batch;
       document.getElementById('growth-idle').textContent = Math.round(idle/60);
     } else {
@@ -2139,10 +2172,12 @@ class Handler(BaseHTTPRequestHandler):
             self._json(self._read_constants_local())
         elif self.path == "/admin/addresses":
             self._json(self._local_addresses())
+        elif self.path == "/admin/growth-settings":
+            self._json(self._get_growth_settings())
         elif self.path.startswith("/api/proxy"):
             self._proxy("GET")
         else:
-            self._send(404, "not found")
+            self._json({"error": "not found"})
 
     def do_POST(self):
         if self.path == "/admin/secrets":
@@ -2153,12 +2188,14 @@ class Handler(BaseHTTPRequestHandler):
             self._json(self._fetch_models())
         elif self.path == "/admin/restart-proxy":
             self._json(self._restart_proxy())
+        elif self.path == "/admin/growth-settings":
+            self._json(self._save_growth_settings())
         elif self.path == "/admin/update":
             self._json(self._run_update())
         elif self.path.startswith("/api/proxy"):
             self._proxy("POST")
         else:
-            self._send(404, "not found")
+            self._json({"error": "not found"})
 
     # ---- config file handlers (admin owns these, not the loam backend) ----
     def _local_addresses(self):
@@ -2320,13 +2357,19 @@ class Handler(BaseHTTPRequestHandler):
             stamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())
             snap_dir = SECRETS_HOME / "snapshots" / f"pre_update_{stamp}"
             copied = []
-            for name in ("journal.db", "memory.db"):
-                src = SECRETS_HOME / name
-                if not src.exists():
-                    continue
-                snap_dir.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src, snap_dir / name)
-                copied.append(name)
+            chars_root = SECRETS_HOME / "characters"
+            if chars_root.exists():
+                for char_dir in chars_root.iterdir():
+                    if not char_dir.is_dir():
+                        continue
+                    for name in ("journal.db", "memory.db"):
+                        src = char_dir / name
+                        if not src.exists():
+                            continue
+                        dst = snap_dir / char_dir.name
+                        dst.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(src, dst / name)
+                        copied.append(f"{char_dir.name}/{name}")
             return (str(snap_dir) if copied else None), copied
 
         try:
@@ -2436,34 +2479,39 @@ class Handler(BaseHTTPRequestHandler):
         overrides = load_persisted_overrides(home=SECRETS_HOME)
         return {"constants": all_consts, "overrides": overrides, "descriptions": descriptions}
 
+    def _get_growth_settings(self):
+        res = api("/growth-settings", "GET")
+        if isinstance(res, dict) and "batch_turns" in res:
+            return res
+        local_cfg = read_json_file(SECRETS_HOME / "growth_settings.json")
+        return {
+            "batch_turns": int(local_cfg.get("batch_turns", 20)) if isinstance(local_cfg, dict) else 20,
+            "idle_seconds": float(local_cfg.get("idle_seconds", 900)) if isinstance(local_cfg, dict) else 900,
+            "grow_interval": float(local_cfg.get("grow_interval", 60)) if isinstance(local_cfg, dict) else 60,
+        }
+
+    def _save_growth_settings(self):
+        body = self._read_body()
+        batch = max(1, min(200, int(body.get("batch_turns") or 20)))
+        idle = max(10, min(86400, int(body.get("idle_seconds") or 900)))
+        interval = max(5, min(3600, int(body.get("grow_interval") or 60)))
+        payload = {"batch_turns": batch, "idle_seconds": idle, "grow_interval": interval}
+        write_json_file(SECRETS_HOME / "growth_settings.json", payload)
+        res = api("/growth-settings", "POST", payload)
+        if isinstance(res, dict) and res.get("ok"):
+            return res
+        return {"ok": True, **payload}
+
     def _restart_proxy(self):
-        """Kill and restart the forced proxy process so it picks up new upstreams.json."""
-        repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        # 先确保文件存在
+        """forced_flow_proxy.py auto-reloads upstreams.json on mtime change.
+        Avoid killing the child process when managed by start.py, which would
+        bring down the entire stack.
+        """
         if not UPSTREAMS_FILE.exists():
             write_json_file(UPSTREAMS_FILE, {"default":"relayA","providers":{"relayA":{"base_url":"","api_key":"","default_model":""}}})
-        # 强杀端口占用
-        import subprocess as sp
-        if sys.platform != "win32":
-            try:
-                sp.run(["fuser", "-k", "8781/tcp"], timeout=5, capture_output=True)
-            except Exception:
-                try:
-                    sp.run(["pkill", "-9", "-f", "forced_flow_proxy"], timeout=5)
-                except Exception:
-                    pass
-        import time
-        time.sleep(2)
-        try:
-            sp.Popen(
-                [sys.executable, "bridge/forced_flow_proxy.py"],
-                cwd=repo_dir,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                env={**os.environ, "PROXY_NO_AUTH": "1"}
-            )
-            return {"ok": True, "message": "proxy restarted"}
-        except Exception as e:
-            return {"error": str(e)}
+        else:
+            os.utime(UPSTREAMS_FILE, None)
+        return {"ok": True, "message": "upstreams hot-reloaded"}
 
     def _fetch_models(self):
         """Proxy a /v1/models call to a provider. Body: {base_url, api_key}."""

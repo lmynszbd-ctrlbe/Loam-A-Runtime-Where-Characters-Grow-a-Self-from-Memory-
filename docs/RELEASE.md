@@ -1,5 +1,68 @@
 # loam Release Notes
 
+## v0.8.0 — Unified single-port architecture & audit fixes
+
+### What changed since v0.7.0
+
+| Area | Change |
+|------|--------|
+| **Single-port startup** | python start.py boots core, proxy, admin, and unified gateway behind one external port (8783). No more three terminals. |
+| **Unified gateway** | scripts/unified_gateway.py — pure-stdlib reverse proxy routing /v1/* to proxy, / and /admin to admin, everything else to core. |
+| **Gateway test** | 	ests/test_unified_gateway.py — regression test for route mapping. |
+| **Docker simplified** | Dockerfile and docker-compose.yml now run start.py; only port 8783 is exposed. |
+| **setup.sh unified** | setup.sh launches the full stack via start.py behind 
+ohup with a PID file. |
+| **Bug fixes** | setup.sh inline-Python indentation fix, admin nav ID mismatch fix, os.chmod Windows guard, stale version badges. |
+
+### Test results
+
+All 169 tests pass across 18 test files.
+
+---
+
+## v0.7.0 — Five-Tier Selfhood Genesis
+
+### What changed since v0.6.0
+
+| Addition | Description |
+|----------|-------------|
+| **Tier 1 — Subjective Lens** | Memory recall filtered through emotional bias and personal perspective. |
+| **Tier 2 — Latent Drives (Zeigarnik)** | Unresolved events ferment into preoccupations that drive spontaneous questioning. |
+| **Tier 3 — Dream Replay** | During deep idle, poetic metaphor bridges form between distant memory nodes. |
+| **Tier 4 — Mirror of Other** | Theory-of-Mind: the character models each conversation partner. |
+| **Tier 5 — Theater Stage Bus** | Multi-character arena where psychological tension determines who speaks. |
+| **Admin Selfhood panel** | New tab showing Drives, Mirror, and Dream status. |
+
+---
+
+## v0.6.0 — Admin panel overhaul & persona system
+
+### What changed since v0.5.0
+
+| Addition | Description |
+|----------|-------------|
+| **5 Macro Persona Knobs** | Sensitivity, Stubbornness, Resilience, Vigilance, Creativity sliders mapping to 48 constants. |
+| **4 Preset Personas** | One-click personality cards with persisted constant overrides. |
+| **Canvas neural topology** | Real-time memory network visualization in admin panel. |
+| **Three-channel ingest** | Automatic think-tag filtering, tool-call extraction, pure dialogue routing. |
+| **5-Element resonance** | Generative/overcoming emotional dynamics with sliding-window damping. |
+
+---
+
+## v0.5.0 — State persistence & operational maturity
+
+### What changed since v0.4.0
+
+| Addition | Description |
+|----------|-------------|
+| **Constants override persistence** | overrides.json survives restarts. |
+| **One-click backup/restore** | Full SQLite + state export as tar.gz from admin panel. |
+| **Multi-character pool** | Dynamic character routing via X-Loam-Character header. |
+| **Experiment flags** | A/B testing infrastructure with full audit trail. |
+| **Recompute engine** | Incremental and full recompute modes rebuild derived state from journal. |
+
+---
+
 ## v0.4.0 — Robustness & observability
 
 ### What changed since v0.3.0
