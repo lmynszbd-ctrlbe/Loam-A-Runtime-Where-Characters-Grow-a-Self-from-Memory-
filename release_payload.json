@@ -1,5 +1,0 @@
-{
-  "tag_name": "v0.8.0",
-  "name": "v0.8.0 - 五重自性生长体系 (Five-Tier Selfhood Genesis Architecture)",
-  "body": "## 🌟 五重自性生长体系 (Five-Tier Selfhood Genesis Architecture)\n\n本项目在这一版本迎来了重大的哲学与架构升级，AI 角色不再仅仅是记忆的被动容器，而是拥有了真正的“自我”与“心智”。\n\n### 新增核心特性：\n1. **Tier 1 - 主观感知透镜 (Subjective Lens)**：带偏见与情绪的记忆折射，角色根据自身性格和当前心境评估事件的严重性，不再是无情的录音机。\n2. **Tier 2 - 蔡加尼克内心执念 (Latent Drives)**：未解悬念与情感冲击随时间发酵为强烈的心理张力（Zeigarnik Effect），提供自发倾诉、追问与产生戏剧阻力的动机。\n3. **Tier 3 - 潜意识梦境重构 (Dream Replay)**：深度闲置时自动在远距离记忆节点间建立非线性的诗意隐喻桥梁，丰富角色的潜意识底色。\n4. **Tier 4 - 他者之镜 (Mirror of Other)**：基于心智理论 (Theory of Mind)，主动生成并不断更新对交谈对象的心智画像、情绪软肋与相处分寸感（“看人下菜碟”）。\n5. **Tier 5 - 虚拟剧场舞台总线 (Theater Stage Bus)**：允许多角色同台，基于角色内心的执念与心理张力决选发言权，真实复刻群像心智对抗。\n\n### 🔧 改进与周边\n- **43项严苛的离线单元测试**：全面覆盖记忆存储、张力逻辑、节点重构和提示词管道，确保生长机制绝对可靠。\n- **后台 Admin 面板升级**：新增 `🌱 自性体系` 面板，支持实时监控角色的内心执念清单、心理张力变化、他者之镜画像以及潜意识梦境记录。\n\n*Don't script a persona. Grow a self from memory.*"
-}
