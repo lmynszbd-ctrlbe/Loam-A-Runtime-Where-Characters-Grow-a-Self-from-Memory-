@@ -1003,15 +1003,18 @@ pre {
 
   <!-- PERSONA -->
   <div id="panel-persona" class="panel">
-    <h1>🎭 性格预设与宏观气质</h1>
-    <div class="sub">将底层 48 个物理动力学参数抽象为 5 维直观气质大旋钮与 4 套经典预设卡</div>
+    <h1>🎭 性格预设与宏观气质 (Persona & Macro Knobs)</h1>
+    <div class="sub">将底层 48 个物理动力学参数抽象为 5 维直观气质大旋钮与 4 套经典预设卡（底层微调请前往 <a href="#" onclick="showPanel('constants');return false;" style="color:var(--accent);text-decoration:underline">🧊 常数环境</a>）</div>
     
     <div class="card" style="margin-bottom:16px;">
       <h3>⚡ 快捷性格预设卡 (One-Click Presets)</h3>
-      <div id="persona-presets" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+      <div id="persona-presets" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(190px, 1fr));gap:12px;margin-top:12px;">
         <!-- 预设卡按钮由 JS 动态生成 -->
       </div>
-      <div id="current-preset-badge" style="margin-top:12px;font-size:13px;color:var(--muted)">当前状态：<span id="active-preset-name" style="font-weight:600;color:var(--accent)">自定义参数</span></div>
+      <div id="current-preset-badge" style="margin-top:12px;font-size:13px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <span>当前状态：<span id="active-preset-name" style="font-weight:600;color:var(--accent)">自定义参数</span></span>
+        <button class="btn btn-sm btn-outline" onclick="showPanel('constants')">🔬 查看受控的底层物理常数</button>
+      </div>
     </div>
 
     <div class="card" style="margin-bottom:16px;">
@@ -1123,111 +1126,31 @@ pre {
 
   <!-- CONSTANTS -->
   <div id="panel-constants" class="panel">
-    <h1>🔧 Constants & Persona (双模调参)</h1>
-    <div class="sub">支持 5 大性格宏观旋钮 / 一键预设卡，亦可精细微调 48 项底层物理常数并一键持久化</div>
+    <h1>🧊 底层物理常数环境 (48 Dynamical Constants)</h1>
+    <div class="sub">直接检视与微调 Loam 引擎的 48 项底层生物物理动力学常数（半衰期、赫布学习率、情绪惯性、防备阈值等）并持久化落盘</div>
 
-    <!-- 模式切换 Tabs -->
-    <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:8px">
-      <button class="btn btn-sm btn-ok" id="tab-btn-macro" onclick="switchConstantsMode('macro')">🎭 性格气质大旋钮 (简易模式)</button>
-      <button class="btn btn-sm btn-outline" id="tab-btn-micro" onclick="switchConstantsMode('micro')">🔬 48 项物理常数 (专家模式)</button>
+    <div class="banner banner-info" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div>
+        💡 <strong>分工说明：</strong>此处为<strong>底层 48 项物理常数专家微调表</strong>。如需使用「4 套一键预设卡」或「5 维宏观气质大旋钮」，请前往性格卡片面板。
+        <span id="const-override-summary" style="margin-left:8px;color:var(--accent);font-weight:600"></span>
+      </div>
+      <button class="btn btn-sm btn-outline" onclick="showPanel('persona')">🎭 前往性格卡片 (宏观调参)</button>
     </div>
 
-    <!-- 简易模式：5大性格大旋钮 + 4套预设卡 -->
-    <div id="constants-macro-view">
-      <!-- 预设卡 -->
-      <div class="card" style="margin-bottom:16px">
-        <h3>✨ 一键性格预设 (Preset Personas)</h3>
-        <p class="muted" style="font-size:11px;margin-bottom:12px">点击直接应用预设性格模型，底层常数将自动按权重映射调节并持久化</p>
-        <div class="grid" style="grid-template-columns:repeat(4, 1fr);gap:10px">
-          <div class="card preset-card" onclick="applyConstantsPreset('aloof')" style="cursor:pointer;text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);transition:all 0.2s">
-            <div style="font-size:24px">🧊</div>
-            <div style="font-weight:600;font-size:13px;margin:4px 0">高冷孤傲</div>
-            <div class="muted" style="font-size:10px">慢热防备 · 自愈极强</div>
-          </div>
-          <div class="card preset-card" onclick="applyConstantsPreset('gentle')" style="cursor:pointer;text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);transition:all 0.2s">
-            <div style="font-size:24px">🌸</div>
-            <div style="font-weight:600;font-size:13px;margin:4px 0">温柔包容</div>
-            <div class="muted" style="font-size:10px">共情敏锐 · 富于理解</div>
-          </div>
-          <div class="card preset-card" onclick="applyConstantsPreset('cheerful')" style="cursor:pointer;text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);transition:all 0.2s">
-            <div style="font-size:24px">🐶</div>
-            <div style="font-weight:600;font-size:13px;margin:4px 0">乐天小狗</div>
-            <div class="muted" style="font-size:10px">超级易感 · 回血神速</div>
-          </div>
-          <div class="card preset-card" onclick="applyConstantsPreset('fragile')" style="cursor:pointer;text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);transition:all 0.2s">
-            <div style="font-size:24px">🥀</div>
-            <div style="font-weight:600;font-size:13px;margin:4px 0">敏感易碎</div>
-            <div class="muted" style="font-size:10px">多疑内耗 · 脑补发散</div>
-          </div>
-        </div>
+    <div class="actions" style="margin-bottom:14px;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-sm" onclick="loadConstants()">🔄 刷新常数</button>
+        <button class="btn btn-sm btn-ok" onclick="applyConstants()">💾 保存并持久化覆盖</button>
+        <button class="btn btn-sm btn-outline" onclick="clearConstants()">🗑 恢复全部默认值</button>
       </div>
-
-      <!-- 5个大滑块 -->
-      <div class="card" style="margin-bottom:16px">
-        <h3>🎛️ 5 大性格气质大旋钮</h3>
-        <div style="display:flex;flex-direction:column;gap:16px;margin-top:14px">
-          <div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-              <label style="font-weight:600;font-size:13px">🌿 敏感度 / 易感性</label>
-              <span id="knob-val-sensitivity" style="font-family:monospace;font-size:13px;color:var(--accent)">0.50</span>
-            </div>
-            <input type="range" id="knob-sensitivity" min="0" max="1" step="0.01" value="0.5" style="width:100%" oninput="onKnobChange()">
-            <div class="muted" style="font-size:11px">钝感慢热 ↔ 极度敏锐脆皮（影响推动力与情绪冲顶速度）</div>
-          </div>
-
-          <div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-              <label style="font-weight:600;font-size:13px">🗿 沉稳度 / 执拗度</label>
-              <span id="knob-val-stubbornness" style="font-family:monospace;font-size:13px;color:var(--accent)">0.50</span>
-            </div>
-            <input type="range" id="knob-stubbornness" min="0" max="1" step="0.01" value="0.5" style="width:100%" oninput="onKnobChange()">
-            <div class="muted" style="font-size:11px">随和变通 ↔ 顽固不化（影响特质固化天花板与抗撼动门槛）</div>
-          </div>
-
-          <div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-              <label style="font-weight:600;font-size:13px">💧 自愈力 / 情绪消化</label>
-              <span id="knob-val-resilience" style="font-family:monospace;font-size:13px;color:var(--accent)">0.50</span>
-            </div>
-            <input type="range" id="knob-resilience" min="0" max="1" step="0.01" value="0.5" style="width:100%" oninput="onKnobChange()">
-            <div class="muted" style="font-size:11px">持久内耗 ↔ 迅速回血（影响快态消退速率与情绪渗漏）</div>
-          </div>
-
-          <div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-              <label style="font-weight:600;font-size:13px">🛡️ 戒备度 / 多疑性</label>
-              <span id="knob-val-vigilance" style="font-family:monospace;font-size:13px;color:var(--accent)">0.50</span>
-            </div>
-            <input type="range" id="knob-vigilance" min="0" max="1" step="0.01" value="0.5" style="width:100%" oninput="onKnobChange()">
-            <div class="muted" style="font-size:11px">单纯直率 ↔ 高度防备（影响入脑置信门槛与反讽识别）</div>
-          </div>
-
-          <div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-              <label style="font-weight:600;font-size:13px">✨ 联想力 / 脑洞发散</label>
-              <span id="knob-val-creativity" style="font-family:monospace;font-size:13px;color:var(--accent)">0.50</span>
-            </div>
-            <input type="range" id="knob-creativity" min="0" max="1" step="0.01" value="0.5" style="width:100%" oninput="onKnobChange()">
-            <div class="muted" style="font-size:11px">一板一眼 ↔ 发散连篇（影响神经连线扩散跨度与跳数）</div>
-          </div>
-        </div>
-
-        <div style="display:flex;gap:10px;margin-top:18px">
-          <button class="btn btn-ok" onclick="saveConstantsMacroKnobs()">💾 保存并持久化此性格</button>
-          <button class="btn btn-outline" onclick="resetPersonaKnobs()">🔄 重置为默认平衡态</button>
-        </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);cursor:pointer;user-select:none">
+          <input type="checkbox" id="const-only-overridden" onchange="filterConstantsRows()"> 仅看已覆盖项 (Overridden)
+        </label>
+        <input type="text" id="const-search-inp" placeholder="🔍 搜索常数名或描述..." oninput="filterConstantsRows()" style="width:220px;padding:6px 10px;font-size:12.5px">
       </div>
     </div>
-
-    <!-- 专家模式：48项物理常数 -->
-    <div id="constants-micro-view" style="display:none">
-      <div class="actions" style="margin-bottom:12px">
-        <button class="btn btn-sm" onclick="loadConstants()">🔄 Refresh</button>
-        <button class="btn btn-sm btn-ok" onclick="applyConstants()">💾 Save & Persist Overrides</button>
-        <button class="btn btn-sm btn-outline" onclick="clearConstants()">🗑 Reset All Defaults</button>
-      </div>
-      <div class="card" id="constants-list"></div>
-    </div>
+    <div class="card" id="constants-list"></div>
   </div>
 
   <!-- CONNECT -->
@@ -1500,14 +1423,20 @@ async function loadPersona() {
     const sideDisplay = document.getElementById('current-persona-display');
     if (sideDisplay) sideDisplay.textContent = presetLabel;
 
+    const presetIcons = { aloof: '🧊', gentle: '🌸', cheerful: '🐶', fragile: '🥀' };
     let presetsHtml = '';
     for (const [key, p] of Object.entries(presets)) {
-      const activeClass = (key === curPreset) ? 'btn-ok' : 'btn-outline';
+      const isCur = (key === curPreset);
+      const activeClass = isCur ? 'btn-ok' : 'btn-outline';
+      const icon = presetIcons[key] || '🎭';
       presetsHtml += `
-        <div style="flex:1;min-width:180px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-subtle)">
-          <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${esc(p.name)}</div>
-          <div style="font-size:12px;color:var(--muted);min-height:36px;margin-bottom:10px;">${esc(p.desc)}</div>
-          <button class="btn btn-sm ${activeClass}" style="width:100%" onclick="applyPersonaPreset('${key}')">一键应用此卡片</button>
+        <div style="padding:14px;border:1px solid ${isCur ? 'var(--accent)' : 'var(--border)'};border-radius:10px;background:${isCur ? 'rgba(99,102,241,0.08)' : 'var(--bg-subtle)'};transition:all 0.2s">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <span style="font-size:22px">${icon}</span>
+            <span style="font-weight:600;font-size:14px;">${esc(p.name)}</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted);min-height:36px;margin-bottom:12px;line-height:1.45;">${esc(p.desc)}</div>
+          <button class="btn btn-sm ${activeClass}" style="width:100%" onclick="applyPersonaPreset('${key}')">${isCur ? '✅ 当前已激活' : '⚡ 一键应用此卡片'}</button>
         </div>
       `;
     }
@@ -2071,124 +2000,44 @@ window.addEventListener('DOMContentLoaded', () => {
   renderDemoTraits();
 });
 
-// ---- DUAL-MODE CONSTANTS & PERSONA KNOBS ----
-let _currentConstantsMode = 'macro';
-
-const PRESET_MAP = {
-  aloof:   { sensitivity: 0.25, stubbornness: 0.85, resilience: 0.80, vigilance: 0.85, creativity: 0.35 },
-  gentle:  { sensitivity: 0.75, stubbornness: 0.30, resilience: 0.70, vigilance: 0.20, creativity: 0.75 },
-  cheerful:{ sensitivity: 0.80, stubbornness: 0.20, resilience: 0.90, vigilance: 0.10, creativity: 0.60 },
-  fragile: { sensitivity: 0.90, stubbornness: 0.40, resilience: 0.15, vigilance: 0.80, creativity: 0.85 },
-};
-
-function switchConstantsMode(mode) {
-  _currentConstantsMode = mode;
-  const macroView = document.getElementById('constants-macro-view');
-  const microView = document.getElementById('constants-micro-view');
-  const btnMacro = document.getElementById('tab-btn-macro');
-  const btnMicro = document.getElementById('tab-btn-micro');
-  
-  if (mode === 'macro') {
-    macroView.style.display = 'block';
-    microView.style.display = 'none';
-    btnMacro.className = 'btn btn-sm btn-ok';
-    btnMicro.className = 'btn btn-sm btn-outline';
-  } else {
-    macroView.style.display = 'none';
-    microView.style.display = 'block';
-    btnMacro.className = 'btn btn-sm btn-outline';
-    btnMicro.className = 'btn btn-sm btn-ok';
-    loadConstants();
-  }
-}
-
-function onKnobChange() {
-  ['sensitivity', 'stubbornness', 'resilience', 'vigilance', 'creativity'].forEach(k => {
-    const val = parseFloat(document.getElementById('knob-' + k).value).toFixed(2);
-    document.getElementById('knob-val-' + k).innerText = val;
-  });
-}
-
-async function applyConstantsPreset(name) {
-  const p = PRESET_MAP[name];
-  if (!p) return;
-  for (const [k, v] of Object.entries(p)) {
-    const inp = document.getElementById('knob-' + k);
-    if (inp) {
-      inp.value = v;
-      document.getElementById('knob-val-' + k).innerText = v.toFixed(2);
-    }
-  }
-  try {
-    await call('POST', '/persona/apply', { preset: name });
-    toast(`已应用并持久化预设：${name}`, 'ok');
-  } catch (e) {
-    toast(`已选择预设：${name}，点击下方保存即可生效`, 'ok');
-  }
-}
-
-async function resetPersonaKnobs() {
-  ['sensitivity', 'stubbornness', 'resilience', 'vigilance', 'creativity'].forEach(k => {
-    const inp = document.getElementById('knob-' + k);
-    if (inp) {
-      inp.value = 0.5;
-      document.getElementById('knob-val-' + k).innerText = '0.50';
-    }
-  });
-  try {
-    await call('POST', '/persona/reset');
-  } catch (e) {}
-  toast('已重置为标准平衡态', 'ok');
-}
-
-async function saveConstantsMacroKnobs() {
-  const knobs = {};
-  ['sensitivity', 'stubbornness', 'resilience', 'vigilance', 'creativity'].forEach(k => {
-    const inp = document.getElementById('knob-' + k);
-    if (inp) knobs[k] = parseFloat(inp.value);
-  });
-  try {
-    const res = await call('POST', '/persona/apply', { knobs });
-    if (res.ok) {
-      toast('性格气质已映射至物理常数并永久落盘！', 'ok');
-    } else {
-      toast(res.error || '保存失败', 'err');
-    }
-  } catch(e) {
-    toast('保存失败: ' + e.message, 'err');
-  }
-}
-
-// ---- CONSTANTS ----
+// ---- CONSTANTS (48 Physical & Dynamical Parameters) ----
 async function loadConstants() {
-  try {
-    const pData = await call('GET', '/persona');
-    if (pData && pData.current_knobs) {
-      for (const [k, v] of Object.entries(pData.current_knobs)) {
-        const inp = document.getElementById('knob-' + k);
-        const valSpan = document.getElementById('knob-val-' + k);
-        if (inp) inp.value = v;
-        if (valSpan) valSpan.innerText = Number(v).toFixed(2);
-      }
-    }
-  } catch (e) {}
   const data = await callAdmin('GET', '/admin/constants');  // direct from admin, no loam needed
   const consts = data.constants||{};
   const overrides = data.overrides||{};
   const descs = data.descriptions||{};
   const keys = Object.keys(consts).sort();
+  const ovCount = Object.keys(overrides).length;
+  const summaryEl = document.getElementById('const-override-summary');
+  if (summaryEl) {
+    summaryEl.textContent = ovCount > 0 ? `(当前已有 ${ovCount} / ${keys.length} 项常数被覆盖)` : `(当前全部 ${keys.length} 项均为系统默认值)`;
+  }
   document.getElementById('constants-list').innerHTML = keys.map(k => {
     const v = consts[k];
     const ov = overrides[k];
     const isOverridden = !!ov;
     const desc = descs[k] || '';
-    return `<div class="const-row" style="${isOverridden?'background:rgba(88,166,255,0.1)':''}">
+    return `<div class="const-row" data-key="${escAttr(k.toLowerCase())}" data-desc="${escAttr(desc.toLowerCase())}" data-overridden="${isOverridden ? '1' : '0'}" style="${isOverridden?'background:rgba(99,102,241,0.10)':''}">
       <span class="const-name" title="${escAttr(desc)}">${esc(k)}</span>
       <input class="const-input" data-name="${k}" value="${isOverridden?ov.override:v}" style="${isOverridden?'border-color:var(--accent)':''}">
-      <span class="const-val">${isOverridden?`<span class="warn">${ov.original}→${ov.override}</span>`:v}</span>
-      <span class="const-desc" title="${escAttr(desc)}">${isOverridden?'⚡ overridden':esc(desc)}</span>
+      <span class="const-val">${isOverridden?`<span class="warn">${ov.original} → ${ov.override}</span>`:v}</span>
+      <span class="const-desc" title="${escAttr(desc)}">${isOverridden?`⚡ 已覆盖 · ${esc(desc)}`:esc(desc)}</span>
     </div>`;
   }).join('');
+  filterConstantsRows();
+}
+
+function filterConstantsRows() {
+  const q = (document.getElementById('const-search-inp')?.value || '').trim().toLowerCase();
+  const onlyOv = !!document.getElementById('const-only-overridden')?.checked;
+  document.querySelectorAll('#constants-list .const-row').forEach(row => {
+    const k = row.dataset.key || '';
+    const d = row.dataset.desc || '';
+    const isOv = row.dataset.overridden === '1';
+    const matchText = !q || k.includes(q) || d.includes(q);
+    const matchOv = !onlyOv || isOv;
+    row.style.display = (matchText && matchOv) ? '' : 'none';
+  });
 }
 async function applyConstants() {
   const overrides = {};
