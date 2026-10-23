@@ -867,76 +867,204 @@ pre {
 ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.22); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.4); }
 
-/* ---- Mobile Responsive ---- */
+/* ---- Adaptive & Responsive Layout (Desktop / Tablet / Mobile) ---- */
 .mobile-header {
   display: none;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 20px;
+  gap: 10px;
+  padding: 10px 16px;
   background: var(--bg-card-solid);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
   z-index: 90;
 }
 .nav-toggle-btn {
-  background: transparent;
-  border: none;
+  background: rgba(var(--accent-rgb), 0.08);
+  border: 1px solid var(--border);
+  border-radius: 6px;
   color: var(--fg);
   cursor: pointer;
-  padding: 4px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 .sidebar-overlay {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.58);
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 95;
   opacity: 0;
   transition: opacity 0.25s ease;
 }
 
-@media (max-width: 900px) {
-  .connect-form-row, .upstream-row {
+#traits-table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+#demo-hebb-canvas {
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 540 / 215;
+}
+
+#neural-canvas {
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 800 / 460;
+}
+
+/* Tablet & Small Laptop (<= 1024px) */
+@media (max-width: 1024px) {
+  main {
+    padding: 24px 24px 56px;
+  }
+  .grid {
     grid-template-columns: 1fr !important;
   }
+  #characters-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+  }
+  .connect-form-row, .upstream-row {
+    grid-template-columns: 1fr 1fr !important;
+  }
   .const-row {
-    grid-template-columns: 1fr 100px;
+    grid-template-columns: 1fr 110px;
   }
   .const-val, .const-desc {
     grid-column: 1 / -1;
   }
 }
 
+/* Mobile & Phablet (<= 768px) */
 @media (max-width: 768px) {
   .mobile-header { display: flex; }
   body { flex-direction: column; }
-  nav {
+
+  /* Ensure mobile slide-out drawer is always full width even if desktop sidebar was collapsed */
+  nav,
+  body.sidebar-collapsed nav {
     position: fixed;
     top: 0;
     left: 0;
+    width: min(82vw, 280px) !important;
     height: 100vh;
-    transform: translateX(-100%);
-    box-shadow: 6px 0 30px rgba(0, 0, 0, 0.45);
+    height: 100dvh;
+    padding: 18px 14px 28px !important;
+    transform: translateX(-105%);
+    box-shadow: 8px 0 32px rgba(0, 0, 0, 0.55);
+    z-index: 100;
   }
-  nav.mobile-open { transform: translateX(0); }
+  nav.mobile-open,
+  body.sidebar-collapsed nav.mobile-open {
+    transform: translateX(0);
+  }
+  body.sidebar-collapsed .logo-text .gradient-text,
+  body.sidebar-collapsed .logo-text .version-badge,
+  body.sidebar-collapsed .nav-content > div:first-child {
+    display: flex !important;
+  }
+  body.sidebar-collapsed .nav-links a {
+    justify-content: flex-start !important;
+    padding: 10px 14px !important;
+    font-size: 13.5px !important;
+  }
+
   .sidebar-overlay.active { display: block; opacity: 1; }
   .desktop-only { display: none !important; }
-  main { padding: 20px 16px 48px; }
+
+  main {
+    padding: 16px 14px calc(48px + env(safe-area-inset-bottom, 0px));
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  h1 { font-size: 20px; line-height: 1.35; flex-wrap: wrap; }
+  h2 { font-size: 15.5px; }
+  .sub { font-size: 12.5px; margin-bottom: 16px; padding-left: 10px; }
+  .card, section { padding: 14px 15px; border-radius: 8px; }
+
+  .connect-form-row, .upstream-row, #characters-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .connect-form-row .btn, .upstream-row .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  #demo-scenario-select,
+  #const-search-inp,
+  #up-default {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  #demo-act-scrubber {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .trait {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .trait-name {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+  .trait-bar {
+    flex: 1;
+  }
+
+  /* Prevent iOS Safari auto-zoom on input focus */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Small Phones (<= 420px) */
+@media (max-width: 420px) {
+  .mobile-header { padding: 8px 12px; }
+  main { padding: 12px 10px 40px; }
+  .card, section { padding: 12px; }
+  .actions { gap: 6px; }
+  .actions .btn { flex: 1 1 auto; justify-content: center; }
+  .const-row { grid-template-columns: 1fr; gap: 6px; }
+  .const-input { width: 100% !important; }
 }
 </style>
 </head>
 <body>
 <!-- 移动端顶部标题栏 -->
 <header class="mobile-header">
-  <div style="display:flex;align-items:baseline;gap:8px;">
-    <span style="font-family:var(--font-serif);font-size:20px;font-weight:700;letter-spacing:0.04em;color:var(--fg)">LOAM</span>
-    <span style="font-family:var(--font-mono);font-size:10px;color:var(--accent)">MEMORY RUNTIME</span>
+  <div style="display:flex;align-items:baseline;gap:6px;min-width:0">
+    <span style="font-family:var(--font-serif);font-size:19px;font-weight:700;letter-spacing:0.05em;color:var(--fg)">LOAM</span>
+    <span style="font-family:var(--font-mono);font-size:9.5px;color:var(--accent);white-space:nowrap">RUNTIME</span>
   </div>
-  <button id="menu-btn" class="nav-toggle-btn" onclick="toggleSidebar()">
-    <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="17" x2="20" y2="17"></line></svg>
-  </button>
+  <div style="display:flex;align-items:center;gap:6px;flex:1;justify-content:flex-end;min-width:0">
+    <select id="mobile-char-select" onchange="onSidebarCharacterChange(this.value)" title="切换当前角色" style="width:auto;max-width:145px;padding:4px 8px;font-size:12.5px !important;font-weight:600;border-radius:6px;background:var(--input-bg);color:var(--fg);border:1px solid var(--border-hover)">
+      <option value="default">default</option>
+    </select>
+    <button class="nav-toggle-btn" onclick="toggleTheme()" title="切换昼夜主题" style="font-family:var(--font-mono);font-size:13px">◐</button>
+    <button id="menu-btn" class="nav-toggle-btn" onclick="toggleSidebar()" title="打开导航菜单">
+      <svg viewBox="0 0 24 24" width="19" height="19" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="17" x2="20" y2="17"></line></svg>
+    </button>
+  </div>
 </header>
 <div id="sidebar-overlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
@@ -1537,14 +1665,15 @@ async function syncCharactersList(quiet) {
       _activeCharacter = backendDefault;
       localStorage.setItem('loam-active-char', _activeCharacter);
     }
+    const optsHtml = _charactersCache.map(c => {
+      const star = c.is_default ? '● ' : '○ ';
+      const tag = c.is_default ? ' (默认)' : '';
+      return `<option value="${escAttr(c.character)}" ${c.character === _activeCharacter ? 'selected' : ''}>${star}${esc(c.character)}${tag}</option>`;
+    }).join('');
     const sel = document.getElementById('sidebar-char-select');
-    if (sel) {
-      sel.innerHTML = _charactersCache.map(c => {
-        const star = c.is_default ? '● ' : '○ ';
-        const tag = c.is_default ? ' (默认激活)' : '';
-        return `<option value="${escAttr(c.character)}" ${c.character === _activeCharacter ? 'selected' : ''}>${star}${esc(c.character)}${tag}</option>`;
-      }).join('');
-    }
+    if (sel) sel.innerHTML = optsHtml;
+    const mobSel = document.getElementById('mobile-char-select');
+    if (mobSel) mobSel.innerHTML = optsHtml;
     const curObj = _charactersCache.find(c => c.character === _activeCharacter);
     const sideDisplay = document.getElementById('current-persona-display');
     if (sideDisplay && curObj) {
