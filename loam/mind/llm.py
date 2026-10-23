@@ -127,12 +127,12 @@ class Brain:
     def available(self) -> bool:
         if self.transport is not http_transport:
             return True
-        if bool((self.api_key or "").strip()):
+        if not _looks_placeholder(self.api_key):
             return True
         if (
             self.low_cost_enabled
-            and bool((self.low_cost_api_key or "").strip())
-            and bool((self.low_cost_model or "").strip())
+            and not _looks_placeholder(self.low_cost_api_key)
+            and not _looks_placeholder(self.low_cost_model)
         ):
             return True
         return False
@@ -436,7 +436,13 @@ def load_brain(home: str | Path = "~/.loam", **overrides: Any) -> Brain:
         except (json.JSONDecodeError, OSError):
             cfg = {}
     upstream = _load_upstream_default(home_path)
-    key = os.environ.get("LOAM_API_KEY") or cfg.get("api_key") or upstream.get("api_key", "")
+    env_key = str(os.environ.get("LOAM_API_KEY", "")).strip()
+    if _looks_placeholder(env_key):
+        env_key = ""
+    cfg_key = str(cfg.get("api_key", "")).strip()
+    if _looks_placeholder(cfg_key):
+        cfg_key = ""
+    key = env_key or cfg_key or upstream.get("api_key", "")
     base = (
         os.environ.get("LOAM_BASE_URL")
         or cfg.get("base_url")

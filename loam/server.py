@@ -98,10 +98,16 @@ class LoamService:
         self.root = Path(config.home).expanduser() / self.character
         self.root.mkdir(parents=True, exist_ok=True)
 
+        self.loam_home = Path(config.home).expanduser().parent
+        if self.loam_home.name == "characters":
+            self.loam_home = self.loam_home.parent
         self.journal = Journal(self.root / "journal.db")
         self.memory = Memory(self.root / "memory.db")
         self.adapters = SQLiteStorageAdapters.from_instances(self.journal, self.memory)
-        self.brain = brain or load_brain()
+        self._custom_brain = brain is not None
+        self._brain_cfg_mtimes: tuple[float, float] = (0.0, 0.0)
+        self.brain = brain or load_brain(home=self.loam_home)
+        self._update_brain_cfg_mtimes()
         self.api_key = (config.api_key or os.environ.get("LOAM_API_KEY", "")).strip()
 
         # 崩溃恢复：把遗留 processing 队列任务恢复为 pending。
@@ -753,6 +759,7 @@ class LoamService:
 
     def digest_once(self, limit: Optional[int] = None) -> Dict[str, Any]:
         with self._lock:
+            self._refresh_brain_if_needed()
             self._metric_inc("growth.digest_requests", 1)
             max_limit = int(self._runtime_config["digest.max_limit"])
             safe_limit = max_limit if limit is None else max(1, min(int(limit), max_limit))
@@ -1209,8 +1216,90 @@ class LoamService:
                 "size_bytes": out_path.stat().st_size if out_path.exists() else 0,
             }
 
+    def _get_brain_cfg_mtimes(self) -> tuple[float, float]:
+        s_path = self.loam_home / "secrets.json"
+        u_path = self.loam_home / "upstreams.json"
+        s_m = s_path.stat().st_mtime if s_path.exists() else 0.0
+        u_m = u_path.stat().st_mtime if u_path.exists() else 0.0
+        return (s_m, u_m)
+
+    def _update_brain_cfg_mtimes(self) -> None:
+        try:
+            self._brain_cfg_mtimes = self._get_brain_cfg_mtimes()
+        except Exception:
+            pass
+
+    def _refresh_brain_if_needed(self) -> None:
+        from .mind.llm import http_transport
+        if getattr(self.brain, "transport", None) is not http_transport:
+            return
+        try:
+            cur = self._get_brain_cfg_mtimes()
+            if cur != getattr(self, "_brain_cfg_mtimes", (0.0, 0.0)):
+                fresh = load_brain(home=self.loam_home)
+                self.brain.api_key = fresh.api_key
+                self.brain.base_url = fresh.base_url
+                self.brain.model = fresh.model
+                self.brain.low_cost_api_key = fresh.low_cost_api_key
+                self.brain.low_cost_base_url = fresh.low_cost_base_url
+                self.brain.low_cost_model = fresh.low_cost_model
+                self.brain.low_cost_enabled = fresh.low_cost_enabled
+                self.brain.low_cost_phases = fresh.low_cost_phases
+                self.brain.seed_narrative = getattr(fresh, "seed_narrative", "")
+                self._brain_cfg_mtimes = cur
+        except Exception:
+            pass
+
+    def _api_status(self) -> Dict[str, Any]:
+        from .mind.llm import _looks_placeholder
+        self._refresh_brain_if_needed()
+        brain_ready = bool(self.brain and self.brain.available)
+        brain_model = str(getattr(self.brain, "model", "") or "") if brain_ready else ""
+        brain_base_url = str(getattr(self.brain, "base_url", "") or "") if brain_ready else ""
+
+        secrets_configured = False
+        s_path = self.loam_home / "secrets.json"
+        if s_path.exists():
+            try:
+                s_data = json.loads(s_path.read_text(encoding="utf-8"))
+                if isinstance(s_data, dict) and not _looks_placeholder(str(s_data.get("api_key", ""))):
+                    secrets_configured = True
+            except Exception:
+                pass
+        if not secrets_configured and not _looks_placeholder(os.environ.get("LOAM_API_KEY", "")):
+            secrets_configured = True
+
+        upstreams_count = 0
+        u_path = self.loam_home / "upstreams.json"
+        if u_path.exists():
+            try:
+                u_data = json.loads(u_path.read_text(encoding="utf-8"))
+                provs = u_data.get("providers", {}) if isinstance(u_data, dict) else {}
+                if isinstance(provs, dict):
+                    for p in provs.values():
+                        if isinstance(p, dict):
+                            pk = str(p.get("api_key", "")).strip()
+                            pb = str(p.get("base_url", "")).strip()
+                            if pb and not _looks_placeholder(pb) and pk and not _looks_placeholder(pk):
+                                upstreams_count += 1
+            except Exception:
+                pass
+
+        upstreams_configured = upstreams_count > 0
+        api_ready = bool(brain_ready or upstreams_configured)
+        return {
+            "api_ready": api_ready,
+            "brain_ready": brain_ready,
+            "brain_model": brain_model,
+            "brain_base_url": brain_base_url,
+            "secrets_configured": secrets_configured,
+            "upstreams_configured": upstreams_configured,
+            "upstreams_count": upstreams_count,
+        }
+
     def stats(self) -> Dict[str, Any]:
         with self._lock:
+            api_st = self._api_status()
             return {
                 "character": self.character,
                 "root": str(self.root),
@@ -1221,16 +1310,20 @@ class LoamService:
                 "last_error": self.grower.last_error,
                 "active_drives": len(self.memory.get_active_drives(limit=20)),
                 "last_dream": self.memory.get_state("last_dream", "") or None,
+                "api_status": api_st,
             }
 
     def healthz(self) -> Dict[str, Any]:
         with self._lock:
+            api_st = self._api_status()
             pending = self.digester.pending_count()
             ok = True
             if self.config.auto_start_grower and not self.grower.alive:
                 ok = False
             return {
                 "ok": ok,
+                "api_ready": api_st["api_ready"],
+                "api_status": api_st,
                 "character": self.character,
                 "pending": pending,
                 "open_gaps": len(self.journal.open_gaps(self.character)),

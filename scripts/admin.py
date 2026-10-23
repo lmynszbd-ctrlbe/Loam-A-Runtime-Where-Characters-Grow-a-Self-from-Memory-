@@ -1127,6 +1127,7 @@ canvas {
   <div id="panel-status" class="panel active">
     <h1>运行状态总览 (Runtime Status)</h1>
     <div class="sub" id="status-time">loading...</div>
+    <div id="status-api-alert"></div>
     <div class="grid" id="status-grid"></div>
     <div class="card"><h3>核心性格特质 (Active Traits)</h3><div id="status-traits"></div></div>
   </div>
@@ -2171,15 +2172,93 @@ async function loadStatus() {
   }
 
   const mem = stats.memory || {};
+  const api = stats.api_status || healthz.api_status || {};
+  const brainReady = !!api.brain_ready;
+  const upstreamsReady = !!api.upstreams_configured;
+  const apiReady = !!(brainReady || upstreamsReady);
+
+  const alertBox = document.getElementById('status-api-alert');
+  if (alertBox) {
+    if (!apiReady) {
+      alertBox.innerHTML = `
+        <div class="card" style="border-color:rgba(217,119,87,0.55);background:linear-gradient(135deg, rgba(217,119,87,0.12), rgba(212,163,115,0.06));margin-bottom:18px;padding:16px 20px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+            <div>
+              <div style="font-family:var(--font-serif);font-size:15px;font-weight:600;color:var(--err);margin-bottom:4px">
+                尚未连接外部模型 API — 记忆生长与对话代理处于待机状态
+              </div>
+              <div style="font-size:12.5px;color:var(--muted);line-height:1.6">
+                当前未检测到有效的 API Key（<code>secrets.json</code> 与 <code>upstreams.json</code> 均为空）。本地记忆库与控制台已就绪，但后台生长器无法提炼记忆，对话网关也无法转发请求。
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="showPanel('connect')" style="white-space:nowrap">
+              前往「10 外部连接」配置 API →
+            </button>
+          </div>
+        </div>
+      `;
+    } else if (!brainReady) {
+      alertBox.innerHTML = `
+        <div class="card" style="border-color:rgba(212,163,115,0.45);background:rgba(212,163,115,0.07);margin-bottom:18px;padding:14px 18px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+            <div style="font-size:12.5px;color:var(--fg)">
+              <strong style="color:var(--warn)">后台记忆生长模型未配置密钥：</strong>请前往「10 外部连接」填写后台记忆生长模型的 API Key，否则后台生长器将保持待机。
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="showPanel('connect')">去配置 →</button>
+          </div>
+        </div>
+      `;
+    } else {
+      alertBox.innerHTML = '';
+    }
+  }
+
+  let growerStatusText = '● 已暂停';
+  let growerStatusCls = 'err';
+  if (stats.grower_alive) {
+    if (brainReady) {
+      growerStatusText = '● 运行中';
+      growerStatusCls = 'ok';
+    } else {
+      growerStatusText = '● 待机 (未配置 API)';
+      growerStatusCls = 'warn';
+    }
+  }
+
+  let healthStatusText = '正常';
+  let healthStatusCls = 'ok';
+  if (!healthz.ok || stats.last_error) {
+    healthStatusText = '异常';
+    healthStatusCls = 'err';
+  } else if (!apiReady) {
+    healthStatusText = '待配置 API 密钥';
+    healthStatusCls = 'warn';
+  } else if (!brainReady) {
+    healthStatusText = '记忆 API 未配置';
+    healthStatusCls = 'warn';
+  }
+
+  const brainStatusHtml = brainReady
+    ? `<span class="val ok" title="${esc(api.brain_base_url||'')}">已连接 (${esc(api.brain_model||'default')})</span>`
+    : `<span class="val err" style="cursor:pointer;text-decoration:underline" onclick="showPanel('connect')">未配置 API Key</span>`;
+
+  const upstreamStatusHtml = upstreamsReady
+    ? `<span class="val ok">已配置 (${api.upstreams_count||1} 节点)</span>`
+    : (brainReady
+        ? `<span class="val muted" style="font-size:12px;cursor:pointer" onclick="showPanel('connect')">未独立配置 (共用记忆模型)</span>`
+        : `<span class="val err" style="cursor:pointer;text-decoration:underline" onclick="showPanel('connect')">未配置节点</span>`);
+
   const grid = document.getElementById('status-grid');
   grid.innerHTML = `
     <div class="card"><h3>角色与引擎状态</h3>
       <div class="stat"><span>当前角色 (Character)</span><span class="val" style="color:var(--accent)">${esc(stats.character||'-')}</span></div>
-      <div class="stat"><span>演化周期 (Cycle)</span><span class="val">#${mem['周期']||0}</span></div>
-      <div class="stat"><span>后台生长器 (Grower)</span><span class="val ${(stats.grower_alive?'ok':'err')}">${stats.grower_alive?'● 运行中':'● 已暂停'}</span></div>
+      <div class="stat"><span>记忆生长 API (Brain)</span>${brainStatusHtml}</div>
+      <div class="stat"><span>对话代理节点 (Upstream)</span>${upstreamStatusHtml}</div>
+      <div class="stat"><span>后台生长器 (Grower)</span><span class="val ${growerStatusCls}">${growerStatusText}</span></div>
       <div class="stat"><span>待消化对话 (Pending)</span><span class="val">${stats.pending||0} 条</span></div>
     </div>
     <div class="card"><h3>记忆与神经沉淀</h3>
+      <div class="stat"><span>演化周期 (Cycle)</span><span class="val">#${mem['周期']||0}</span></div>
       <div class="stat"><span>情景记忆节点 (Events)</span><span class="val">${mem['事件']||0}</span></div>
       <div class="stat"><span>性格特质总数 (Traits)</span><span class="val">${mem['特质']||0}</span></div>
       <div class="stat"><span>已固化内核 (Kernel)</span><span class="val ok">${mem['内核']||0}</span></div>
@@ -2189,7 +2268,8 @@ async function loadStatus() {
       <div class="stat"><span>活跃执念 (Active Drives)</span><span class="val warn">${stats.active_drives||0}</span></div>
       <div class="stat"><span>自我叙述版本 (Narratives)</span><span class="val">${mem['自述版本']||0}</span></div>
       <div class="stat"><span>演化账本记录 (Changelog)</span><span class="val">${mem['变更记录']||0}</span></div>
-      <div class="stat"><span>服务健康探针 (Health)</span><span class="val ${(healthz.ok?'ok':'err')}">${healthz.ok?'正常':'异常'}</span></div>
+      <div class="stat"><span>最近错误 (Last Error)</span><span class="val ${stats.last_error?'err':'muted'}" style="font-size:11.5px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(stats.last_error||'无')}">${esc(stats.last_error||'无')}</span></div>
+      <div class="stat"><span>系统综合状态 (Health)</span><span class="val ${healthStatusCls}">${healthStatusText}</span></div>
     </div>
   `;
 

@@ -374,6 +374,36 @@ def test_multi_character_hub_and_routing() -> None:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_api_status_and_hot_reload() -> None:
+    import os
+    tmp = tempfile.mkdtemp(prefix="loam_api_status_")
+    old_key = os.environ.pop("LOAM_API_KEY", None)
+    try:
+        chars_dir = Path(tmp) / "characters"
+        svc = LoamService(ServiceConfig(character="default", home=str(chars_dir), auto_start_grower=False))
+        try:
+            st1 = svc.stats()
+            assert st1["api_status"]["api_ready"] is False, f"未配密钥时 api_ready 应为 False: {st1['api_status']}"
+            assert st1["api_status"]["brain_ready"] is False
+
+            # 写入 secrets.json 后无需重启，stats() 应自动热重载并报告已就绪
+            (Path(tmp) / "secrets.json").write_text(
+                json.dumps({"api_key": "sk-real-test-key-123456", "base_url": "https://api.deepseek.com", "model": "deepseek-chat"}),
+                encoding="utf-8",
+            )
+            st2 = svc.stats()
+            assert st2["api_status"]["brain_ready"] is True, f"写入 secrets.json 后 brain_ready 应热更新为 True: {st2['api_status']}"
+            assert st2["api_status"]["api_ready"] is True
+            assert svc.brain.available is True
+        finally:
+            svc.close()
+        print("  PASS test_api_status_and_hot_reload")
+    finally:
+        if old_key is not None:
+            os.environ["LOAM_API_KEY"] = old_key
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == "__main__":
     test_seed_narrative_cold_start()
     test_base_url_rstrip_safety()
@@ -385,4 +415,5 @@ if __name__ == "__main__":
     test_growth_settings_and_backup_export()
     test_admin_ui_integrity()
     test_multi_character_hub_and_routing()
+    test_api_status_and_hot_reload()
     print("\nAll regression fix tests passed!")
