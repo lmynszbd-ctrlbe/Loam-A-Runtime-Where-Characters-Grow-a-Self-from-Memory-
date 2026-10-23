@@ -313,6 +313,67 @@ def test_admin_ui_integrity() -> None:
     print("  PASS test_admin_ui_integrity")
 
 
+def test_multi_character_hub_and_routing() -> None:
+    from loam.server import build_server
+    tmp = tempfile.mkdtemp(prefix="loam_multichar_")
+    try:
+        chars_dir = Path(tmp) / "characters"
+        cfg = ServiceConfig(character="default", home=str(chars_dir), auto_start_grower=False)
+        svc = LoamService(cfg)
+        httpd = build_server(svc, host="127.0.0.1", port=0)
+        try:
+            # 1. Create a second character '爱丽丝' with seed narrative and preset
+            res_create = httpd.create_character(
+                "爱丽丝",
+                seed_narrative="我是爱丽丝，一个表面傲娇但内心温柔的魔法学徒。",
+                preset="aloof",
+                set_default=True,
+            )
+            assert res_create["ok"] is True
+            assert httpd.service.character == "爱丽丝"
+
+            # 2. Verify list_characters returns both 'default' and '爱丽丝'
+            listed = httpd.list_characters()
+            assert listed["default_character"] == "爱丽丝"
+            char_map = {c["character"]: c for c in listed["characters"]}
+            assert "default" in char_map and "爱丽丝" in char_map
+            assert char_map["爱丽丝"]["persona_preset"] == "aloof"
+            assert "魔法学徒" in char_map["爱丽丝"]["narrative_preview"]
+            assert char_map["default"]["persona_preset"] == ""
+
+            # 3. Verify proxy _resolve_character_and_model supports @角色名 and [loam:角色名]
+            c1, m1 = forced_flow_proxy._resolve_character_and_model(
+                {"model": "relayA/deepseek-chat@爱丽丝"},
+                [{"role": "user", "content": "你好"}],
+                {},
+                "/v1/chat/completions",
+            )
+            assert c1 == "爱丽丝"
+            assert m1 == "relayA/deepseek-chat"
+
+            c2, m2 = forced_flow_proxy._resolve_character_and_model(
+                {"model": "relayA/deepseek-chat"},
+                [{"role": "system", "content": "人设背景... [loam:星野]"}, {"role": "user", "content": "早安"}],
+                {},
+                "/v1/chat/completions",
+            )
+            assert c2 == "星野"
+            assert m2 == "relayA/deepseek-chat"
+
+            # 4. Delete '爱丽丝' (moves to trash) and verify default falls back to 'default'
+            del_res = httpd.delete_character("爱丽丝")
+            assert del_res["ok"] is True
+            assert httpd.service.character == "default"
+            assert Path(del_res["archived_to"]).exists()
+        finally:
+            httpd.server_close()
+            for s in list(httpd.pool.values()):
+                s.close()
+        print("  PASS test_multi_character_hub_and_routing")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == "__main__":
     test_seed_narrative_cold_start()
     test_base_url_rstrip_safety()
@@ -323,4 +384,5 @@ if __name__ == "__main__":
     test_network_endpoint_salience_and_degree()
     test_growth_settings_and_backup_export()
     test_admin_ui_integrity()
+    test_multi_character_hub_and_routing()
     print("\nAll regression fix tests passed!")

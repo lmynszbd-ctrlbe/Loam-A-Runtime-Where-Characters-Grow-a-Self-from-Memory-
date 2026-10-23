@@ -563,9 +563,31 @@ class LoamService:
     def narrative(self) -> Dict[str, Any]:
         with self._lock:
             n = self.memory.current_narrative()
+            seed = self.memory.get_state("seed_narrative", "")
+            text = str(n.get("text", "")) if n else seed
             return {
-                "text": str(n.get("text", "")) if n else "",
+                "character": self.character,
+                "text": text,
+                "seed_narrative": seed,
                 "cycle": int(n.get("cycle", 0)) if n else 0,
+            }
+
+    def set_seed_narrative(self, seed_text: str) -> Dict[str, Any]:
+        """设置或更新角色的初始人设/核心背景自述 (Seed Narrative)。"""
+        cleaned = str(seed_text or "").strip()
+        with self._lock:
+            self.memory.set_state("seed_narrative", cleaned)
+            if self.brain is not None:
+                self.brain.seed_narrative = cleaned
+            cur = self.memory.current_narrative(kind="derived")
+            cur_cycle = int(cur.get("cycle", 0)) if cur else 0
+            if cleaned and (cur is None or cur_cycle == 0):
+                self.memory.add_narrative(cleaned, basis=["__seed__"], cycle=0, kind="derived")
+            return {
+                "ok": True,
+                "character": self.character,
+                "seed_narrative": cleaned,
+                "narrative": self.narrative(),
             }
 
     def dashboard(self) -> Dict[str, Any]:
@@ -849,8 +871,46 @@ class LoamService:
                 }
             return result
 
+    def _get_const_defaults(self) -> Dict[str, Any]:
+        import loam.core.constants as C
+        if not hasattr(C, "_ORIGINAL_DEFAULTS"):
+            snap = {}
+            for name in dir(C):
+                if name.isupper() and not name.startswith("_") and name != "DESCRIPTIONS":
+                    val = getattr(C, name)
+                    if isinstance(val, (int, float, bool, str)):
+                        snap[name] = val
+            setattr(C, "_ORIGINAL_DEFAULTS", snap)
+        return getattr(C, "_ORIGINAL_DEFAULTS")
+
+    def activate_constants(self) -> None:
+        """将当前角色的常数覆写应用到运行时 constants 模块。"""
+        import loam.core.constants as C
+        defaults = self._get_const_defaults()
+        for k, v in defaults.items():
+            setattr(C, k, v)
+        for k, item in (self._runtime_const_overrides or {}).items():
+            if isinstance(item, dict) and "override" in item and k in defaults:
+                setattr(C, k, item["override"])
+
     def _restore_persisted_constants(self) -> None:
-        """从 ~/.loam/state/overrides.json 恢复已持久化的常数覆盖。"""
+        """优先从角色自身的 memory.db 恢复常数覆盖，兼容回退全局 overrides.json。"""
+        defaults = self._get_const_defaults()
+        raw_char_ov = self.memory.get_state("const_overrides", "")
+        if raw_char_ov:
+            try:
+                parsed = json.loads(raw_char_ov)
+                if isinstance(parsed, dict):
+                    restored: Dict[str, Dict[str, Any]] = {}
+                    for k, item in parsed.items():
+                        if k in defaults:
+                            ov_val = item.get("override") if isinstance(item, dict) else item
+                            restored[k] = {"original": defaults[k], "override": ov_val}
+                    self._runtime_const_overrides = restored
+                    self.activate_constants()
+                    return
+            except Exception:
+                pass
         persisted = load_persisted_overrides(home=self.loam_home)
         if not persisted:
             record_startup_event(home=self.loam_home, note="No persisted overrides found")
@@ -861,8 +921,9 @@ class LoamService:
         record_startup_event(home=self.loam_home, note=note)
 
     def override_constants(self, overrides: Dict[str, Any], persist: bool = True) -> Dict[str, Any]:
-        """覆盖常数，默认持久化到 ~/.loam/state/overrides.json。"""
+        """覆盖常数，按角色隔离保存在 memory.db 并同步更新 state/overrides.json。"""
         import loam.core.constants as C
+        defaults = self._get_const_defaults()
         if not hasattr(self, '_runtime_const_overrides'):
             self._runtime_const_overrides = {}
         applied = {}
@@ -871,32 +932,41 @@ class LoamService:
             if not isinstance(name, str) or not name.isupper() or name.startswith('_'):
                 rejected[name] = "invalid name"
                 continue
-            if not hasattr(C, name):
+            if name not in defaults:
                 rejected[name] = "not found"
                 continue
-            orig = getattr(C, name)
+            orig = defaults[name]
+            # 容忍 int 给 float 常数
+            if isinstance(orig, float) and isinstance(val, int) and not isinstance(val, bool):
+                val = float(val)
             if not isinstance(orig, type(val)):
                 rejected[name] = f"type mismatch: {type(orig).__name__} vs {type(val).__name__}"
                 continue
             setattr(C, name, val)
-            self._runtime_const_overrides[name] = {"original": orig, "override": val}
-            applied[name] = {"from": orig, "to": val}
+            if val == orig:
+                self._runtime_const_overrides.pop(name, None)
+            else:
+                self._runtime_const_overrides[name] = {"original": orig, "override": val}
+                applied[name] = {"from": orig, "to": val}
 
-        if persist and self._runtime_const_overrides:
-            cycle = int(self.memory.get_state("cycle", "0") or 0)
-            save_persisted_overrides(self._runtime_const_overrides, home=self.loam_home, cycle=cycle)
+        if persist:
+            self.memory.set_state("const_overrides", json.dumps(self._runtime_const_overrides))
+            if self._runtime_const_overrides:
+                cycle = int(self.memory.get_state("cycle", "0") or 0)
+                save_persisted_overrides(self._runtime_const_overrides, home=self.loam_home, cycle=cycle)
+            else:
+                clear_persisted_overrides(home=self.loam_home)
 
-        return {"applied": applied, "rejected": rejected, "total_overrides": len(self._runtime_const_overrides), "persisted": persist}
+        return {"character": self.character, "applied": applied, "rejected": rejected, "total_overrides": len(self._runtime_const_overrides), "persisted": persist}
 
     def clear_constants_overrides(self) -> Dict[str, Any]:
-        """清除所有常数覆盖，重置为 constants.py 默认值，并清空持久化文件。"""
-        import importlib
-        import loam.core.constants as C
-        importlib.reload(C)
+        """清除当前角色的所有常数覆盖，恢复默认值。"""
         cleared_count = len(self._runtime_const_overrides)
         self._runtime_const_overrides = {}
+        self.memory.set_state("const_overrides", "{}")
+        self.activate_constants()
         clear_persisted_overrides(home=self.loam_home)
-        return {"cleared": cleared_count, "ok": True}
+        return {"character": self.character, "cleared": cleared_count, "ok": True}
 
     def get_resonance(self) -> Dict[str, Any]:
         with self._lock:
@@ -1187,13 +1257,32 @@ class LoamService:
         self.memory.close()
 
 
+def _validate_character_name(raw: str) -> str:
+    name = str(raw or "").strip()
+    if not name:
+        raise ValueError("角色名称不能为空")
+    if len(name) > 64:
+        raise ValueError("角色名称过长（最多 64 字符）")
+    if any(ch in name for ch in ("/", "\\", "..", "\x00", ":", "*", "?", '"', "<", ">", "|")):
+        raise ValueError("角色名称包含非法字符")
+    return name
+
+
 class LoamHTTPServer(ThreadingHTTPServer):
     """把 service 挂在 server 上，支持多角色动态服务池 (Multi-Character Pool)。"""
 
     def __init__(self, server_address: tuple[str, int], service: LoamService):
         self.service = service
         self.pool: Dict[str, LoamService] = {service.character: service}
-        self._pool_lock = threading.Lock()
+        self._pool_lock = threading.RLock()
+        self._default_char_file = service.loam_home / "state" / "default_character.txt"
+        try:
+            if self._default_char_file.exists():
+                saved_def = self._default_char_file.read_text(encoding="utf-8").strip()
+                if saved_def and saved_def != service.character:
+                    self.service = self.get_service(saved_def)
+        except Exception:
+            pass
         super().__init__(server_address, LoamHandler)
 
     def get_service(self, character: Optional[str] = None) -> LoamService:
@@ -1201,9 +1290,9 @@ class LoamHTTPServer(ThreadingHTTPServer):
         char = str(character or "").strip()
         if not char:
             return self.service
+        char = _validate_character_name(char)
         with self._pool_lock:
             if char not in self.pool:
-                # 动态派生新角色配置
                 cfg = ServiceConfig(
                     character=char,
                     home=self.service.config.home,
@@ -1212,11 +1301,139 @@ class LoamHTTPServer(ThreadingHTTPServer):
                     grow_interval=self.service.config.grow_interval,
                     idle_seconds=self.service.config.idle_seconds,
                     audit_every=self.service.config.audit_every,
+                    auto_start_grower=self.service.config.auto_start_grower,
                     api_key=self.service.config.api_key,
                 )
                 svc = LoamService(cfg, brain=self.service.brain)
                 self.pool[char] = svc
-            return self.pool[char]
+            svc = self.pool[char]
+            svc.activate_constants()
+            return svc
+
+    def discover_character_names(self) -> List[str]:
+        chars_dir = Path(self.service.config.home).expanduser()
+        names = set(self.pool.keys())
+        if chars_dir.exists():
+            for p in chars_dir.iterdir():
+                if p.is_dir() and not p.name.startswith("."):
+                    names.add(p.name)
+        def sort_key(n: str) -> tuple[int, str]:
+            if n == self.service.character:
+                return (0, n)
+            if n == "default":
+                return (1, n)
+            return (2, n)
+        return sorted(names, key=sort_key)
+
+    def list_characters(self) -> Dict[str, Any]:
+        names = self.discover_character_names()
+        items: List[Dict[str, Any]] = []
+        for name in names:
+            try:
+                svc = self.get_service(name)
+                mstats = svc.memory.stats()
+                preset = svc.memory.get_state("persona_preset", "") or ""
+                preset_label = PRESET_PERSONAS.get(preset, {}).get("name", "") if preset else "自定义 / 平衡态"
+                seed_nar = svc.memory.get_state("seed_narrative", "")
+                cur_nar = svc.memory.current_narrative()
+                nar_text = str(cur_nar.get("text", "")) if cur_nar else seed_nar
+                items.append({
+                    "character": name,
+                    "is_default": (name == self.service.character),
+                    "persona_preset": preset,
+                    "persona_label": preset_label,
+                    "traits_count": int(mstats.get("性格条数", 0)),
+                    "events_count": int(mstats.get("情景事件", 0)),
+                    "narratives_count": int(mstats.get("自述版本", 0)),
+                    "pending": svc.digester.pending_count(),
+                    "active_drives": len(svc.memory.get_active_drives(limit=20)),
+                    "mood": svc.resonance.describe_mood(),
+                    "seed_narrative": seed_nar,
+                    "narrative_preview": nar_text[:160] if nar_text else "",
+                })
+            except Exception as exc:
+                items.append({
+                    "character": name,
+                    "is_default": (name == self.service.character),
+                    "error": str(exc),
+                })
+        return {
+            "ok": True,
+            "default_character": self.service.character,
+            "total": len(items),
+            "characters": items,
+        }
+
+    def set_default_character(self, character: str) -> Dict[str, Any]:
+        char = _validate_character_name(character)
+        with self._pool_lock:
+            svc = self.get_service(char)
+            self.service = svc
+            svc.activate_constants()
+            try:
+                self._default_char_file.parent.mkdir(parents=True, exist_ok=True)
+                self._default_char_file.write_text(char, encoding="utf-8")
+            except Exception:
+                pass
+        return {
+            "ok": True,
+            "default_character": char,
+            "character": char,
+        }
+
+    def create_character(
+        self,
+        character: str,
+        seed_narrative: str = "",
+        preset: str = "",
+        set_default: bool = True,
+    ) -> Dict[str, Any]:
+        char = _validate_character_name(character)
+        with self._pool_lock:
+            svc = self.get_service(char)
+            if seed_narrative and str(seed_narrative).strip():
+                svc.set_seed_narrative(str(seed_narrative).strip())
+            if preset and str(preset).strip() in PRESET_PERSONAS:
+                svc.apply_persona(preset=str(preset).strip())
+            if set_default:
+                self.set_default_character(char)
+        return {
+            "ok": True,
+            "character": char,
+            "default_character": self.service.character,
+        }
+
+    def delete_character(self, character: str) -> Dict[str, Any]:
+        import shutil
+        char = _validate_character_name(character)
+        with self._pool_lock:
+            all_names = self.discover_character_names()
+            if len(all_names) <= 1 and char in all_names:
+                raise ValueError("系统至少需要保留一个角色，无法删除最后一个角色")
+            if char in self.pool:
+                svc = self.pool.pop(char)
+                try:
+                    svc.close()
+                except Exception:
+                    pass
+            char_dir = Path(self.service.config.home).expanduser() / char
+            trash_path = None
+            if char_dir.exists():
+                trash_dir = self.service.loam_home / "trash"
+                trash_dir.mkdir(parents=True, exist_ok=True)
+                dst = trash_dir / f"{char}_{int(time.time())}"
+                shutil.move(str(char_dir), str(dst))
+                trash_path = str(dst)
+            if self.service.character == char:
+                remaining = [n for n in self.discover_character_names() if n != char]
+                next_default = "default" if "default" in remaining else (remaining[0] if remaining else "default")
+                self.set_default_character(next_default)
+        return {
+            "ok": True,
+            "deleted": char,
+            "archived_to": trash_path,
+            "default_character": self.service.character,
+        }
 
 
 class LoamHandler(BaseHTTPRequestHandler):
@@ -1355,17 +1572,21 @@ class LoamHandler(BaseHTTPRequestHandler):
                 })
                 return
 
+            if path == "/characters":
+                self._send_json(200, self.server.list_characters())
+                return
+
             if path == "/constants" or path.startswith("/constants?"):
                 import loam.core.constants as C
-                all_consts = {}
-                for name in dir(C):
-                    if name.isupper() and not name.startswith('_'):
-                        val = getattr(C, name)
-                        if isinstance(val, (int, float, bool, str)):
-                            all_consts[name] = val
+                svc.activate_constants()
+                defaults = svc._get_const_defaults()
+                all_consts = dict(defaults)
                 overrides = svc._runtime_const_overrides if hasattr(svc, '_runtime_const_overrides') else {}
+                for k, item in overrides.items():
+                    if isinstance(item, dict) and "override" in item and k in all_consts:
+                        all_consts[k] = item["override"]
                 descriptions = getattr(C, 'DESCRIPTIONS', {})
-                self._send_json(200, {"constants": all_consts, "overrides": overrides, "descriptions": descriptions})
+                self._send_json(200, {"character": svc.character, "constants": all_consts, "overrides": overrides, "descriptions": descriptions})
                 return
 
             if path == "/persona":
@@ -1409,6 +1630,25 @@ class LoamHandler(BaseHTTPRequestHandler):
             payload = self._read_json()
             svc = self._resolve_service(payload=payload)
 
+            if path == "/characters/create":
+                char_name = str(payload.get("character") or payload.get("name") or "")
+                seed_nar = str(payload.get("seed_narrative") or "")
+                preset = str(payload.get("preset") or "")
+                set_def = _coerce_bool(payload.get("set_default"), default=True)
+                self._send_json(200, self.server.create_character(char_name, seed_narrative=seed_nar, preset=preset, set_default=set_def))
+                return
+            if path == "/characters/default":
+                char_name = str(payload.get("character") or payload.get("name") or "")
+                self._send_json(200, self.server.set_default_character(char_name))
+                return
+            if path == "/characters/seed":
+                seed_nar = str(payload.get("seed_narrative") or "")
+                self._send_json(200, svc.set_seed_narrative(seed_nar))
+                return
+            if path == "/characters/delete":
+                char_name = str(payload.get("character") or payload.get("name") or "")
+                self._send_json(200, self.server.delete_character(char_name))
+                return
             if path == "/ingest":
                 self._send_json(200, svc.ingest(payload))
                 return

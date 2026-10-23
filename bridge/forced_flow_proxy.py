@@ -285,6 +285,71 @@ def _assistant_text(resp: Dict[str, Any]) -> str:
         return ""
 
 
+
+import re as _re
+from urllib.parse import parse_qs as _parse_qs, urlparse as _urlparse
+
+_CHAR_TAG_RE = _re.compile(
+    r"(?:\[loam:([^\]\r\n]{1,64})\]|【角色[:：]([^】\r\n]{1,64})】|<loam:character>([^<\r\n]{1,64})</loam:character>)",
+    _re.IGNORECASE,
+)
+
+
+def _resolve_character_and_model(
+    req_body: Dict[str, Any],
+    messages: List[Dict[str, Any]],
+    headers_low: Dict[str, str],
+    raw_path: str = "",
+) -> Tuple[str, str]:
+    """支持 4 种方式路由多角色：
+    1) Header: X-Loam-Character / X-Character 或 Body: character
+    2) URL Query: /v1/chat/completions?character=角色名
+    3) Model 后缀: model="provider/model@角色名"（自动剥离 @角色名）
+    4) System Prompt 标记: [loam:角色名] 或 【角色:角色名】 或 <loam:character>角色名</loam:character>
+    """
+    req_model = str(req_body.get("model") or "").strip()
+    clean_model = req_model
+    char_from_model = ""
+    if "@" in req_model:
+        base_m, suffix_c = req_model.rsplit("@", 1)
+        if base_m.strip() and suffix_c.strip():
+            clean_model = base_m.strip()
+            char_from_model = suffix_c.strip()
+
+    # 1) Header / JSON field
+    char = str(
+        headers_low.get("x-loam-character")
+        or headers_low.get("x-character")
+        or req_body.get("character")
+        or ""
+    ).strip()
+
+    # 2) Query string
+    if not char and "?" in raw_path:
+        qs = _parse_qs(_urlparse(raw_path).query)
+        if "character" in qs and qs["character"]:
+            char = str(qs["character"][0]).strip()
+
+    # 3) Model @角色名
+    if not char and char_from_model:
+        char = char_from_model
+
+    # 4) System prompt tag [loam:角色名] / 【角色:角色名】
+    if not char and isinstance(messages, list):
+        for m in messages:
+            if not isinstance(m, dict):
+                continue
+            if str(m.get("role") or "") in ("system", "developer"):
+                txt = _extract_text(m.get("content"))
+                match = _CHAR_TAG_RE.search(txt)
+                if match:
+                    char = (match.group(1) or match.group(2) or match.group(3) or "").strip()
+                    if char:
+                        break
+
+    return char, clean_model
+
+
 def _session_from(req_body: Dict[str, Any], headers: Dict[str, str]) -> str:
     s = headers.get("x-loam-session", "").strip()
     if s:
@@ -521,7 +586,12 @@ class Handler(BaseHTTPRequestHandler):
 
             headers_low = {k.lower(): v for k, v in self.headers.items()}
             session = _session_from(req, headers_low)
-            character = str(headers_low.get("x-loam-character") or headers_low.get("x-character") or req.get("character") or "").strip()
+            character, req_model_clean = _resolve_character_and_model(req, messages, headers_low, self.path)
+            if req_model_clean != req_model:
+                req["model"] = req_model_clean
+                req_model = req_model_clean
+            if character:
+                session = f"{character}:{session}"
             user_text = _last_user(messages)
 
             # 1) 强制取 context（动态路由目标角色，失败不中断主链路）

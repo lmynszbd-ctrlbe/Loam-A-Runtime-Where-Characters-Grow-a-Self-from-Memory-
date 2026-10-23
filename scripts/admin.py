@@ -65,7 +65,7 @@ def write_json_file(path, data):
 
 
 
-def api(path, method="GET", body=None):
+def api(path, method="GET", body=None, character=None):
     try:
         secrets = read_json_file(SECRETS_FILE)
         api_key = os.environ.get("LOAM_API_KEY") or (secrets.get("api_key") if isinstance(secrets, dict) else "")
@@ -77,6 +77,8 @@ def api(path, method="GET", body=None):
             req = urllib.request.Request(f"{LOAM}{path}", method=method)
         if api_key:
             req.add_header("X-API-Key", str(api_key).strip())
+        if character:
+            req.add_header("X-Loam-Character", str(character).strip())
         with urllib.request.urlopen(req, timeout=90) as r:
             raw = r.read().decode("utf-8")
             return json.loads(raw) if raw else {}
@@ -938,12 +940,24 @@ pre {
     </div>
   </div>
   <div class="nav-content">
-    <div style="padding:0 14px 12px;margin-bottom:8px;border-bottom:1px solid var(--border)">
-      <label style="margin-top:0;font-size:10.5px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted)">🎭 当前角色</label>
-      <div style="font-size:13px;font-weight:600;padding:6px 0 0;"><span id="current-persona-display">-</span></div>
+    <div style="padding:0 8px 14px;margin-bottom:8px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <label style="margin:0;font-size:11px;font-weight:700;letter-spacing:0.04em;color:var(--fg-dim)">👥 当前角色</label>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-sm btn-outline" style="padding:2px 7px;font-size:11px;border-radius:6px" onclick="showPanel('characters');setTimeout(()=>document.getElementById('new-char-name')?.focus(),80)" title="创建新角色">➕ 新建</button>
+          <button class="btn btn-sm btn-outline" style="padding:2px 7px;font-size:11px;border-radius:6px" onclick="showPanel('characters')" title="管理全部角色">管理</button>
+        </div>
+      </div>
+      <select id="sidebar-char-select" onchange="onSidebarCharacterChange(this.value)" style="width:100%;padding:7px 10px;font-size:13px;font-weight:600;border-radius:8px;background:var(--input-bg);color:var(--fg);border:1px solid var(--border-hover)">
+        <option value="default">default (默认角色)</option>
+      </select>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:6px;display:flex;justify-content:space-between;align-items:center">
+        <span>🎭 气质: <strong id="current-persona-display" style="color:var(--accent)">-</strong></span>
+      </div>
     </div>
     <div class="nav-links">
       <a href="#" onclick="showPanel('status')" id="nav-status" class="active">✨ 运行状态</a>
+      <a href="#" onclick="showPanel('characters')" id="nav-characters">👥 角色管理</a>
       <a href="#" onclick="showPanel('demo')" id="nav-demo">🎮 演示大厅</a>
       <a href="#" onclick="showPanel('persona')" id="nav-persona">🎭 性格卡片</a>
       <a href="#" onclick="showPanel('selfhood')" id="nav-selfhood">🌱 自性体系</a>
@@ -969,6 +983,82 @@ pre {
     <div class="sub" id="status-time">loading...</div>
     <div class="grid" id="status-grid"></div>
     <div class="card"><h3>🧬 核心性格特质 (Active Traits)</h3><div id="status-traits"></div></div>
+  </div>
+
+  <!-- CHARACTERS (Multi-Character Manager) -->
+  <div id="panel-characters" class="panel">
+    <h1>👥 多角色管理中心 (Multi-Character Hub)</h1>
+    <div class="sub">每个角色拥有完全独立的 SQLite 记忆库 (journal.db / memory.db)、性格特质曲线、情绪共振状态与初始人设。支持无限扩展角色！</div>
+
+    <div class="grid" style="grid-template-columns: 1.15fr 1fr; gap: 16px; margin-bottom: 18px;">
+      <!-- 新建角色卡片 -->
+      <div class="card">
+        <h3>➕ 创建新角色 (Create New Character)</h3>
+        <div class="form-group" style="margin-top:10px">
+          <label>角色名称 / 唯一标识 (支持中文、英文、数字，如：爱丽丝、星野、苏格拉底)</label>
+          <input type="text" id="new-char-name" placeholder="例如：爱丽丝">
+        </div>
+        <div class="form-group">
+          <label>初始性格气质预设 (可在创建后随时微调)</label>
+          <select id="new-char-preset">
+            <option value="">⚖️ 标准平衡态 (0.50 初始均衡)</option>
+            <option value="gentle">🌸 温柔包容 (高共情 · 敏锐包容)</option>
+            <option value="aloof">🧊 高冷孤傲 (慢热防备 · 极强内核)</option>
+            <option value="cheerful">🐶 乐天小狗 (极度易感 · 快速回血)</option>
+            <option value="fragile">🥀 敏感易碎 (多疑内耗 · 联想丰富)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>初始人设 / 核心背景自述 (Seed Narrative，可选)</label>
+          <textarea id="new-char-seed" style="min-height:82px" placeholder="例如：我是爱丽丝，表面说话有些傲娇毒舌，但实际上非常在意身边人的情绪变化，在熟人面前会展现护短的一面..."></textarea>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:12px">
+          <button class="btn btn-ok" onclick="createCharacterFromUI()">✨ 创建并激活此角色</button>
+          <button class="btn btn-outline btn-sm" onclick="loadCharacters()">🔄 刷新列表</button>
+        </div>
+      </div>
+
+      <!-- 多角色客户端接入指南 -->
+      <div class="card" style="display:flex;flex-direction:column;justify-content:space-between">
+        <div>
+          <h3>💡 客户端如何同时使用多个角色？</h3>
+          <p class="muted" style="font-size:12.5px;margin-bottom:12px">无论你使用 SillyTavern (酒馆)、Operit、RisuAI 还是 NextChat，都可以通过以下 <strong>3 种方式</strong>切换或并发隔离不同角色的记忆：</p>
+          <div style="display:flex;flex-direction:column;gap:10px;font-size:12.5px">
+            <div style="padding:10px 12px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px">
+              <strong style="color:var(--accent)">方式一：左侧边栏一键切换（零配置，最省心）</strong>
+              <div class="muted" style="margin-top:3px">直接在面板左上角下拉框选择角色（或下方卡片点击「设为当前激活」），所有不带标记的客户端对话都会自动路由给该角色。</div>
+            </div>
+            <div style="padding:10px 12px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px">
+              <strong style="color:var(--ok)">方式二：角色卡人设内嵌标签（多角色并发推荐 ⭐）</strong>
+              <div class="muted" style="margin-top:3px">在酒馆/客户端的角色卡 System Prompt 任意位置写上 <code>[loam:角色名]</code>（例如 <code>[loam:爱丽丝]</code> 或 <code>【角色:爱丽丝】</code>），代理会自动按角色分流记忆！</div>
+            </div>
+            <div style="padding:10px 12px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px">
+              <strong style="color:var(--accent-2)">方式三：模型名称后缀法</strong>
+              <div class="muted" style="margin-top:3px">在客户端填模型名时加上 <code>@角色名</code>（例如 <code>relayA/deepseek-chat@爱丽丝</code>），代理会自动剥离后缀并将记忆归档到对应角色。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 角色编辑弹窗/内嵌面板 -->
+    <div id="char-seed-editor-card" class="card" style="display:none;margin-bottom:18px;border-color:var(--accent)">
+      <h3 id="char-seed-editor-title">✏️ 编辑角色初始人设 / 核心背景自述</h3>
+      <input type="hidden" id="char-seed-editor-name">
+      <div class="form-group">
+        <label>初始人设自述 (Seed Narrative) —— 当角色尚未积累足够长对话时作为基底自述生效</label>
+        <textarea id="char-seed-editor-text" style="min-height:100px"></textarea>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-ok btn-sm" onclick="saveCharacterSeed()">💾 保存初始人设</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('char-seed-editor-card').style.display='none'">取消</button>
+      </div>
+    </div>
+
+    <h2>🗂️ 已创建的角色列表 (<span id="char-total-count">1</span>)</h2>
+    <div id="characters-grid" class="grid" style="grid-template-columns:repeat(auto-fill, minmax(310px, 1fr));gap:16px">
+      <!-- JS 动态渲染 -->
+    </div>
   </div>
 
   <!-- DEMO -->
@@ -1347,15 +1437,221 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 const API = '/api/proxy';
+let _activeCharacter = localStorage.getItem('loam-active-char') || '';
+let _charactersCache = [];
 
 async function call(method, path, body) {
-  const opts = {method};
+  const headers = {};
+  if (_activeCharacter) {
+    headers['X-Loam-Character'] = _activeCharacter;
+  }
+  const opts = {method, headers};
   if (body) {
-    opts.headers = {'Content-Type': 'application/json'};
+    headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
   }
   const r = await fetch(API + path, opts);
   return r.json();
+}
+
+async function syncCharactersList(quiet) {
+  try {
+    const res = await fetch(API + '/characters');
+    const data = await res.json();
+    if (!data || !Array.isArray(data.characters)) return null;
+    _charactersCache = data.characters;
+    const backendDefault = data.default_character || 'default';
+    if (!_activeCharacter || !_charactersCache.some(c => c.character === _activeCharacter)) {
+      _activeCharacter = backendDefault;
+      localStorage.setItem('loam-active-char', _activeCharacter);
+    }
+    const sel = document.getElementById('sidebar-char-select');
+    if (sel) {
+      sel.innerHTML = _charactersCache.map(c => {
+        const star = c.is_default ? '🌟 ' : '👤 ';
+        const tag = c.is_default ? ' (默认激活)' : '';
+        return `<option value="${escAttr(c.character)}" ${c.character === _activeCharacter ? 'selected' : ''}>${star}${esc(c.character)}${tag}</option>`;
+      }).join('');
+    }
+    const curObj = _charactersCache.find(c => c.character === _activeCharacter);
+    const sideDisplay = document.getElementById('current-persona-display');
+    if (sideDisplay && curObj) {
+      sideDisplay.textContent = curObj.persona_label || '自定义 / 平衡态';
+    }
+    return data;
+  } catch (e) {
+    if (!quiet) console.warn('syncCharactersList error:', e);
+    return null;
+  }
+}
+
+async function onSidebarCharacterChange(charName) {
+  if (!charName) return;
+  _activeCharacter = charName;
+  localStorage.setItem('loam-active-char', charName);
+  try {
+    await call('POST', '/characters/default', { character: charName });
+    toast(`已切换至角色「${charName}」并设为当前默认对话角色`, 'ok');
+  } catch (e) {
+    toast(`已切换查看角色「${charName}」`, 'ok');
+  }
+  await syncCharactersList(true);
+  // 刷新当前激活的面板
+  const activePanel = document.querySelector('.panel.active');
+  if (activePanel && activePanel.id) {
+    const pName = activePanel.id.replace('panel-', '');
+    showPanel(pName);
+  }
+}
+
+async function loadCharacters() {
+  const data = await syncCharactersList(false);
+  const grid = document.getElementById('characters-grid');
+  const countEl = document.getElementById('char-total-count');
+  if (!grid) return;
+  if (!data || !Array.isArray(data.characters)) {
+    grid.innerHTML = '<div class="card"><span class="err">无法连接 Loam 后端获取角色列表，请确认服务正在运行。</span></div>';
+    return;
+  }
+  if (countEl) countEl.textContent = data.characters.length;
+  const presetIcons = { aloof: '🧊', gentle: '🌸', cheerful: '🐶', fragile: '🥀', '': '⚖️' };
+  grid.innerHTML = data.characters.map(c => {
+    const isAct = (c.character === _activeCharacter);
+    const isDef = !!c.is_default;
+    const icon = presetIcons[c.persona_preset || ''] || '🎭';
+    const preview = c.narrative_preview || '（暂无自述，可通过对话自然生长，或点击下方「编辑初始人设」赋予初始背景）';
+    return `
+      <div class="card" style="border-color:${isAct ? 'var(--accent)' : 'var(--border)'};display:flex;flex-direction:column;justify-content:space-between;gap:12px">
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:22px">${icon}</span>
+              <span style="font-size:16px;font-weight:800;color:var(--fg)">${esc(c.character)}</span>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              ${isDef ? '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(16,185,129,0.15);color:var(--ok);font-weight:700">🌟 默认对话角色</span>' : ''}
+              ${isAct && !isDef ? '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(96,165,250,0.15);color:var(--accent);font-weight:700">👁️ 当前查看</span>' : ''}
+            </div>
+          </div>
+
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;padding:8px 10px;background:var(--bg-subtle);border-radius:8px;border:1px solid var(--border);min-height:52px;line-height:1.5">
+            ${esc(preview)}
+          </div>
+
+          <div class="stat"><span>🎭 性格气质预设</span><span class="val" style="font-size:12.5px">${icon} ${esc(c.persona_label || '自定义 / 平衡态')}</span></div>
+          <div class="stat"><span>🧬 已长出性格特质</span><span class="val ok">${c.traits_count || 0} 条</span></div>
+          <div class="stat"><span>🧠 情景记忆事件</span><span class="val">${c.events_count || 0} 条</span></div>
+          <div class="stat"><span>⏳ 待消化对话 / 执念</span><span class="val ${(c.pending||0)>0?'warn':''}">${c.pending || 0} 轮 / ${c.active_drives || 0} 个</span></div>
+          <div class="stat"><span>🌊 当下主导心境</span><span class="val" style="font-size:12px">${esc(c.mood || '心绪平稳')}</span></div>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border)">
+          <button class="btn btn-sm ${isDef ? 'btn-ok' : ''}" onclick="switchAndActivateCharacter('${escAttr(c.character)}')">
+            ${isDef ? '✅ 当前默认激活中' : '🎯 切换并设为默认'}
+          </button>
+          <button class="btn btn-sm btn-outline" onclick="openCharacterPanel('${escAttr(c.character)}', 'persona')">🎭 性格卡</button>
+          <button class="btn btn-sm btn-outline" onclick="openCharacterPanel('${escAttr(c.character)}', 'memory')">🧠 记忆</button>
+          <button class="btn btn-sm btn-outline" onclick="openSeedEditor('${escAttr(c.character)}')">✏️ 初始人设</button>
+          ${data.characters.length > 1 ? `<button class="btn btn-sm btn-danger" onclick="deleteCharacterFromUI('${escAttr(c.character)}')" title="移入回收站">🗑</button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function switchAndActivateCharacter(charName) {
+  await onSidebarCharacterChange(charName);
+  await loadCharacters();
+}
+
+async function openCharacterPanel(charName, panelName) {
+  _activeCharacter = charName;
+  localStorage.setItem('loam-active-char', charName);
+  try {
+    await call('POST', '/characters/default', { character: charName });
+  } catch (e) {}
+  await syncCharactersList(true);
+  showPanel(panelName);
+}
+
+async function createCharacterFromUI() {
+  const nameInp = document.getElementById('new-char-name');
+  const presetSel = document.getElementById('new-char-preset');
+  const seedInp = document.getElementById('new-char-seed');
+  const charName = (nameInp?.value || '').trim();
+  if (!charName) {
+    toast('请输入新角色的名称！', 'err');
+    nameInp?.focus();
+    return;
+  }
+  try {
+    const res = await call('POST', '/characters/create', {
+      character: charName,
+      preset: presetSel?.value || '',
+      seed_narrative: seedInp?.value || '',
+      set_default: true,
+    });
+    if (res && res.ok) {
+      _activeCharacter = charName;
+      localStorage.setItem('loam-active-char', charName);
+      if (nameInp) nameInp.value = '';
+      if (seedInp) seedInp.value = '';
+      toast(`🎉 角色「${charName}」创建成功并已激活！`, 'ok');
+      await loadCharacters();
+    } else {
+      toast((res && res.error) || '创建角色失败', 'err');
+    }
+  } catch (e) {
+    toast('创建角色出错: ' + e.message, 'err');
+  }
+}
+
+function openSeedEditor(charName) {
+  const c = _charactersCache.find(x => x.character === charName);
+  const card = document.getElementById('char-seed-editor-card');
+  if (!card) return;
+  document.getElementById('char-seed-editor-name').value = charName;
+  document.getElementById('char-seed-editor-title').textContent = `✏️ 编辑角色「${charName}」的初始人设 / 背景自述`;
+  document.getElementById('char-seed-editor-text').value = (c && (c.seed_narrative || c.narrative_preview)) || '';
+  card.style.display = 'block';
+  document.getElementById('char-seed-editor-text').focus();
+}
+
+async function saveCharacterSeed() {
+  const charName = document.getElementById('char-seed-editor-name').value;
+  const seedText = document.getElementById('char-seed-editor-text').value;
+  if (!charName) return;
+  try {
+    const res = await call('POST', '/characters/seed', { character: charName, seed_narrative: seedText });
+    if (res && res.ok) {
+      toast(`已更新角色「${charName}」的初始人设！`, 'ok');
+      document.getElementById('char-seed-editor-card').style.display = 'none';
+      await loadCharacters();
+    } else {
+      toast((res && res.error) || '保存失败', 'err');
+    }
+  } catch (e) {
+    toast('保存出错: ' + e.message, 'err');
+  }
+}
+
+async function deleteCharacterFromUI(charName) {
+  if (!confirm(`确定要移除角色「${charName}」吗？\n（数据不会彻底销毁，将安全归档至 ~/.loam/trash 目录）`)) return;
+  try {
+    const res = await call('POST', '/characters/delete', { character: charName });
+    if (res && res.ok) {
+      if (_activeCharacter === charName) {
+        _activeCharacter = res.default_character || 'default';
+        localStorage.setItem('loam-active-char', _activeCharacter);
+      }
+      toast(`角色「${charName}」已移入回收站`, 'ok');
+      await loadCharacters();
+    } else {
+      toast((res && res.error) || '删除失败', 'err');
+    }
+  } catch (e) {
+    toast('删除出错: ' + e.message, 'err');
+  }
 }
 
 // callAdmin — direct to admin panel (not proxied to loam)
@@ -2002,7 +2298,16 @@ window.addEventListener('DOMContentLoaded', () => {
 
 // ---- CONSTANTS (48 Physical & Dynamical Parameters) ----
 async function loadConstants() {
-  const data = await callAdmin('GET', '/admin/constants');  // direct from admin, no loam needed
+  let data = null;
+  try {
+    const remote = await call('GET', '/constants');
+    if (remote && remote.constants && Object.keys(remote.constants).length > 0) {
+      data = remote;
+    }
+  } catch (e) {}
+  if (!data) {
+    data = await callAdmin('GET', '/admin/constants');  // fallback when loam backend is offline
+  }
   const consts = data.constants||{};
   const overrides = data.overrides||{};
   const descs = data.descriptions||{};
@@ -2365,7 +2670,7 @@ function toggleTheme(){
 (function(){ document.querySelector('.theme-btn').textContent = document.documentElement.classList.contains('light')?'🌙':'☀️'; })();
 
 // ---- init ----
-loadStatus();
+syncCharactersList(true).then(() => loadStatus());
 // show keep-running banner
 document.getElementById('keep-running-banner').style.display = 'flex';
 // // check for updates
@@ -2789,7 +3094,8 @@ class Handler(BaseHTTPRequestHandler):
             cl = int(self.headers.get("Content-Length", 0))
             if cl:
                 body = json.loads(self.rfile.read(cl))
-        result = api(path, method, body)
+        char_hdr = self.headers.get("X-Loam-Character") or self.headers.get("x-loam-character")
+        result = api(path, method, body, character=char_hdr)
         self._json(result)
 
     def _json(self, data):
