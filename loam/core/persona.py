@@ -11,27 +11,27 @@ from typing import Any, Dict, List, Tuple
 # 5 个气质大旋钮定义 (取值范围 0.0 ~ 1.0，默认 0.5)
 KNOBS_SCHEMA = {
     "sensitivity": {
-        "name": "🌿 敏感度 / 易感性",
+        "name": "敏感度 / 易感性",
         "desc": "影响对微弱情绪信号的捕捉与波动强度（从钝感慢热到极度敏锐脆皮）",
         "default": 0.5,
     },
     "stubbornness": {
-        "name": "🗿 沉稳度 / 执拗度",
+        "name": "沉稳度 / 执拗度",
         "desc": "影响特质成型后的稳固度与抗反驳能力（从随和变通到顽固不化）",
         "default": 0.5,
     },
     "resilience": {
-        "name": "💧 自愈力 / 情绪消化",
+        "name": "自愈力 / 情绪消化",
         "desc": "影响情绪波动退散的速度与释怀效率（从持久内耗到迅速回血）",
         "default": 0.5,
     },
     "vigilance": {
-        "name": "🛡️ 戒备度 / 多疑性",
+        "name": "戒备度 / 多疑性",
         "desc": "影响信息入脑的信噪比门槛与反讽识别（从单纯直率到高防备警惕）",
         "default": 0.5,
     },
     "creativity": {
-        "name": "✨ 联想力 / 脑洞发散",
+        "name": "联想力 / 脑洞发散",
         "desc": "影响记忆网络神经连线的扩散跨度与联想跳数（从单线程到发散脑补）",
         "default": 0.5,
     },
@@ -40,7 +40,7 @@ KNOBS_SCHEMA = {
 # 4 套开箱即用的一键性格预设卡
 PRESET_PERSONAS: Dict[str, Dict[str, Any]] = {
     "aloof": {
-        "name": "🧊 高冷孤傲",
+        "name": "高冷孤傲",
         "desc": "慢热戒备，不易被日常琐事撼动，自愈极强，内心防线高耸",
         "knobs": {
             "sensitivity": 0.25,
@@ -51,7 +51,7 @@ PRESET_PERSONAS: Dict[str, Dict[str, Any]] = {
         },
     },
     "gentle": {
-        "name": "🌸 温柔包容",
+        "name": "温柔包容",
         "desc": "共情敏锐，自愈良好，低戒备心，富有丰富细腻的联想与理解力",
         "knobs": {
             "sensitivity": 0.75,
@@ -62,7 +62,7 @@ PRESET_PERSONAS: Dict[str, Dict[str, Any]] = {
         },
     },
     "cheerful": {
-        "name": "🐶 乐天小狗",
+        "name": "乐天小狗",
         "desc": "超级易感，情绪来得快去得更快，毫无防备，永远充满探索热情",
         "knobs": {
             "sensitivity": 0.80,
@@ -73,7 +73,7 @@ PRESET_PERSONAS: Dict[str, Dict[str, Any]] = {
         },
     },
     "fragile": {
-        "name": "🥀 敏感易碎",
+        "name": "敏感易碎",
         "desc": "极度敏感脆弱，内耗沉淀深，多疑防备，脑补发散强烈",
         "knobs": {
             "sensitivity": 0.90,

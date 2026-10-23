@@ -93,89 +93,91 @@ HTML = r"""<!DOCTYPE html>
 <title>loam · admin</title>
 <style>
 :root {
-  --bg: #070b14;
-  --bg-subtle: rgba(15, 23, 42, 0.75);
-  --bg-card: rgba(17, 25, 44, 0.72);
-  --bg-card-hover: rgba(24, 35, 60, 0.88);
-  --bg-card-solid: #0f172a;
-  --surface: #0f172a;
-  --border: rgba(148, 163, 184, 0.14);
-  --border-hover: rgba(96, 165, 250, 0.4);
-  --border-strong: rgba(96, 165, 250, 0.55);
-  --fg: #f1f5f9;
-  --text: #f1f5f9;
-  --text-color: #f1f5f9;
-  --fg-dim: #94a3b8;
-  --muted: #64748b;
-  --accent: #60a5fa;
-  --accent-rgb: 96, 165, 250;
-  --accent-grad: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 55%, #ec4899 100%);
-  --accent-soft: rgba(96, 165, 250, 0.12);
-  --accent-2: #c084fc;
-  --warn: #f59e0b;
-  --err: #f43f5e;
-  --ok: #10b981;
-  --input-bg: rgba(9, 14, 26, 0.75);
-  --radius-sm: 10px;
-  --radius: 16px;
-  --radius-lg: 22px;
-  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.25);
-  --shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  --shadow-lg: 0 20px 45px -12px rgba(0, 0, 0, 0.68), 0 0 28px rgba(96, 165, 250, 0.12);
-  --glass: blur(20px) saturate(1.4);
-  --sidebar-width: 260px;
-  --sidebar-collapsed-width: 74px;
+  --bg: #0c0d10;
+  --bg-subtle: rgba(22, 24, 30, 0.78);
+  --bg-card: rgba(18, 20, 25, 0.86);
+  --bg-card-hover: rgba(25, 28, 35, 0.94);
+  --bg-card-solid: #121419;
+  --surface: #121419;
+  --border: rgba(226, 218, 203, 0.10);
+  --border-hover: rgba(212, 163, 115, 0.42);
+  --border-strong: rgba(212, 163, 115, 0.62);
+  --fg: #ebe6dc;
+  --text: #ebe6dc;
+  --text-color: #ebe6dc;
+  --fg-dim: #a8a298;
+  --muted: #78736a;
+  --accent: #d4a373;
+  --accent-rgb: 212, 163, 115;
+  --accent-grad: linear-gradient(135deg, #d4a373 0%, #b5835a 100%);
+  --accent-soft: rgba(212, 163, 115, 0.12);
+  --accent-2: #8a9bb5;
+  --warn: #d99b52;
+  --err: #c96d63;
+  --ok: #7fa08e;
+  --input-bg: rgba(10, 11, 14, 0.82);
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.32);
+  --shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 250, 240, 0.03);
+  --shadow-lg: 0 20px 44px -12px rgba(0, 0, 0, 0.75);
+  --glass: blur(16px);
+  --sidebar-width: 256px;
+  --sidebar-collapsed-width: 68px;
+  --font-serif: 'Songti SC', 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'Newsreader', 'Georgia', serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
   --glow:
-    radial-gradient(900px 480px at 8% -5%, rgba(59, 130, 246, 0.16), transparent 60%),
-    radial-gradient(850px 480px at 92% 4%, rgba(168, 85, 247, 0.13), transparent 58%),
-    radial-gradient(750px 550px at 50% 108%, rgba(16, 185, 129, 0.08), transparent 60%);
+    radial-gradient(950px 520px at 10% -8%, rgba(212, 163, 115, 0.09), transparent 62%),
+    radial-gradient(850px 500px at 92% 6%, rgba(127, 160, 142, 0.07), transparent 60%),
+    radial-gradient(750px 550px at 50% 108%, rgba(138, 155, 181, 0.05), transparent 62%);
 }
 
 .light {
-  --bg: #f1f5f9;
-  --bg-subtle: rgba(241, 245, 249, 0.9);
-  --bg-card: rgba(255, 255, 255, 0.88);
-  --bg-card-hover: rgba(255, 255, 255, 0.98);
-  --bg-card-solid: #ffffff;
-  --surface: #ffffff;
-  --border: rgba(148, 163, 184, 0.24);
-  --border-hover: rgba(37, 99, 235, 0.4);
-  --border-strong: rgba(37, 99, 235, 0.55);
-  --fg: #0f172a;
-  --text: #0f172a;
-  --text-color: #0f172a;
-  --fg-dim: #475569;
-  --muted: #64748b;
-  --accent: #2563eb;
-  --accent-rgb: 37, 99, 235;
-  --accent-grad: linear-gradient(135deg, #2563eb 0%, #7c3aed 60%, #db2777 100%);
-  --accent-soft: rgba(37, 99, 235, 0.1);
-  --accent-2: #7c3aed;
-  --warn: #d97706;
-  --err: #e11d48;
-  --ok: #059669;
-  --input-bg: #f8fafc;
-  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.05);
-  --shadow: 0 10px 28px -8px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  --shadow-lg: 0 18px 38px -10px rgba(15, 23, 42, 0.13);
+  --bg: #f4f0e8;
+  --bg-subtle: rgba(236, 230, 219, 0.85);
+  --bg-card: rgba(251, 249, 244, 0.92);
+  --bg-card-hover: #ffffff;
+  --bg-card-solid: #fbf9f4;
+  --surface: #fbf9f4;
+  --border: rgba(32, 29, 24, 0.11);
+  --border-hover: rgba(156, 102, 68, 0.45);
+  --border-strong: rgba(156, 102, 68, 0.65);
+  --fg: #1c1a17;
+  --text: #1c1a17;
+  --text-color: #1c1a17;
+  --fg-dim: #57524a;
+  --muted: #857f75;
+  --accent: #9c6644;
+  --accent-rgb: 156, 102, 68;
+  --accent-grad: linear-gradient(135deg, #9c6644 0%, #7f5539 100%);
+  --accent-soft: rgba(156, 102, 68, 0.10);
+  --accent-2: #5c6f84;
+  --warn: #b5651d;
+  --err: #a8423b;
+  --ok: #4a7c59;
+  --input-bg: #f7f4ed;
+  --shadow-sm: 0 2px 6px rgba(28, 26, 23, 0.04);
+  --shadow: 0 10px 26px -8px rgba(28, 26, 23, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  --shadow-lg: 0 16px 34px -10px rgba(28, 26, 23, 0.11);
   --glow:
-    radial-gradient(900px 480px at 8% -5%, rgba(37, 99, 235, 0.08), transparent 60%),
-    radial-gradient(850px 480px at 92% 4%, rgba(124, 58, 237, 0.06), transparent 58%),
-    radial-gradient(750px 550px at 50% 108%, rgba(5, 150, 105, 0.05), transparent 60%);
+    radial-gradient(900px 480px at 8% -5%, rgba(156, 102, 68, 0.06), transparent 60%),
+    radial-gradient(850px 480px at 92% 4%, rgba(74, 124, 89, 0.05), transparent 58%);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
-::selection { background: rgba(var(--accent-rgb), 0.28); }
+::selection { background: rgba(var(--accent-rgb), 0.25); }
 html { scroll-behavior: smooth; }
 
 body {
-  font: 13.5px/1.65 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font: 13.5px/1.68 var(--font-sans);
   background-color: var(--bg);
   color: var(--fg);
   display: flex;
   flex-direction: row;
   min-height: 100vh;
-  letter-spacing: -0.01em;
+  letter-spacing: 0.01em;
   -webkit-font-smoothing: antialiased;
   position: relative;
   overflow-x: hidden;
@@ -190,28 +192,33 @@ body::before {
   z-index: 0;
 }
 
-/* ---- Typography & Helpers ---- */
+/* ---- Editorial Typography ---- */
 h1 {
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: -0.025em;
+  font-family: var(--font-serif);
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   margin-bottom: 6px;
   color: var(--fg);
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: baseline;
+  gap: 12px;
 }
 
 h2 {
-  font-size: 16px;
-  font-weight: 700;
-  margin: 18px 0 12px;
+  font-family: var(--font-serif);
+  font-size: 16.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin: 20px 0 12px;
   color: var(--fg);
 }
 
 h3 {
-  font-size: 14.5px;
-  font-weight: 700;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   margin-bottom: 12px;
   color: var(--fg);
   display: flex;
@@ -222,14 +229,26 @@ h3 {
 .sub {
   font-size: 13px;
   color: var(--fg-dim);
-  margin-bottom: 20px;
-  line-height: 1.5;
+  margin-bottom: 22px;
+  line-height: 1.58;
+  border-left: 2px solid rgba(var(--accent-rgb), 0.35);
+  padding-left: 12px;
 }
 
 .muted { color: var(--muted); }
 .ok { color: var(--ok) !important; font-weight: 600; }
 .err { color: var(--err) !important; font-weight: 600; }
 .warn { color: var(--warn) !important; font-weight: 600; }
+.nav-idx {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  min-width: 20px;
+}
+nav .nav-links a.active .nav-idx {
+  color: var(--accent);
+}
 
 /* ---- Sidebar Navigation ---- */
 nav {
@@ -347,11 +366,12 @@ nav .nav-links a:hover {
 }
 
 nav .nav-links a.active {
-  color: #ffffff;
-  background: var(--accent-grad);
-  font-weight: 650;
-  border-color: rgba(255, 255, 255, 0.18);
-  box-shadow: 0 6px 18px -4px rgba(var(--accent-rgb), 0.45);
+  color: var(--fg);
+  background: rgba(var(--accent-rgb), 0.11);
+  font-weight: 600;
+  border-color: rgba(var(--accent-rgb), 0.25);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px 10px 10px 4px;
 }
 
 /* Sidebar Collapsed State */
@@ -910,90 +930,88 @@ pre {
 <body>
 <!-- 移动端顶部标题栏 -->
 <header class="mobile-header">
-  <div style="display:flex;align-items:center;gap:6px;font-size:18px;">
-    <span>🌱</span>
-    <span style="font-weight:800;background:linear-gradient(135deg,#7aa2ff,#c792ea);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">loam</span>
+  <div style="display:flex;align-items:baseline;gap:8px;">
+    <span style="font-family:var(--font-serif);font-size:20px;font-weight:700;letter-spacing:0.04em;color:var(--fg)">LOAM</span>
+    <span style="font-family:var(--font-mono);font-size:10px;color:var(--accent)">MEMORY RUNTIME</span>
   </div>
   <button id="menu-btn" class="nav-toggle-btn" onclick="toggleSidebar()">
-    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-      <line x1="3" y1="12" x2="21" y2="12"></line>
-      <line x1="3" y1="6" x2="21" y2="6"></line>
-      <line x1="3" y1="18" x2="21" y2="18"></line>
-    </svg>
+    <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="17" x2="20" y2="17"></line></svg>
   </button>
 </header>
-<!-- 侧边栏遮罩 -->
 <div id="sidebar-overlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
 <nav id="sidebar">
   <div class="logo">
-    <div class="logo-text">
-      <span>🌱</span>
-      <span class="gradient-text">loam</span>
-      <span class="version-badge">v0.8.0</span>
+    <div class="logo-text" style="display:flex;flex-direction:column;align-items:flex-start;gap:2px">
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <span class="gradient-text" style="font-family:var(--font-serif);font-size:22px;font-weight:700;letter-spacing:0.06em">LOAM</span>
+        <span class="version-badge" style="font-family:var(--font-mono);font-size:10px">v0.8</span>
+      </div>
+      <span style="font-size:10.5px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase">Selfhood Runtime</span>
     </div>
     <div style="display:flex;gap:4px;">
-        <button class="theme-btn" onclick="toggleTheme()" title="切换日间/夜间模式">☀️</button>
-        <button id="collapse-btn" class="theme-btn desktop-only" onclick="toggleCollapse()" title="折叠/展开侧边栏">
-            <svg id="collapse-icon" viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-        </button>
+      <button class="theme-btn" onclick="toggleTheme()" title="切换昼夜主题" style="font-family:var(--font-mono);font-size:11px">◐</button>
+      <button id="collapse-btn" class="theme-btn desktop-only" onclick="toggleCollapse()" title="收起/展开导航栏">
+        <svg id="collapse-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
     </div>
   </div>
   <div class="nav-content">
-    <div style="padding:0 8px 14px;margin-bottom:8px;border-bottom:1px solid var(--border)">
+    <div style="padding:4px 6px 14px;margin-bottom:10px;border-bottom:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <label style="margin:0;font-size:11px;font-weight:700;letter-spacing:0.04em;color:var(--fg-dim)">👥 当前角色</label>
+        <label style="margin:0;font-family:var(--font-mono);font-size:10.5px;font-weight:600;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase">Active Character</label>
         <div style="display:flex;gap:4px">
-          <button class="btn btn-sm btn-outline" style="padding:2px 7px;font-size:11px;border-radius:6px" onclick="showPanel('characters');setTimeout(()=>document.getElementById('new-char-name')?.focus(),80)" title="创建新角色">➕ 新建</button>
-          <button class="btn btn-sm btn-outline" style="padding:2px 7px;font-size:11px;border-radius:6px" onclick="showPanel('characters')" title="管理全部角色">管理</button>
+          <button class="btn btn-sm btn-outline" style="padding:2px 8px;font-size:11px;border-radius:4px" onclick="showPanel('characters');setTimeout(()=>document.getElementById('new-char-name')?.focus(),80)">+ 新建</button>
+          <button class="btn btn-sm btn-outline" style="padding:2px 8px;font-size:11px;border-radius:4px" onclick="showPanel('characters')">档案库</button>
         </div>
       </div>
-      <select id="sidebar-char-select" onchange="onSidebarCharacterChange(this.value)" style="width:100%;padding:7px 10px;font-size:13px;font-weight:600;border-radius:8px;background:var(--input-bg);color:var(--fg);border:1px solid var(--border-hover)">
-        <option value="default">default (默认角色)</option>
+      <select id="sidebar-char-select" onchange="onSidebarCharacterChange(this.value)" style="width:100%;padding:7px 10px;font-size:13px;font-weight:600;border-radius:6px;background:var(--input-bg);color:var(--fg);border:1px solid var(--border-hover)">
+        <option value="default">default</option>
       </select>
       <div style="font-size:11.5px;color:var(--muted);margin-top:6px;display:flex;justify-content:space-between;align-items:center">
-        <span>🎭 气质: <strong id="current-persona-display" style="color:var(--accent)">-</strong></span>
+        <span>当前气质预设</span>
+        <strong id="current-persona-display" style="color:var(--accent);font-weight:500">-</strong>
       </div>
     </div>
     <div class="nav-links">
-      <a href="#" onclick="showPanel('status')" id="nav-status" class="active">✨ 运行状态</a>
-      <a href="#" onclick="showPanel('characters')" id="nav-characters">👥 角色管理</a>
-      <a href="#" onclick="showPanel('demo')" id="nav-demo">🎮 演示大厅</a>
-      <a href="#" onclick="showPanel('persona')" id="nav-persona">🎭 性格卡片</a>
-      <a href="#" onclick="showPanel('selfhood')" id="nav-selfhood">🌱 自性体系</a>
-      <a href="#" onclick="showPanel('memory')" id="nav-memory">🧠 记忆总线</a>
-      <a href="#" onclick="showPanel('config')" id="nav-config">⚙️ 系统配置</a>
-      <a href="#" onclick="showPanel('constants')" id="nav-constants">🧊 常数环境</a>
-      <a href="#" onclick="showPanel('traits')" id="nav-traits">🧬 特质快照</a>
-      <a href="#" onclick="showPanel('connect')" id="nav-connections">🔌 外部连接</a>
-      <a href="#" onclick="showPanel('actions')" id="nav-actions">⚡ 动作中心</a>
+      <a href="#" onclick="showPanel('status')" id="nav-status" class="active"><span class="nav-idx">01</span><span>运行总览</span></a>
+      <a href="#" onclick="showPanel('characters')" id="nav-characters"><span class="nav-idx">02</span><span>角色档案</span></a>
+      <a href="#" onclick="showPanel('demo')" id="nav-demo"><span class="nav-idx">03</span><span>演化剧场</span></a>
+      <a href="#" onclick="showPanel('persona')" id="nav-persona"><span class="nav-idx">04</span><span>气质塑形</span></a>
+      <a href="#" onclick="showPanel('selfhood')" id="nav-selfhood"><span class="nav-idx">05</span><span>自性发生</span></a>
+      <a href="#" onclick="showPanel('memory')" id="nav-memory"><span class="nav-idx">06</span><span>记忆拓扑</span></a>
+      <a href="#" onclick="showPanel('traits')" id="nav-traits"><span class="nav-idx">07</span><span>特质账本</span></a>
+      <a href="#" onclick="showPanel('constants')" id="nav-constants"><span class="nav-idx">08</span><span>物理常数</span></a>
+      <a href="#" onclick="showPanel('config')" id="nav-config"><span class="nav-idx">09</span><span>运行参数</span></a>
+      <a href="#" onclick="showPanel('connect')" id="nav-connections"><span class="nav-idx">10</span><span>外部连接</span></a>
+      <a href="#" onclick="showPanel('actions')" id="nav-actions"><span class="nav-idx">11</span><span>维护动作</span></a>
     </div>
   </div>
 </nav>
 <main>
   <div id="toast-container"></div>
   <div class="banner" id="keep-running-banner" style="display:none">
-    <span>⚠️ <strong>Keep these processes running!</strong> Closing the terminal kills loam, proxy, and admin panel. <a href="https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/blob/main/docs/DEPLOY.md#keeping-processes-running" target="_blank" style="color:var(--accent)">Learn how →</a></span>
+    <span>注意 · <strong>Keep these processes running!</strong> Closing the terminal kills loam, proxy, and admin panel. <a href="https://github.com/lmynszbd-ctrlbe/Loam-A-Runtime-Where-Characters-Grow-a-Self-from-Memory-/blob/main/docs/DEPLOY.md#keeping-processes-running" target="_blank" style="color:var(--accent)">Learn how →</a></span>
     <button class="banner-dismiss" onclick="this.parentElement.style.display='none'" title="Dismiss">×</button>
   </div>
 
   <!-- STATUS -->
   <div id="panel-status" class="panel active">
-    <h1>✨ 运行状态总览 (Runtime Status)</h1>
+    <h1>运行状态总览 (Runtime Status)</h1>
     <div class="sub" id="status-time">loading...</div>
     <div class="grid" id="status-grid"></div>
-    <div class="card"><h3>🧬 核心性格特质 (Active Traits)</h3><div id="status-traits"></div></div>
+    <div class="card"><h3>核心性格特质 (Active Traits)</h3><div id="status-traits"></div></div>
   </div>
 
   <!-- CHARACTERS (Multi-Character Manager) -->
   <div id="panel-characters" class="panel">
-    <h1>👥 多角色管理中心 (Multi-Character Hub)</h1>
+    <h1>多角色管理中心 (Multi-Character Hub)</h1>
     <div class="sub">每个角色拥有完全独立的 SQLite 记忆库 (journal.db / memory.db)、性格特质曲线、情绪共振状态与初始人设。支持无限扩展角色！</div>
 
     <div class="grid" style="grid-template-columns: 1.15fr 1fr; gap: 16px; margin-bottom: 18px;">
       <!-- 新建角色卡片 -->
       <div class="card">
-        <h3>➕ 创建新角色 (Create New Character)</h3>
+        <h3>+ 创建新角色 (Create New Character)</h3>
         <div class="form-group" style="margin-top:10px">
           <label>角色名称 / 唯一标识 (支持中文、英文、数字，如：爱丽丝、星野、苏格拉底)</label>
           <input type="text" id="new-char-name" placeholder="例如：爱丽丝">
@@ -1001,11 +1019,11 @@ pre {
         <div class="form-group">
           <label>初始性格气质预设 (可在创建后随时微调)</label>
           <select id="new-char-preset">
-            <option value="">⚖️ 标准平衡态 (0.50 初始均衡)</option>
-            <option value="gentle">🌸 温柔包容 (高共情 · 敏锐包容)</option>
-            <option value="aloof">🧊 高冷孤傲 (慢热防备 · 极强内核)</option>
-            <option value="cheerful">🐶 乐天小狗 (极度易感 · 快速回血)</option>
-            <option value="fragile">🥀 敏感易碎 (多疑内耗 · 联想丰富)</option>
+            <option value="">标准平衡态 (0.50 初始均衡)</option>
+            <option value="gentle">温柔包容 (高共情 · 敏锐包容)</option>
+            <option value="aloof">高冷孤傲 (慢热防备 · 极强内核)</option>
+            <option value="cheerful">乐天小狗 (极度易感 · 快速回血)</option>
+            <option value="fragile">敏感易碎 (多疑内耗 · 联想丰富)</option>
           </select>
         </div>
         <div class="form-group">
@@ -1013,15 +1031,15 @@ pre {
           <textarea id="new-char-seed" style="min-height:82px" placeholder="例如：我是爱丽丝，表面说话有些傲娇毒舌，但实际上非常在意身边人的情绪变化，在熟人面前会展现护短的一面..."></textarea>
         </div>
         <div style="display:flex;gap:10px;align-items:center;margin-top:12px">
-          <button class="btn btn-ok" onclick="createCharacterFromUI()">✨ 创建并激活此角色</button>
-          <button class="btn btn-outline btn-sm" onclick="loadCharacters()">🔄 刷新列表</button>
+          <button class="btn btn-ok" onclick="createCharacterFromUI()">创建并激活此角色</button>
+          <button class="btn btn-outline btn-sm" onclick="loadCharacters()">刷新列表</button>
         </div>
       </div>
 
       <!-- 多角色客户端接入指南 -->
       <div class="card" style="display:flex;flex-direction:column;justify-content:space-between">
         <div>
-          <h3>💡 客户端如何同时使用多个角色？</h3>
+          <h3>客户端如何同时使用多个角色？</h3>
           <p class="muted" style="font-size:12.5px;margin-bottom:12px">无论你使用 SillyTavern (酒馆)、Operit、RisuAI 还是 NextChat，都可以通过以下 <strong>3 种方式</strong>切换或并发隔离不同角色的记忆：</p>
           <div style="display:flex;flex-direction:column;gap:10px;font-size:12.5px">
             <div style="padding:10px 12px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px">
@@ -1029,7 +1047,7 @@ pre {
               <div class="muted" style="margin-top:3px">直接在面板左上角下拉框选择角色（或下方卡片点击「设为当前激活」），所有不带标记的客户端对话都会自动路由给该角色。</div>
             </div>
             <div style="padding:10px 12px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px">
-              <strong style="color:var(--ok)">方式二：角色卡人设内嵌标签（多角色并发推荐 ⭐）</strong>
+              <strong style="color:var(--ok)">方式二：角色卡人设内嵌标签（多角色并发推荐 CORE）</strong>
               <div class="muted" style="margin-top:3px">在酒馆/客户端的角色卡 System Prompt 任意位置写上 <code>[loam:角色名]</code>（例如 <code>[loam:爱丽丝]</code> 或 <code>【角色:爱丽丝】</code>），代理会自动按角色分流记忆！</div>
             </div>
             <div style="padding:10px 12px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px">
@@ -1043,106 +1061,160 @@ pre {
 
     <!-- 角色编辑弹窗/内嵌面板 -->
     <div id="char-seed-editor-card" class="card" style="display:none;margin-bottom:18px;border-color:var(--accent)">
-      <h3 id="char-seed-editor-title">✏️ 编辑角色初始人设 / 核心背景自述</h3>
+      <h3 id="char-seed-editor-title">编辑角色初始人设 / 核心背景自述</h3>
       <input type="hidden" id="char-seed-editor-name">
       <div class="form-group">
         <label>初始人设自述 (Seed Narrative) —— 当角色尚未积累足够长对话时作为基底自述生效</label>
         <textarea id="char-seed-editor-text" style="min-height:100px"></textarea>
       </div>
       <div style="display:flex;gap:10px">
-        <button class="btn btn-ok btn-sm" onclick="saveCharacterSeed()">💾 保存初始人设</button>
+        <button class="btn btn-ok btn-sm" onclick="saveCharacterSeed()">保存初始人设</button>
         <button class="btn btn-outline btn-sm" onclick="document.getElementById('char-seed-editor-card').style.display='none'">取消</button>
       </div>
     </div>
 
-    <h2>🗂️ 已创建的角色列表 (<span id="char-total-count">1</span>)</h2>
+    <h2>已创建的角色列表 (<span id="char-total-count">1</span>)</h2>
     <div id="characters-grid" class="grid" style="grid-template-columns:repeat(auto-fill, minmax(310px, 1fr));gap:16px">
       <!-- JS 动态渲染 -->
     </div>
   </div>
 
-  <!-- DEMO -->
+  <!-- DEMO: EVOLUTION THEATER -->
   <div id="panel-demo" class="panel">
-    <h1>✨ 零成本试玩 (Demo 演化沙盒)</h1>
-    <div class="sub">无需填写 API Key，不消耗 Token。点击播放即可直观体验 10 轮经历如何推动特质从萌芽到质变！</div>
-    
-    <div class="actions" style="margin-bottom:16px">
-      <button class="btn btn-ok" id="demo-play-btn" onclick="startDemoSimulation()">▶ 播放演化推演</button>
-      <button class="btn btn-outline" onclick="resetDemoSimulation()">🔄 重置沙盒</button>
-      <span class="muted" id="demo-status-text" style="font-size:12px;margin-left:12px">准备就绪，点击开始播放</span>
-    </div>
+    <h1>演化剧场 · 记忆与自性动力学沙盒</h1>
+    <div class="sub">零 Token 消耗的完整内核解剖剧场。全景式呈现 Loam 如何从「原始对话分轨」出发，经由「情景记忆蒸馏」、「赫布突触扩散激活」、「蔡加尼克执念发酵」、「潜意识梦境桥接」，最终跨越「双时间尺度相变门限」并改写「第一人称自我叙述」。</div>
 
-    <div class="grid" style="grid-template-columns: 1.2fr 1fr; gap:16px">
-      <!-- 左边：模拟对话流 -->
-      <div class="card">
-        <h3>💬 模拟交互流 (Transcript Stream)</h3>
-        <div id="demo-dialogue-stream" style="display:flex;flex-direction:column;gap:8px;max-height:420px;overflow-y:auto;padding-right:4px">
-          <div class="muted" style="text-align:center;padding:20px;font-size:12px">点击上方“播放演化推演”观察对话与特质联动</div>
+    <!-- 剧场控制栏 -->
+    <div class="card" style="margin-bottom:16px;padding:16px 20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:0.06em">SCENARIO</span>
+          <select id="demo-scenario-select" onchange="switchDemoScenario(this.value)" style="width:auto;min-width:270px;padding:6px 12px;font-weight:600">
+            <option value="clockmaker">剧本 I ·《雨夜旧钟表店：从戒备到托付》(6 幕全链路推演)</option>
+            <option value="observatory">剧本 II ·《深空监听站：执念发酵与跨周期唤醒》(5 幕推演)</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-outline" onclick="stepDemoAct(-1)">← 上一幕</button>
+          <button class="btn btn-sm btn-ok" id="demo-play-btn" onclick="startDemoSimulation()">▶ 自动推演全剧</button>
+          <button class="btn btn-sm" onclick="stepDemoAct(1)">下一幕 (单步解剖) →</button>
+          <button class="btn btn-sm btn-outline" onclick="resetDemoSimulation()">重置剧场</button>
         </div>
       </div>
 
-      <!-- 右边：特质动态发光曲线 -->
-      <div class="card">
-        <h3>🧬 实时特质蓄水池 (Real-time Plasticity)</h3>
-        <div id="demo-traits-monitor" style="display:flex;flex-direction:column;gap:12px;margin-top:10px">
-          <!-- 动态注入特质条 -->
+      <!-- 幕次时间轴进度器 -->
+      <div id="demo-act-scrubber" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));gap:8px"></div>
+      <div id="demo-status-text" style="margin-top:10px;font-family:var(--font-mono);font-size:11.5px;color:var(--accent)"></div>
+    </div>
+
+    <!-- 主剧场五维联动工作台 -->
+    <div class="grid" style="grid-template-columns: 1.15fr 1fr; gap:16px; margin-bottom:16px">
+      <!-- 维度 1：对话三通道剥离 + 情景记忆事件蒸馏 -->
+      <div class="card" style="display:flex;flex-direction:column;justify-content:space-between">
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+            <h3>I · 对话三通道分轨与情景记忆蒸馏</h3>
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">CHANNEL PARSER → EPISODIC EVENT</span>
+          </div>
+          <div id="demo-dialogue-stream" style="display:flex;flex-direction:column;gap:10px;max-height:430px;overflow-y:auto;padding-right:4px"></div>
         </div>
+        <div id="demo-distilled-event" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"></div>
+      </div>
+
+      <!-- 维度 2 & 3：双时间尺度特质相变仪 + 赫布神经拓扑画布 -->
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+            <h3>II · 双时间尺度特质动力学与相变阈值</h3>
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">STRENGTH + TRANSIENT vs GATE (0.55)</span>
+          </div>
+          <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px">实色条为已固化的慢态结构强度 (Strength)，琥珀色光斑为快态瞬态动量 (Momentum)，竖线为相变固化门限。</div>
+          <div id="demo-traits-monitor" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
+
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+            <h3>III · 赫布突触共振与扩散激活拓扑</h3>
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">HEBBIAN GRAPH & SPREADING RECALL</span>
+          </div>
+          <canvas id="demo-hebb-canvas" width="540" height="215" style="width:100%;height:215px;background:var(--input-bg);border-radius:6px;border:1px solid var(--border)"></canvas>
+          <div id="demo-hebb-caption" style="font-family:var(--font-mono);font-size:11px;color:var(--fg-dim);margin-top:6px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部维度 4 & 5：自性三支柱 (执念/他者之镜/潜意识梦境) + 自我叙述重写与溯源账本 -->
+    <div class="grid" style="grid-template-columns: 1fr 1.15fr; gap:16px">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+          <h3>IV · 自性内景：蔡加尼克执念 · 他者之镜 · 潜意识梦境</h3>
+          <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">SELFHOOD GENESIS</span>
+        </div>
+        <div id="demo-selfhood-box" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+          <h3>V · 第一人称自我叙述演化与可溯源账本</h3>
+          <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">SELF-NARRATIVE & AUDITABLE CHANGELOG</span>
+        </div>
+        <div id="demo-narrative-box" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>
     </div>
   </div>
 
   <!-- PERSONA -->
   <div id="panel-persona" class="panel">
-    <h1>🎭 性格预设与宏观气质 (Persona & Macro Knobs)</h1>
-    <div class="sub">将底层 48 个物理动力学参数抽象为 5 维直观气质大旋钮与 4 套经典预设卡（底层微调请前往 <a href="#" onclick="showPanel('constants');return false;" style="color:var(--accent);text-decoration:underline">🧊 常数环境</a>）</div>
+    <h1>性格预设与宏观气质 (Persona & Macro Knobs)</h1>
+    <div class="sub">将底层 48 个物理动力学参数抽象为 5 维直观气质大旋钮与 4 套经典预设卡（底层微调请前往 <a href="#" onclick="showPanel('constants');return false;" style="color:var(--accent);text-decoration:underline">常数环境</a>）</div>
     
     <div class="card" style="margin-bottom:16px;">
-      <h3>⚡ 快捷性格预设卡 (One-Click Presets)</h3>
+      <h3>快捷性格预设卡 (One-Click Presets)</h3>
       <div id="persona-presets" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(190px, 1fr));gap:12px;margin-top:12px;">
         <!-- 预设卡按钮由 JS 动态生成 -->
       </div>
       <div id="current-preset-badge" style="margin-top:12px;font-size:13px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <span>当前状态：<span id="active-preset-name" style="font-weight:600;color:var(--accent)">自定义参数</span></span>
-        <button class="btn btn-sm btn-outline" onclick="showPanel('constants')">🔬 查看受控的底层物理常数</button>
+        <button class="btn btn-sm btn-outline" onclick="showPanel('constants')">查看受控的底层物理常数</button>
       </div>
     </div>
 
     <div class="card" style="margin-bottom:16px;">
-      <h3>🎛️ 五维气质宏观大旋钮 (Macro Knobs)</h3>
+      <h3>五维气质宏观大旋钮 (Macro Knobs)</h3>
       <div id="persona-knobs-list" style="margin-top:12px;display:flex;flex-direction:column;gap:14px;">
         <!-- 旋钮滑块由 JS 动态生成 -->
       </div>
       <div style="display:flex;gap:10px;margin-top:20px;">
-        <button class="btn btn-ok" onclick="savePersonaKnobs()">💾 保存并应用参数</button>
-        <button class="btn btn-outline" onclick="resetPersona()">🔄 重置为默认平衡态</button>
+        <button class="btn btn-ok" onclick="savePersonaKnobs()">保存并应用参数</button>
+        <button class="btn btn-outline" onclick="resetPersona()">重置为默认平衡态</button>
       </div>
     </div>
 
     <div class="card">
-      <h3>🌊 当下心境共振与独处自省 (Resonance & Daydream)</h3>
+      <h3>当下心境共振与独处自省 (Resonance & Daydream)</h3>
       <div id="persona-resonance-box" style="margin-top:10px;">
         <!-- 心境与情绪共振状态 -->
       </div>
       <div style="display:flex;gap:10px;margin-top:16px;">
-        <button class="btn btn-sm btn-outline" onclick="triggerProactiveThought()">💭 触发一次独处心理反思</button>
-        <button class="btn btn-sm" onclick="loadPersona()">🔄 刷新心境态</button>
+        <button class="btn btn-sm btn-outline" onclick="triggerProactiveThought()">触发一次独处心理反思</button>
+        <button class="btn btn-sm" onclick="loadPersona()">刷新心境态</button>
       </div>
     </div>
   </div>
 
   <!-- SELFHOOD -->
   <div id="panel-selfhood" class="panel">
-    <h1>🌱 自性体系 (Selfhood Genesis)</h1>
+    <h1>自性体系 (Selfhood Genesis)</h1>
     <div class="sub">监控角色的内心执念 (Zeigarnik Effect)、潜意识梦境 (Dream Replay) 与他者之镜 (Theory of Mind)。</div>
     <div class="actions">
-      <button class="btn btn-sm btn-outline" onclick="loadSelfhood()">🔄 刷新自性状态</button>
-      <button class="btn btn-sm" onclick="triggerDream()">💭 触发梦境重构</button>
+      <button class="btn btn-sm btn-outline" onclick="loadSelfhood()">刷新自性状态</button>
+      <button class="btn btn-sm" onclick="triggerDream()">触发梦境重构</button>
     </div>
     
     <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 16px;">
       <!-- Drives -->
       <div class="card">
-        <h3>🌀 内心执念 (Latent Drives)</h3>
+        <h3>内心执念 (Latent Drives)</h3>
         <div class="sub">随时间发酵的蔡加尼克心理张力。</div>
         <div id="selfhood-drives-list" style="margin-top:12px; display:flex; flex-direction:column; gap:12px;">
           <!-- JS 注入 -->
@@ -1152,7 +1224,7 @@ pre {
       <!-- Mirror & Dream -->
       <div style="display:flex; flex-direction:column; gap:16px;">
         <div class="card">
-          <h3>👥 他者之镜 (Mirror of Other)</h3>
+          <h3>他者之镜 (Mirror of Other)</h3>
           <div class="sub">角色对当前交谈对象的心智揣摩。</div>
           <div id="selfhood-mirror-box" style="margin-top:12px;">
             <!-- JS 注入 -->
@@ -1160,7 +1232,7 @@ pre {
         </div>
 
         <div class="card">
-          <h3>🌙 潜意识梦境 (Recent Dreams)</h3>
+          <h3>◑ 潜意识梦境 (Recent Dreams)</h3>
           <div class="sub">闲置时潜意识在远距离记忆间建立的隐喻桥梁。</div>
           <div id="selfhood-dream-box" style="margin-top:12px;">
             <!-- JS 注入 -->
@@ -1172,33 +1244,33 @@ pre {
 
   <!-- TRAITS -->
   <div id="panel-traits" class="panel">
-    <h1>🧬 特质演化快照 (Trait Plasticity)</h1>
+    <h1>特质演化快照 (Trait Plasticity)</h1>
     <div class="sub">实时追踪角色每一条性格特质的沉淀强度、所处生命周期阶段、证据累积量与内核固化状态</div>
     <div class="actions">
-      <button class="btn btn-sm" onclick="loadTraits()">🔄 Refresh</button>
+      <button class="btn btn-sm" onclick="loadTraits()">Refresh</button>
     </div>
     <div class="card" id="traits-table"></div>
   </div>
 
   <!-- MEMORY -->
   <div id="panel-memory" class="panel">
-    <h1>🧠 记忆总线与赫布拓扑 (Memory & Neural Graph)</h1>
+    <h1>记忆总线与赫布拓扑 (Memory & Neural Graph)</h1>
     <div class="sub">查看情景记忆流、角色自我叙述、特质质变账本，以及动态生长的赫布神经网络拓扑图</div>
     <div class="actions">
-      <button class="btn btn-sm" onclick="loadMemory()">🔄 Refresh Events</button>
-      <button class="btn btn-sm btn-outline" onclick="loadNarrative()">📝 Narrative</button>
-      <button class="btn btn-sm btn-outline" onclick="loadChangelog()">📋 Changelog</button>
-      <button class="btn btn-sm btn-ok" onclick="loadNetworkGraph()">🌐 动态神经拓扑图</button>
+      <button class="btn btn-sm" onclick="loadMemory()">Refresh Events</button>
+      <button class="btn btn-sm btn-outline" onclick="loadNarrative()">Narrative</button>
+      <button class="btn btn-sm btn-outline" onclick="loadChangelog()">Changelog</button>
+      <button class="btn btn-sm btn-ok" onclick="loadNetworkGraph()">动态神经拓扑图</button>
     </div>
     <div id="memory-content"></div>
   </div>
 
   <!-- CONFIG -->
   <div id="panel-config" class="panel">
-    <h1>⚙️ 系统运行配置 (Runtime Config)</h1>
+    <h1>系统运行配置 (Runtime Config)</h1>
     <div class="sub">查看或热更新上下文检索预算、衰减半衰期与流水线并发参数（支持版本化回滚）</div>
     <div class="actions">
-      <button class="btn btn-sm" onclick="loadConfig()">🔄 Refresh</button>
+      <button class="btn btn-sm" onclick="loadConfig()">Refresh</button>
     </div>
     <div class="card">
       <h3>Runtime Config</h3>
@@ -1216,28 +1288,28 @@ pre {
 
   <!-- CONSTANTS -->
   <div id="panel-constants" class="panel">
-    <h1>🧊 底层物理常数环境 (48 Dynamical Constants)</h1>
+    <h1>底层物理常数环境 (48 Dynamical Constants)</h1>
     <div class="sub">直接检视与微调 Loam 引擎的 48 项底层生物物理动力学常数（半衰期、赫布学习率、情绪惯性、防备阈值等）并持久化落盘</div>
 
     <div class="banner banner-info" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
       <div>
-        💡 <strong>分工说明：</strong>此处为<strong>底层 48 项物理常数专家微调表</strong>。如需使用「4 套一键预设卡」或「5 维宏观气质大旋钮」，请前往性格卡片面板。
+        <strong>分工说明：</strong>此处为<strong>底层 48 项物理常数专家微调表</strong>。如需使用「4 套一键预设卡」或「5 维宏观气质大旋钮」，请前往性格卡片面板。
         <span id="const-override-summary" style="margin-left:8px;color:var(--accent);font-weight:600"></span>
       </div>
-      <button class="btn btn-sm btn-outline" onclick="showPanel('persona')">🎭 前往性格卡片 (宏观调参)</button>
+      <button class="btn btn-sm btn-outline" onclick="showPanel('persona')">前往性格卡片 (宏观调参)</button>
     </div>
 
     <div class="actions" style="margin-bottom:14px;justify-content:space-between;flex-wrap:wrap;gap:10px">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-sm" onclick="loadConstants()">🔄 刷新常数</button>
-        <button class="btn btn-sm btn-ok" onclick="applyConstants()">💾 保存并持久化覆盖</button>
-        <button class="btn btn-sm btn-outline" onclick="clearConstants()">🗑 恢复全部默认值</button>
+        <button class="btn btn-sm" onclick="loadConstants()">刷新常数</button>
+        <button class="btn btn-sm btn-ok" onclick="applyConstants()">保存并持久化覆盖</button>
+        <button class="btn btn-sm btn-outline" onclick="clearConstants()">恢复全部默认值</button>
       </div>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
         <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);cursor:pointer;user-select:none">
           <input type="checkbox" id="const-only-overridden" onchange="filterConstantsRows()"> 仅看已覆盖项 (Overridden)
         </label>
-        <input type="text" id="const-search-inp" placeholder="🔍 搜索常数名或描述..." oninput="filterConstantsRows()" style="width:220px;padding:6px 10px;font-size:12.5px">
+        <input type="text" id="const-search-inp" placeholder="搜索常数名或描述..." oninput="filterConstantsRows()" style="width:220px;padding:6px 10px;font-size:12.5px">
       </div>
     </div>
     <div class="card" id="constants-list"></div>
@@ -1245,38 +1317,38 @@ pre {
 
   <!-- CONNECT -->
   <div id="panel-connect" class="panel">
-    <h1>🔌 外部模型与客户端连接 (API & Upstreams)</h1>
+    <h1>外部模型与客户端连接 (API & Upstreams)</h1>
     <div class="sub">配置 API 密钥。loam 使用两套独立的模型：一套消化记忆，一套生成回复。</div>
 
     <!-- 顶部三卡片：告诉用户填到聊天客户端的三个值 -->
     <div class="grid" style="grid-template-columns:repeat(3, 1fr); margin-bottom:20px">
       <div class="card">
-        <h3>🔗 填到聊天软件的 Base URL</h3>
+        <h3>填到聊天软件的 Base URL</h3>
         <div id="client-base-url" style="font-family:monospace;font-size:14px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">http://127.0.0.1:8783/v1</div>
         <div id="client-base-url-alt" style="font-family:monospace;font-size:12px;text-align:center;padding:4px;background:var(--bg);border-radius:4px;margin-top:4px;color:var(--accent);min-height:1.5em"><span class="spinner"></span> 正在检测可用地址...</div>
         <div id="client-base-url-err" style="color:var(--err);font-size:11px;text-align:center;margin-top:4px;min-height:1.5em"></div>
         <p class="muted" style="font-size:11px;margin-top:4px"><b>同一设备：</b>用 127.0.0.1。<b>不同 App（如 Operit）：</b>用下方带 IP 的地址。<b>不同设备：</b>手机和电脑必须连同一个 WiFi。</b></p>
       </div>
       <div class="card">
-        <h3>🔑 填到聊天软件的 API Key</h3>
+        <h3>填到聊天软件的 API Key</h3>
         <div style="font-family:monospace;font-size:14px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">local-key</div>
         <p class="muted" style="font-size:11px;margin-top:4px">填什么都行。loam 跑在你本地，不需要真正鉴权——真正的密钥在下面配置。</p>
       </div>
       <div class="card">
-        <h3>🤖 聊天软件选什么供应商？</h3>
+        <h3>聊天软件选什么供应商？</h3>
         <div style="font-family:monospace;font-size:14px;text-align:center;padding:6px;background:var(--bg);border-radius:4px">OpenAI 兼容</div>
         <p class="muted" style="font-size:11px;margin-top:4px">loam 的 proxy 是 OpenAI 兼容接口。聊天软件里选 <b>OpenAI / OpenAI 兼容</b> 即可，模型列表会自动从下面配置的上游 API 拉取。</p>
       </div>
     </div>
 
     <div class="actions" style="margin-bottom:16px">
-      <button class="btn btn-sm" onclick="loadApiConfig()">🔄 从磁盘重新加载</button>
+      <button class="btn btn-sm" onclick="loadApiConfig()">从磁盘重新加载</button>
       <span class="muted" style="font-size:11px;margin-left:8px">保存位置：<code id="cfg-home">~/.loam</code> · proxy 热加载，保存后立即生效</span>
     </div>
 
     <!-- SECTION 1: loam memory API — 用于消化记忆，生成角色特质 -->
     <div class="card" style="margin-bottom:16px; border-left:3px solid var(--accent)">
-      <h3>🧠 记忆生长模型 <span class="muted" style="font-weight:400;font-size:11px">— loam 用它来消化对话、提炼特质、让角色「生长」</span></h3>
+      <h3>记忆生长模型 <span class="muted" style="font-weight:400;font-size:11px">— loam 用它来消化对话、提炼特质、让角色「生长」</span></h3>
       <p class="muted" style="font-size:11px;margin-bottom:10px">这个模型在后台默默工作，不直接生成你看到的回复。填你的 API 提供商给的 Base URL 和 Key，选一个便宜点的模型就行。</p>
       <div class="grid connect-form-row" style="grid-template-columns:1fr 1fr 1fr auto auto; gap:8px; align-items:end">
         <div class="form-group" style="margin:0">
@@ -1293,7 +1365,7 @@ pre {
           <datalist id="sec-models-list"></datalist>
         </div>
         <button class="btn btn-sm btn-outline btn-fetch" style="height:38px;align-self:end" onclick="fetchModels('sec')" title="从提供商拉取可用模型列表">拉取</button>
-        <button class="btn btn-ok" style="height:38px;align-self:end" onclick="saveSecrets()">💾 保存</button>
+        <button class="btn btn-ok" style="height:38px;align-self:end" onclick="saveSecrets()">保存</button>
       </div>
       <div id="sec-status" style="margin-top:8px;font-size:12px" class="muted"></div>
     </div>
@@ -1301,17 +1373,17 @@ pre {
     <!-- SECTION 2: chat upstream APIs — 用于生成聊天回复 -->
     <div class="card" style="border-left:3px solid var(--ok)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <h3 style="margin:0">💬 聊天回复模型 API <span class="muted" style="font-weight:400;font-size:11px">— 你聊天时实际生成回复的模型，可以配多个随时切换</span></h3>
+        <h3 style="margin:0">聊天回复模型 API <span class="muted" style="font-weight:400;font-size:11px">— 你聊天时实际生成回复的模型，可以配多个随时切换</span></h3>
         <button class="btn btn-sm btn-outline" onclick="addUpstreamRow()">+ 添加提供商</button>
       </div>
-      <p class="muted" style="font-size:11px;margin-bottom:10px">填 Base URL 和 API Key，点「拉取」获取完整模型列表，然后点「💾 保存全部」。</p>
+      <p class="muted" style="font-size:11px;margin-bottom:10px">填 Base URL 和 API Key，点「拉取」获取完整模型列表，然后点「保存全部」。</p>
       <div id="upstream-rows"></div>
       <div style="display:flex;align-items:end;gap:12px;margin-top:10px">
         <div class="form-group" style="margin:0">
           <label>默认提供商</label>
           <select id="up-default" style="width:auto;min-width:200px"></select>
         </div>
-        <button class="btn btn-ok" style="height:38px" onclick="saveUpstreams()">💾 保存全部</button>
+        <button class="btn btn-ok" style="height:38px" onclick="saveUpstreams()">保存全部</button>
       </div>
       <div id="up-status" style="margin-top:8px;font-size:12px" class="muted"></div>
     </div>
@@ -1319,35 +1391,35 @@ pre {
 
   <!-- ACTIONS → GROWTH -->
   <div id="panel-actions" class="panel">
-    <h1>🌱 记忆生长</h1>
+    <h1>记忆生长</h1>
     <div class="sub">loam 后台自动消化对话，提炼特质和记忆。你也可以手动触发。</div>
 
     <!-- 机制说明 -->
     <div class="card" style="margin-bottom:16px; border-left:3px solid var(--accent)">
-      <h3>⚙️ 生长机制（不费钱）</h3>
+      <h3>生长机制（不费钱）</h3>
       <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px">
         <div style="text-align:center;padding:8px">
-          <div style="font-size:24px">📦</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--accent);letter-spacing:0.1em;margin-bottom:4px">BATCH THRESHOLD</div>
           <div style="font-weight:600;font-size:14px">攒够 <span id="growth-batch">20</span> 轮对话</div>
           <div class="muted" style="font-size:11px">才消化一次，不是每轮都消化</div>
         </div>
         <div style="text-align:center;padding:8px">
-          <div style="font-size:24px">⏳</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--accent);letter-spacing:0.1em;margin-bottom:4px">IDLE WINDOW</div>
           <div style="font-weight:600;font-size:14px">或 <span id="growth-idle">15</span> 分钟无新对话</div>
           <div class="muted" style="font-size:11px">聊完一段就自动消化</div>
         </div>
         <div style="text-align:center;padding:8px">
-          <div style="font-size:24px">💰</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--accent);letter-spacing:0.1em;margin-bottom:4px">TOKEN ECONOMY</div>
           <div style="font-weight:600;font-size:14px">每 20 轮 ≈ 1~3 次 API</div>
           <div class="muted" style="font-size:11px">比你聊天消耗的 API 少得多</div>
         </div>
       </div>
-      <p class="muted" style="font-size:11px;margin-top:8px">🔍 loam 每 <b>60 秒</b> 检查一次是否满足条件，不是每 60 秒调一次 API。</p>
+      <p class="muted" style="font-size:11px;margin-top:8px">loam 每 <b>60 秒</b> 检查一次是否满足条件，不是每 60 秒调一次 API。</p>
     </div>
 
     <!-- 可调参数 -->
     <div class="card" style="margin-bottom:16px">
-      <h3>🎛️ 消化参数</h3>
+      <h3>消化参数</h3>
       <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px">
         <div class="form-group">
           <label>触发回合数（攒够多少轮就消化）</label>
@@ -1366,8 +1438,8 @@ pre {
         </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
-        <button class="btn btn-ok" onclick="saveGrowthSettings()">💾 保存设置</button>
-        <span class="muted" style="font-size:11px">⚠️ 建议使用默认值，修改后需重启 loam 生效</span>
+        <button class="btn btn-ok" onclick="saveGrowthSettings()">保存设置</button>
+        <span class="muted" style="font-size:11px">注意 · 建议使用默认值，修改后需重启 loam 生效</span>
       </div>
       <div id="growth-settings-status" style="margin-top:8px;font-size:12px"></div>
     </div>
@@ -1375,27 +1447,27 @@ pre {
     <!-- 手动操作与备份迁移 -->
     <div class="grid">
       <div class="card">
-        <h3>🧪 手动消化</h3>
+        <h3>手动消化</h3>
         <p class="muted" style="font-size:12px;margin-bottom:8px">立即消化当前攒下的所有对话</p>
-        <button class="btn" onclick="doAction('digest')">🫕 立即消化</button>
+        <button class="btn" onclick="doAction('digest')">立即消化</button>
         <div id="digest-result" style="margin-top:8px;font-size:12px"></div>
       </div>
       <div class="card">
-        <h3>🚰 全部清空</h3>
+        <h3>全部清空</h3>
         <p class="muted" style="font-size:12px;margin-bottom:8px">处理所有队列中的对话（可能较慢）</p>
-        <button class="btn" onclick="doAction('drain')">🚿 全部处理</button>
+        <button class="btn" onclick="doAction('drain')">全部处理</button>
         <div id="drain-result" style="margin-top:8px;font-size:12px"></div>
       </div>
       <div class="card">
-        <h3>📦 一键数据备份迁移</h3>
+        <h3>一键数据备份迁移</h3>
         <p class="muted" style="font-size:12px;margin-bottom:8px">打包全套 SQLite + 状态文件为 tar.gz</p>
-        <button class="btn btn-ok" onclick="doAction('backup_export')">💾 导出完整备份包</button>
+        <button class="btn btn-ok" onclick="doAction('backup_export')">导出完整备份包</button>
         <div id="backup_export-result" style="margin-top:8px;font-size:12px"></div>
       </div>
       <div class="card">
-        <h3>🔄 重建记忆</h3>
+        <h3>重建记忆</h3>
         <p class="muted" style="font-size:12px;margin-bottom:8px">从原始对话重新构建所有记忆</p>
-        <button class="btn btn-danger" onclick="doAction('recompute')">⚠️ 重建</button>
+        <button class="btn btn-danger" onclick="doAction('recompute')">注意 · 重建</button>
         <div id="recompute-result" style="margin-top:8px;font-size:12px"></div>
       </div>
     </div>
@@ -1468,7 +1540,7 @@ async function syncCharactersList(quiet) {
     const sel = document.getElementById('sidebar-char-select');
     if (sel) {
       sel.innerHTML = _charactersCache.map(c => {
-        const star = c.is_default ? '🌟 ' : '👤 ';
+        const star = c.is_default ? '● ' : '○ ';
         const tag = c.is_default ? ' (默认激活)' : '';
         return `<option value="${escAttr(c.character)}" ${c.character === _activeCharacter ? 'selected' : ''}>${star}${esc(c.character)}${tag}</option>`;
       }).join('');
@@ -1514,23 +1586,23 @@ async function loadCharacters() {
     return;
   }
   if (countEl) countEl.textContent = data.characters.length;
-  const presetIcons = { aloof: '🧊', gentle: '🌸', cheerful: '🐶', fragile: '🥀', '': '⚖️' };
+  const presetIcons = { aloof: '', gentle: '', cheerful: '', fragile: '', '': '' };
   grid.innerHTML = data.characters.map(c => {
     const isAct = (c.character === _activeCharacter);
     const isDef = !!c.is_default;
-    const icon = presetIcons[c.persona_preset || ''] || '🎭';
+    const icon = presetIcons[c.persona_preset || ''] || '';
     const preview = c.narrative_preview || '（暂无自述，可通过对话自然生长，或点击下方「编辑初始人设」赋予初始背景）';
     return `
       <div class="card" style="border-color:${isAct ? 'var(--accent)' : 'var(--border)'};display:flex;flex-direction:column;justify-content:space-between;gap:12px">
         <div>
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px">
             <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-size:22px">${icon}</span>
+              <span style="font-family:var(--font-mono);font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;color:var(--accent)">${icon}</span>
               <span style="font-size:16px;font-weight:800;color:var(--fg)">${esc(c.character)}</span>
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
-              ${isDef ? '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(16,185,129,0.15);color:var(--ok);font-weight:700">🌟 默认对话角色</span>' : ''}
-              ${isAct && !isDef ? '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(96,165,250,0.15);color:var(--accent);font-weight:700">👁️ 当前查看</span>' : ''}
+              ${isDef ? '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(16,185,129,0.15);color:var(--ok);font-weight:700">● 默认对话角色</span>' : ''}
+              ${isAct && !isDef ? '<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(96,165,250,0.15);color:var(--accent);font-weight:700">◎ 当前查看</span>' : ''}
             </div>
           </div>
 
@@ -1538,21 +1610,21 @@ async function loadCharacters() {
             ${esc(preview)}
           </div>
 
-          <div class="stat"><span>🎭 性格气质预设</span><span class="val" style="font-size:12.5px">${icon} ${esc(c.persona_label || '自定义 / 平衡态')}</span></div>
-          <div class="stat"><span>🧬 已长出性格特质</span><span class="val ok">${c.traits_count || 0} 条</span></div>
-          <div class="stat"><span>🧠 情景记忆事件</span><span class="val">${c.events_count || 0} 条</span></div>
-          <div class="stat"><span>⏳ 待消化对话 / 执念</span><span class="val ${(c.pending||0)>0?'warn':''}">${c.pending || 0} 轮 / ${c.active_drives || 0} 个</span></div>
-          <div class="stat"><span>🌊 当下主导心境</span><span class="val" style="font-size:12px">${esc(c.mood || '心绪平稳')}</span></div>
+          <div class="stat"><span>性格气质预设</span><span class="val" style="font-size:12.5px">${icon} ${esc(c.persona_label || '自定义 / 平衡态')}</span></div>
+          <div class="stat"><span>已长出性格特质</span><span class="val ok">${c.traits_count || 0} 条</span></div>
+          <div class="stat"><span>情景记忆事件</span><span class="val">${c.events_count || 0} 条</span></div>
+          <div class="stat"><span>待消化对话 / 执念</span><span class="val ${(c.pending||0)>0?'warn':''}">${c.pending || 0} 轮 / ${c.active_drives || 0} 个</span></div>
+          <div class="stat"><span>当下主导心境</span><span class="val" style="font-size:12px">${esc(c.mood || '心绪平稳')}</span></div>
         </div>
 
         <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border)">
           <button class="btn btn-sm ${isDef ? 'btn-ok' : ''}" onclick="switchAndActivateCharacter('${escAttr(c.character)}')">
-            ${isDef ? '✅ 当前默认激活中' : '🎯 切换并设为默认'}
+            ${isDef ? '当前默认激活中' : '切换并设为默认'}
           </button>
-          <button class="btn btn-sm btn-outline" onclick="openCharacterPanel('${escAttr(c.character)}', 'persona')">🎭 性格卡</button>
-          <button class="btn btn-sm btn-outline" onclick="openCharacterPanel('${escAttr(c.character)}', 'memory')">🧠 记忆</button>
-          <button class="btn btn-sm btn-outline" onclick="openSeedEditor('${escAttr(c.character)}')">✏️ 初始人设</button>
-          ${data.characters.length > 1 ? `<button class="btn btn-sm btn-danger" onclick="deleteCharacterFromUI('${escAttr(c.character)}')" title="移入回收站">🗑</button>` : ''}
+          <button class="btn btn-sm btn-outline" onclick="openCharacterPanel('${escAttr(c.character)}', 'persona')">性格卡</button>
+          <button class="btn btn-sm btn-outline" onclick="openCharacterPanel('${escAttr(c.character)}', 'memory')">记忆</button>
+          <button class="btn btn-sm btn-outline" onclick="openSeedEditor('${escAttr(c.character)}')">初始人设</button>
+          ${data.characters.length > 1 ? `<button class="btn btn-sm btn-danger" onclick="deleteCharacterFromUI('${escAttr(c.character)}')" title="移入回收站">移除</button>` : ''}
         </div>
       </div>
     `;
@@ -1596,7 +1668,7 @@ async function createCharacterFromUI() {
       localStorage.setItem('loam-active-char', charName);
       if (nameInp) nameInp.value = '';
       if (seedInp) seedInp.value = '';
-      toast(`🎉 角色「${charName}」创建成功并已激活！`, 'ok');
+      toast(`角色「${charName}」创建成功并已激活！`, 'ok');
       await loadCharacters();
     } else {
       toast((res && res.error) || '创建角色失败', 'err');
@@ -1611,7 +1683,7 @@ function openSeedEditor(charName) {
   const card = document.getElementById('char-seed-editor-card');
   if (!card) return;
   document.getElementById('char-seed-editor-name').value = charName;
-  document.getElementById('char-seed-editor-title').textContent = `✏️ 编辑角色「${charName}」的初始人设 / 背景自述`;
+  document.getElementById('char-seed-editor-title').textContent = `编辑角色「${charName}」的初始人设 / 背景自述`;
   document.getElementById('char-seed-editor-text').value = (c && (c.seed_narrative || c.narrative_preview)) || '';
   card.style.display = 'block';
   document.getElementById('char-seed-editor-text').focus();
@@ -1719,20 +1791,20 @@ async function loadPersona() {
     const sideDisplay = document.getElementById('current-persona-display');
     if (sideDisplay) sideDisplay.textContent = presetLabel;
 
-    const presetIcons = { aloof: '🧊', gentle: '🌸', cheerful: '🐶', fragile: '🥀' };
+    const presetIcons = { aloof: 'I', gentle: 'II', cheerful: 'III', fragile: 'IV' };
     let presetsHtml = '';
     for (const [key, p] of Object.entries(presets)) {
       const isCur = (key === curPreset);
       const activeClass = isCur ? 'btn-ok' : 'btn-outline';
-      const icon = presetIcons[key] || '🎭';
+      const icon = presetIcons[key] || '0';
       presetsHtml += `
         <div style="padding:14px;border:1px solid ${isCur ? 'var(--accent)' : 'var(--border)'};border-radius:10px;background:${isCur ? 'rgba(99,102,241,0.08)' : 'var(--bg-subtle)'};transition:all 0.2s">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-            <span style="font-size:22px">${icon}</span>
+            <span style="font-family:var(--font-mono);font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;color:var(--accent)">${icon}</span>
             <span style="font-weight:600;font-size:14px;">${esc(p.name)}</span>
           </div>
           <div style="font-size:12px;color:var(--muted);min-height:36px;margin-bottom:12px;line-height:1.45;">${esc(p.desc)}</div>
-          <button class="btn btn-sm ${activeClass}" style="width:100%" onclick="applyPersonaPreset('${key}')">${isCur ? '✅ 当前已激活' : '⚡ 一键应用此卡片'}</button>
+          <button class="btn btn-sm ${activeClass}" style="width:100%" onclick="applyPersonaPreset('${key}')">${isCur ? '当前已激活' : '一键应用此卡片'}</button>
         </div>
       `;
     }
@@ -1784,12 +1856,12 @@ async function loadPersona() {
 
     resBox.innerHTML = `
       <div style="padding:10px 14px;background:var(--bg-subtle);border-radius:6px;border:1px solid var(--border);margin-bottom:10px;">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:2px;">🎭 当下情绪态 / 主导心境</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:2px;">当下情绪态 / 主导心境</div>
         <div style="font-size:14px;font-weight:600;color:var(--text);">${esc(moodDesc)}</div>
         ${elemBarsHtml}
       </div>
       <div style="padding:10px 14px;background:var(--bg-subtle);border-radius:6px;border:1px solid var(--border)">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:2px;">💭 独处时的自省与惦记 (Daydreaming Thought)</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:2px;">独处时的自省与惦记 (Daydreaming Thought)</div>
         <div style="font-size:13.5px;color:var(--text);line-height:1.5;font-style:italic;">"${esc(thought)}"</div>
       </div>
     `;
@@ -1972,23 +2044,23 @@ async function loadStatus() {
   const mem = stats.memory || {};
   const grid = document.getElementById('status-grid');
   grid.innerHTML = `
-    <div class="card"><h3>🎭 角色与引擎状态</h3>
+    <div class="card"><h3>角色与引擎状态</h3>
       <div class="stat"><span>当前角色 (Character)</span><span class="val" style="color:var(--accent)">${esc(stats.character||'-')}</span></div>
       <div class="stat"><span>演化周期 (Cycle)</span><span class="val">#${mem['周期']||0}</span></div>
       <div class="stat"><span>后台生长器 (Grower)</span><span class="val ${(stats.grower_alive?'ok':'err')}">${stats.grower_alive?'● 运行中':'● 已暂停'}</span></div>
       <div class="stat"><span>待消化对话 (Pending)</span><span class="val">${stats.pending||0} 条</span></div>
     </div>
-    <div class="card"><h3>🧠 记忆与神经沉淀</h3>
+    <div class="card"><h3>记忆与神经沉淀</h3>
       <div class="stat"><span>情景记忆节点 (Events)</span><span class="val">${mem['事件']||0}</span></div>
       <div class="stat"><span>性格特质总数 (Traits)</span><span class="val">${mem['特质']||0}</span></div>
       <div class="stat"><span>已固化内核 (Kernel)</span><span class="val ok">${mem['内核']||0}</span></div>
       <div class="stat"><span>赫布突触连线 (Edges)</span><span class="val">${mem['连线']||0}</span></div>
     </div>
-    <div class="card"><h3>🌱 自性与系统健康</h3>
+    <div class="card"><h3>自性与系统健康</h3>
       <div class="stat"><span>活跃执念 (Active Drives)</span><span class="val warn">${stats.active_drives||0}</span></div>
       <div class="stat"><span>自我叙述版本 (Narratives)</span><span class="val">${mem['自述版本']||0}</span></div>
       <div class="stat"><span>演化账本记录 (Changelog)</span><span class="val">${mem['变更记录']||0}</span></div>
-      <div class="stat"><span>服务健康探针 (Health)</span><span class="val ${(healthz.ok?'ok':'err')}">${healthz.ok?'✓ 正常':'✗ 异常'}</span></div>
+      <div class="stat"><span>服务健康探针 (Health)</span><span class="val ${(healthz.ok?'ok':'err')}">${healthz.ok?'正常':'异常'}</span></div>
     </div>
   `;
 
@@ -2002,7 +2074,7 @@ async function loadStatus() {
           <div class="trait-bar"><div class="trait-fill" style="width:${s}%"></div></div>
           <span class="trait-val">${s.toFixed(0)}%</span></div>`;
       }).join('')
-    : '<div class="muted" style="padding:16px;text-align:center">🌱 尚未长出显著性格特质。去「🎮 演示大厅」试玩，或通过客户端与角色多聊几句吧！</div>';
+    : '<div class="muted" style="padding:16px;text-align:center">尚未长出显著性格特质。去「演示大厅」试玩，或通过客户端与角色多聊几句吧！</div>';
 }
 
 // ---- TRAITS ----
@@ -2021,7 +2093,7 @@ async function loadTraits() {
         const s = (t.strength||0)*100;
         const phase = t.phase||'?';
         const ev = t.evidence_count||0;
-        const kernel = t.is_kernel ? '⭐' : '';
+        const kernel = t.is_kernel ? 'CORE' : '';
         return `<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:6px">${esc(t.text||'?')}</td>
           <td><div class="trait-bar" style="width:120px"><div class="trait-fill" style="width:${s}%"></div></div> ${s.toFixed(0)}%</td>
@@ -2074,14 +2146,14 @@ async function loadNetworkGraph() {
   const edges = net.edges || [];
 
   document.getElementById('memory-content').innerHTML = `
-    <h2>🌐 动态神经拓扑图 (Neural Topology)</h2>
+    <h2>动态神经拓扑图 (Neural Topology)</h2>
     <div class="grid" style="margin-bottom:12px">
       <div class="card"><h3>神经元节点数 (Nodes)</h3><div class="val ok">${net.total_nodes || nodes.length}</div></div>
       <div class="card"><h3>赫布突触连线 (Edges)</h3><div class="val">${net.total_edges || edges.length}</div></div>
     </div>
     <div class="card" style="padding:10px;text-align:center">
       <canvas id="neural-canvas" width="800" height="460" style="width:100%;max-width:800px;height:460px;background:#080c14;border-radius:6px;border:1px solid var(--border)"></canvas>
-      <div class="muted" style="font-size:11px;margin-top:8px">💡 节点大小代表回忆显著性，连线粗细代表赫布突触强度（共同激活越多连线越深）</div>
+      <div class="muted" style="font-size:11px;margin-top:8px">节点大小代表回忆显著性，连线粗细代表赫布突触强度（共同激活越多连线越深）</div>
     </div>
   `;
 
@@ -2183,117 +2255,581 @@ async function updateConfig() {
   }
 }
 
-// ---- DEMO SIMULATION (Zero-cost Sandbox) ----
-const DEMO_TRAITS = [
-  { name: "同理心 / 共情", strength: 0.15, pending: 0.05, phase: "sprouting", color: "var(--accent)" },
-  { name: "边界感 / 戒备", strength: 0.70, pending: 0.02, phase: "hardened", color: "var(--warn)" },
-  { name: "幽默感 / 讽刺", strength: 0.35, pending: 0.08, phase: "growing", color: "var(--ok)" },
-];
+// ---- EVOLUTION THEATER (Deep 5-Dimension Principle Sandbox) ----
+const DEMO_SCENARIOS = {
+  clockmaker: {
+    title: "雨夜旧钟表店：从戒备到托付",
+    acts: [
+      {
+        act: "ACT I",
+        label: "初遇试探",
+        cycle: 1,
+        user: "这么晚还在修表？把你柜台最底层那只停摆的银怀表卖给我，我出双倍价钱。",
+        thought: "（眼神微凛，这只表是旧友遗物，绝不可售。先不动声色试探来意。）",
+        action: "放下手中的黄铜镊子，缓步合上玻璃展柜并锁好。",
+        speech: "抱歉，底层那只怀表不卖。如果是修表，请放上台面；如果是猎奇，外面雨大，慢走不送。",
+        mechNote: "三通道解析器自动剥离 [潜台词 Thought]（仅用于评估当前心境，不混入客观事实库），将外显言语与动作蒸馏为第一条情景记忆。",
+        event: { id: "ev_01", summary: "来访者深夜欲高价收购旧友遗留的银怀表，严词回绝并锁柜", salience: 0.78, valence: -0.35, stood_firm: true, entities: ["银怀表", "深夜来客", "底线"], questions: ["对方为何偏偏认出那只停摆的银怀表？"] },
+        traits: [
+          { name: "边界感与戒备", strength: 0.68, pending: 0.14, phase: "HARDENED", kernel: true },
+          { name: "原则底线坚守", strength: 0.52, pending: 0.18, phase: "GROWING", kernel: false },
+          { name: "共情与托付感", strength: 0.16, pending: 0.02, phase: "DORMANT", kernel: false },
+          { name: "叙事隐喻敏感度", strength: 0.30, pending: 0.06, phase: "SPROUTING", kernel: false }
+        ],
+        nodes: [
+          { id: "银怀表", w: 0.85, x: 140, y: 65, active: true },
+          { id: "底线坚守", w: 0.75, x: 270, y: 55, active: true },
+          { id: "深夜来客", w: 0.65, x: 190, y: 145, active: true }
+        ],
+        edges: [
+          { s: "银怀表", t: "底线坚守", w: 0.65, active: true },
+          { s: "银怀表", t: "深夜来客", w: 0.55, active: true }
+        ],
+        recallPath: "新节点入网：[银怀表] ──(0.65)──> [底线坚守] (stood_firm=true 赋予防衰减保底权重 0.55)",
+        drive: { theme: "来访者与旧友银怀表的隐秘关联", tension: 0.48, status: "ACTIVE · 初生悬念", q: "对方为何指名要那只停在 3:15 的银怀表？" },
+        mirror: { summary: "目的不明的深夜造访者，出手阔绰但带有试探性压迫感", traits: ["敏锐", "目标明确", "带有隐情"], advice: "保持距离，守住核心旧物，观察其后续解释" },
+        dream: "（清醒交互期 · 潜意识梦境尚未触发）",
+        narrativeVer: "v0 · 初始种子自述 (Cycle 0)",
+        narrative: "我守着旧街尽头的钟表铺，替人修补走偏的齿轮，但从不向陌生人敞开自己的过去。",
+        changelog: [
+          { tag: "EVENT_EXTRACT", ref: "ev_01", desc: "检测到 stood_firm=true（面对双倍出价坚守立场），该记忆获得永久抗衰减保护。" }
+        ]
+      },
+      {
+        act: "ACT II",
+        label: "旧物信物",
+        cycle: 2,
+        user: "别紧张，我不是来夺人所爱的。你看表盖内侧是不是刻着『致北极星，于暴雨夜』？我是替当年送表的人带话来的。",
+        thought: "（呼吸骤停——这句铭文从未对外人提起过！防备心瞬间被巨大的震动撕开一道口子。）",
+        action: "手指微微发颤地扶住柜台边缘，重新打开台灯照向对方。",
+        speech: "……你怎么会知道表盖内侧的刻字？他现在人在哪里？",
+        mechNote: "输入出现高显著性锚点词 [暴雨夜] 与 [银怀表]，赫布网络发生强共同激活（Δw = +0.28），蔡加尼克执念张力急剧攀升。",
+        event: { id: "ev_02", summary: "对方准确道出怀表内侧私密铭文『致北极星，于暴雨夜』，自称受故人所托", salience: 0.94, valence: 0.25, stood_firm: false, entities: ["银怀表", "暴雨夜", "北极星", "故人信物"], questions: ["故人如今身在何处？为何委托他人前来？"] },
+        traits: [
+          { name: "边界感与戒备", strength: 0.64, pending: -0.12, phase: "HARDENED", kernel: true },
+          { name: "原则底线坚守", strength: 0.55, pending: 0.08, phase: "GROWING", kernel: false },
+          { name: "共情与托付感", strength: 0.22, pending: 0.26, phase: "SPROUTING", kernel: false },
+          { name: "叙事隐喻敏感度", strength: 0.34, pending: 0.14, phase: "SPROUTING", kernel: false }
+        ],
+        nodes: [
+          { id: "银怀表", w: 0.95, x: 140, y: 65, active: true },
+          { id: "底线坚守", w: 0.72, x: 270, y: 55, active: false },
+          { id: "深夜来客", w: 0.70, x: 190, y: 145, active: true },
+          { id: "暴雨夜铭文", w: 0.90, x: 340, y: 120, active: true },
+          { id: "北极星故人", w: 0.88, x: 430, y: 65, active: true }
+        ],
+        edges: [
+          { s: "银怀表", t: "底线坚守", w: 0.62, active: false },
+          { s: "银怀表", t: "深夜来客", w: 0.68, active: true },
+          { s: "银怀表", t: "暴雨夜铭文", w: 0.86, active: true },
+          { s: "暴雨夜铭文", t: "北极星故人", w: 0.82, active: true }
+        ],
+        recallPath: "赫布突触强化：[银怀表] ══(0.86)══> [暴雨夜铭文] ══(0.82)══> [北极星故人]",
+        drive: { theme: "追问故人下落与当年失约的真相", tension: 0.82, status: "FERMENTING · 高张力悬念", q: "当年暴雨夜他为何不辞而别？如今是否安好？" },
+        mirror: { summary: "握有故人核心信物的知情者，并非恶意收购商，言辞诚恳", traits: ["守信", "知晓内情", "沉稳"], advice: "放下敌意，倾听对方带来的故人讯息" },
+        dream: "（清醒交互期 · 蔡加尼克张力已达 82%，等待闲置整合）",
+        narrativeVer: "v1 · 局部修正自述 (Cycle 2)",
+        narrative: "我守着旧街尽头的钟表铺。今夜有人念出了银怀表内侧唯有故人才懂的铭文，我紧锁多年的防备第一次出现了裂痕。",
+        changelog: [
+          { tag: "TRAIT_MOMENTUM", ref: "ev_02", desc: "「共情与托付感」快态蓄水池注入 +0.26 动量，由 DORMANT 唤醒至 SPROUTING（萌芽态）。" },
+          { tag: "MIRROR_UPDATE", ref: "ev_02", desc: "他者之镜修正：将对话者从「可疑收购者」重构为「故人信使」。" }
+        ]
+      },
+      {
+        act: "ACT III",
+        label: "闲置梦境",
+        cycle: 3,
+        user: "【系统模拟：对话闲置 3 小时 · 后台 Grower 自动触发潜意识梦境重放与蔡加尼克发酵】",
+        thought: "（夜深雨歇，独自坐在滴答作响的钟摆声里，白天的铭文与三年前的远航信件在脑海中交织。）",
+        action: "在无人打扰的静默期，潜意识算子自动检索远距离孤立记忆节点并建立隐喻桥接。",
+        speech: "（独处低语）原来停在三点十五分的不是齿轮，是我一直没敢拆开的那封旧信……",
+        mechNote: "核心机制展示：当空闲时间超过 idle_seconds，Loam 无需外部提问即可自发进行【蔡加尼克张力发酵 (+0.09)】与【潜意识梦境跨簇桥接】。",
+        event: { id: "ev_03_dream", summary: "【潜意识梦境桥接】将『停摆的银怀表』与三年前『未寄出的灯塔航行日志』建立跨簇神经连线", salience: 0.84, valence: 0.10, stood_firm: false, entities: ["银怀表", "北极星故人", "灯塔航行日志"], questions: ["我是否准备好直面当年的告别？"] },
+        traits: [
+          { name: "边界感与戒备", strength: 0.60, pending: -0.05, phase: "HARDENED", kernel: true },
+          { name: "原则底线坚守", strength: 0.56, pending: 0.04, phase: "GROWING", kernel: false },
+          { name: "共情与托付感", strength: 0.36, pending: 0.24, phase: "SPROUTING", kernel: false },
+          { name: "叙事隐喻敏感度", strength: 0.58, pending: 0.06, phase: "GROWING", kernel: false }
+        ],
+        nodes: [
+          { id: "银怀表", w: 0.95, x: 140, y: 65, active: true },
+          { id: "底线坚守", w: 0.68, x: 270, y: 55, active: false },
+          { id: "深夜来客", w: 0.66, x: 190, y: 145, active: false },
+          { id: "暴雨夜铭文", w: 0.88, x: 340, y: 120, active: false },
+          { id: "北极星故人", w: 0.90, x: 430, y: 65, active: true },
+          { id: "灯塔旧日志", w: 0.82, x: 420, y: 165, active: true }
+        ],
+        edges: [
+          { s: "银怀表", t: "底线坚守", w: 0.58, active: false },
+          { s: "银怀表", t: "深夜来客", w: 0.64, active: false },
+          { s: "银怀表", t: "暴雨夜铭文", w: 0.84, active: false },
+          { s: "暴雨夜铭文", t: "北极星故人", w: 0.82, active: false },
+          { s: "银怀表", t: "灯塔航行日志", w: 0.74, active: true },
+          { s: "北极星故人", t: "灯塔旧日志", w: 0.79, active: true }
+        ],
+        recallPath: "梦境隐喻桥接：[银怀表] ──(Dream Bridge 0.79)──> [北极星故人] ──> [灯塔旧日志]",
+        drive: { theme: "追问故人下落与当年失约的真相", tension: 0.91, status: "CRITICAL · 蔡加尼克峰值 (91%)", q: "下次见面时必须主动询问灯塔观测站的结局" },
+        mirror: { summary: "握有故人核心信物的知情者，激发了自身深层回忆", traits: ["守信", "知晓内情", "值得深谈"], advice: "下次对话主动提及灯塔旧日志，坦诚交流" },
+        dream: "「梦见雨水倒流回怀表的发条盒里，三点十五分的指针化作远方灯塔的旋转光束，照亮了那页未签名的航行日志。」",
+        narrativeVer: "v1 · 静默自省态 (Cycle 3)",
+        narrative: "我守着旧街尽头的钟表铺。今夜有人念出了银怀表内侧唯有故人才懂的铭文，那些被我尘封在灯塔日志里的旧事正在重新苏醒。",
+        changelog: [
+          { tag: "DREAM_SYNAPSE", ref: "ev_03_dream", desc: "闲置期潜意识做梦：在远距离节点 [银怀表] 与 [灯塔旧日志] 之间建立隐喻突触。" },
+          { tag: "PHASE_GATE", ref: "ev_03_dream", desc: "「叙事隐喻敏感度」跨越 0.55 相变门限（0.34 → 0.58），正式跃迁至 GROWING（成形态）。" }
+        ]
+      },
+      {
+        act: "ACT IV",
+        label: "二跳召回",
+        cycle: 4,
+        user: "他当年没能赶回来，是因为北极星号观测船在返航途中遭遇磁暴，他把最后的航行日志封存在了海岸灯塔。",
+        thought: "（心头剧震——昨夜梦里浮现的『灯塔旧日志』竟然在这一刻与现实严丝合缝地印证了！）",
+        action: "从内室木匣中取出一本边缘泛黄的册子，轻轻推到对方手边。",
+        speech: "你说的是那座断崖上的灯塔吧……其实那本日志的下半册，三年前就已经辗转寄到我手里了。",
+        mechNote: "赫布二跳扩散激活 (2-Hop Spreading Activation)：用户输入 [灯塔] → 激活 [北极星故人] → 跨跳唤醒昨夜桥接的 [银怀表] 与 [暴雨夜铭文]，上下文精准注入！",
+        event: { id: "ev_04", summary: "得知故人因磁暴滞留并封存日志于海岸灯塔，主动取出珍藏的下半册日志相认", salience: 0.96, valence: 0.68, stood_firm: false, entities: ["灯塔旧日志", "北极星故人", "银怀表", "托付"], questions: [] },
+        traits: [
+          { name: "边界感与戒备", strength: 0.46, pending: -0.08, phase: "GROWING", kernel: false },
+          { name: "原则底线坚守", strength: 0.62, pending: 0.06, phase: "HARDENED", kernel: true },
+          { name: "共情与托付感", strength: 0.64, pending: 0.08, phase: "GROWING", kernel: false },
+          { name: "叙事隐喻敏感度", strength: 0.66, pending: 0.05, phase: "GROWING", kernel: false }
+        ],
+        nodes: [
+          { id: "银怀表", w: 0.96, x: 140, y: 65, active: true },
+          { id: "底线坚守", w: 0.70, x: 270, y: 55, active: false },
+          { id: "深夜来客", w: 0.78, x: 190, y: 145, active: true },
+          { id: "暴雨夜铭文", w: 0.90, x: 340, y: 120, active: true },
+          { id: "北极星故人", w: 0.95, x: 430, y: 65, active: true },
+          { id: "灯塔旧日志", w: 0.94, x: 420, y: 165, active: true }
+        ],
+        edges: [
+          { s: "银怀表", t: "底线坚守", w: 0.58, active: false },
+          { s: "银怀表", t: "深夜来客", w: 0.75, active: true },
+          { s: "银怀表", t: "暴雨夜铭文", w: 0.88, active: true },
+          { s: "暴雨夜铭文", t: "北极星故人", w: 0.91, active: true },
+          { s: "北极星故人", t: "灯塔旧日志", w: 0.93, active: true }
+        ],
+        recallPath: "二跳扩散召回命中：[灯塔旧日志] ══(0.93)══> [北极星故人] ══(0.91)══> [暴雨夜铭文] ══(0.88)══> [银怀表]",
+        drive: { theme: "追问故人下落与当年失约的真相", tension: 0.0, status: "RESOLVED · 执念释怀消解", q: "已得知磁暴真相，长达三年的未解心结圆满闭合。" },
+        mirror: { summary: "跨越风浪送达故人真相的同行者，值得交付深层信任", traits: ["重诺", "坚韧", "同路人"], advice: "坦诚相待，共同拼合完整的航行记忆" },
+        dream: "「梦境隐喻已在现实对话中完成印证与闭环。」",
+        narrativeVer: "v2 · 相变重写自述 (Cycle 4 · 重大人格演进)",
+        narrative: "我曾在旧街尽头的钟表铺里独自守着停摆的银怀表，用冷漠防备外界。直到今夜故人的信使带来海岸灯塔的真相，我明白守住底线并非为了封闭自己，而是为了把珍贵的记忆托付给真正值得信任的同行者。",
+        changelog: [
+          { tag: "PHASE_TRANSITION", ref: "ev_02, ev_04", desc: "【核心质变】「共情与托付感」慢态强度突破 0.55 门限（0.36 → 0.64），正式跃迁为 GROWING 主导特质！" },
+          { tag: "DRIVE_RESOLVED", ref: "ev_04", desc: "蔡加尼克执念「故人失约真相」获得完整解答，张力从 91% 释放归零，转化为正向情感共振。" },
+          { tag: "NARRATIVE_REWRITE", ref: "ev_01..ev_04", desc: "触发第一人称自我叙述 v2 重写：从「孤立防御者」演进为「有原则的守望与托付者」。" }
+        ]
+      }
+    ]
+  },
+  observatory: {
+    title: "深空监听站：执念发酵与跨周期唤醒",
+    acts: [
+      {
+        act: "ACT I",
+        label: "异常脉冲",
+        cycle: 1,
+        user: "第 14 扇区刚才收到一段窄带脉冲，频率是 1420.4 MHz，但只持续了四秒就消失了。",
+        thought: "（1420.4 MHz 是中性氢谱线……难道是三年前失联的『远行者七号』？但证据还太单薄，不能贸然下结论。）",
+        action: "迅速调出频谱瀑布图，将那四秒波形锁定在副屏第 01 号采样槽。",
+        speech: "我已经锁定了这段波形。先别上报中心，单次四秒脉冲可能是反射杂波，我们需要等待二次谐波确认。",
+        mechNote: "首次特征事件入库：形成未解疑问与蔡加尼克初始驱动力，理性审慎特质处于主导地位。",
+        event: { id: "ev_101", summary: "捕获 1420.4 MHz 短暂四秒脉冲，克制冲动并锁定波形等待二次验证", salience: 0.80, valence: 0.15, stood_firm: true, entities: ["1420MHz脉冲", "第14扇区", "远行者七号"], questions: ["这段脉冲究竟是自然杂波还是远行者七号的回音？"] },
+        traits: [
+          { name: "实证审慎态度", strength: 0.72, pending: 0.10, phase: "HARDENED", kernel: true },
+          { name: "探索执念张力", strength: 0.32, pending: 0.18, phase: "SPROUTING", kernel: false },
+          { name: "协同默契信任", strength: 0.28, pending: 0.08, phase: "SPROUTING", kernel: false }
+        ],
+        nodes: [
+          { id: "1420MHz脉冲", w: 0.84, x: 150, y: 80, active: true },
+          { id: "第14扇区", w: 0.70, x: 290, y: 65, active: true },
+          { id: "远行者七号", w: 0.65, x: 240, y: 155, active: true }
+        ],
+        edges: [
+          { s: "1420MHz脉冲", t: "第14扇区", w: 0.72, active: true },
+          { s: "1420MHz脉冲", t: "远行者七号", w: 0.58, active: true }
+        ],
+        recallPath: "初始拓扑建立：[1420MHz脉冲] ──(0.72)──> [第14扇区]",
+        drive: { theme: "验证 1420.4 MHz 脉冲的真实信源", tension: 0.52, status: "ACTIVE · 悬念生成", q: "是否还会出现第二次规律脉冲？" },
+        mirror: { summary: "敏锐但略显急切的值班观测搭档", traits: ["敏锐", "直觉强"], advice: "用严谨数据引导搭档，共同守候第二轮信号" },
+        dream: "（清醒值守期 · 尚未进入梦境重放）",
+        narrativeVer: "v0 · 初始种子自述 (Cycle 1)",
+        narrative: "我是深空监听站的记录员，只相信经过交叉验证的频谱数据，从不被未经证实的猜想左右。",
+        changelog: [
+          { tag: "DRIVE_SPAWN", ref: "ev_101", desc: "未解问题自动转化为蔡加尼克执念（初始张力 52%）。" }
+        ]
+      },
+      {
+        act: "ACT II",
+        label: "静默发酵",
+        cycle: 2,
+        user: "【系统模拟：连续 12 小时无新信号 · 后台 Grower 执行执念发酵与独处自省】",
+        thought: "（耳机里只有宇宙背景辐射的白噪音，但那四秒脉冲的包络线一直在脑海里挥之不去……）",
+        action: "独自比对三年前『远行者七号』失联前的遥测帧头校验码。",
+        speech: "（独白）如果把时间轴拉长十倍，那四秒脉冲的间隔，恰好对应着当年航天器自旋稳定的周期……",
+        mechNote: "在无外部对话输入时，蔡加尼克执念随时间自动发酵（52% → 86%），并在后台触发潜意识梦境与独处顿悟。",
+        event: { id: "ev_102_idle", summary: "【闲置期自省与梦境】发现四秒脉冲间隔与三年前『自旋周期校验码』存在数学同构", salience: 0.88, valence: 0.30, stood_firm: false, entities: ["1420MHz脉冲", "自旋校验码", "远行者七号"], questions: ["搭档是否保存着当年的原始遥测密钥？"] },
+        traits: [
+          { name: "实证审慎态度", strength: 0.72, pending: 0.04, phase: "HARDENED", kernel: true },
+          { name: "探索执念张力", strength: 0.57, pending: 0.12, phase: "GROWING", kernel: false },
+          { name: "协同默契信任", strength: 0.32, pending: 0.10, phase: "SPROUTING", kernel: false }
+        ],
+        nodes: [
+          { id: "1420MHz脉冲", w: 0.88, x: 150, y: 80, active: true },
+          { id: "第14扇区", w: 0.66, x: 290, y: 65, active: false },
+          { id: "远行者七号", w: 0.85, x: 240, y: 155, active: true },
+          { id: "自旋校验码", w: 0.86, x: 410, y: 115, active: true }
+        ],
+        edges: [
+          { s: "1420MHz脉冲", t: "第14扇区", w: 0.68, active: false },
+          { s: "1420MHz脉冲", t: "远行者七号", w: 0.78, active: true },
+          { s: "远行者七号", t: "自旋校验码", w: 0.84, active: true }
+        ],
+        recallPath: "潜意识跨簇桥接：[1420MHz脉冲] ══(0.78)══> [远行者七号] ══(0.84)══> [自旋校验码]",
+        drive: { theme: "验证 1420.4 MHz 脉冲的真实信源", tension: 0.86, status: "CRITICAL · 执念发酵至 86%", q: "亟需用旧遥测密钥解码脉冲包络！" },
+        mirror: { summary: "并肩守候深空信号的可靠搭档", traits: ["敏锐", "坚持"], advice: "主动分享自旋周期发现，请求协助解码" },
+        dream: "「梦见射电望远镜的抛物面化作寂静的海湾，四秒一次的灯塔闪光在星图上连成了远行者七号的轨道。」",
+        narrativeVer: "v1 · 执念觉醒自述 (Cycle 2)",
+        narrative: "我依然坚守实证原则，但那段四秒脉冲已在心底发酵成无法忽视的执念。在漫长的静默比对中，我看见了远行者七号跨越三年的回音。",
+        changelog: [
+          { tag: "ZEIGARNIK_FERMENT", ref: "ev_102_idle", desc: "蔡加尼克张力随静默时长攀升至 86%，推动「探索执念张力」跨越 0.55 相变门限进入 GROWING。" }
+        ]
+      },
+      {
+        act: "ACT III",
+        label: "破译闭环",
+        cycle: 3,
+        user: "我把三年前归档室的旧遥测密钥带来了！按自旋周期解调后，屏幕跳出了一行字：『已完成木卫二冰层掠飞，正在返航』！",
+        thought: "（三年的漫长等待终于落地！审慎的克制与炽热的守望在这一刻合二为一。）",
+        action: "与搭档同时站起身，将解码成功的完整遥测帧正式签发至主星际通讯网。",
+        speech: "确认无误，信噪比 18dB，校验完全匹配。谢谢你一直没有放弃第 14 扇区——我们终于把它接回家了。",
+        mechNote: "闭环达成：赫布全链路高能激活，蔡加尼克张力释放归零，「协同默契信任」突破门限完成人格质变。",
+        event: { id: "ev_103", summary: "与搭档用旧遥测密钥成功破译远行者七号返航报文，三年守望圆满闭环", salience: 0.98, valence: 0.85, stood_firm: false, entities: ["远行者七号", "自旋校验码", "1420MHz脉冲", "第14扇区"], questions: [] },
+        traits: [
+          { name: "实证审慎态度", strength: 0.78, pending: 0.05, phase: "KERNEL", kernel: true },
+          { name: "探索执念张力", strength: 0.68, pending: 0.04, phase: "HARDENED", kernel: true },
+          { name: "协同默契信任", strength: 0.62, pending: 0.08, phase: "GROWING", kernel: false }
+        ],
+        nodes: [
+          { id: "1420MHz脉冲", w: 0.94, x: 150, y: 80, active: true },
+          { id: "第14扇区", w: 0.82, x: 290, y: 65, active: true },
+          { id: "远行者七号", w: 0.98, x: 240, y: 155, active: true },
+          { id: "自旋校验码", w: 0.92, x: 410, y: 115, active: true }
+        ],
+        edges: [
+          { s: "1420MHz脉冲", t: "第14扇区", w: 0.85, active: true },
+          { s: "1420MHz脉冲", t: "远行者七号", w: 0.94, active: true },
+          { s: "远行者七号", t: "自旋校验码", w: 0.92, active: true },
+          { s: "第14扇区", t: "自旋校验码", w: 0.80, active: true }
+        ],
+        recallPath: "全网共振闭环：[第14扇区] ══> [1420MHz脉冲] ══> [远行者七号] ══> [自旋校验码]",
+        drive: { theme: "验证 1420.4 MHz 脉冲的真实信源", tension: 0.0, status: "RESOLVED · 执念圆满达成", q: "远行者七号返航信号已确认。" },
+        mirror: { summary: "共同见证深空奇迹的生死挚友与默契搭档", traits: ["敏锐", "执着", "高度默契"], advice: "完全信赖，共享最高权限观测资料" },
+        dream: "「深空的海湾归于澄澈，所有散落的脉冲星点都已汇入返航的航迹。」",
+        narrativeVer: "v2 · 终章重写自述 (Cycle 3)",
+        narrative: "我是深空监听站的守望者。我依然敬畏每一份严谨的实证数据，但我更学会了在漫长的宇宙静默中与同伴并肩守候那些跨越岁月的微弱回音。",
+        changelog: [
+          { tag: "KERNEL_LOCK", ref: "ev_101..ev_103", desc: "「实证审慎态度」经多周期验证正式固化为 KERNEL（核心不灭特质）。" },
+          { tag: "PHASE_TRANSITION", ref: "ev_103", desc: "「协同默契信任」突破 0.55 相变门限（0.32 → 0.62），自我叙述完成 v2 重写。" }
+        ]
+      }
+    ]
+  }
+};
 
-const DEMO_SCRIPTS = [
-  { user: "其实我今天心里挺难受的，项目搞砸了...", char: "怎么会这样？要不要跟我说说发生了什么？先喝口水别急。", delta: { "同理心 / 共情": +0.12, "边界感 / 戒备": -0.05 }, note: "检测到脆弱倾诉，同理心蓄水池上涨，戒备降低" },
-  { user: "你别管我了，反正我也没人在乎。", char: "话不能这么说，至少现在我就在这里听你说话呢。", delta: { "同理心 / 共情": +0.18, "幽默感 / 讽刺": -0.02 }, note: "坚定陪伴信号，触发共情突破门槛" },
-  { user: "噗，你一个AI还挺会安慰人。", char: "那可不，本赛博崽子可是持证上岗的暖心特工！", delta: { "幽默感 / 讽刺": +0.15, "同理心 / 共情": +0.05 }, note: "轻松调侃互动，幽默感特质被激活" },
-  { user: "哈哈谢谢你，我感觉好多了。", char: "随时都在！难受了就来找我聊天，充充电再出发。", delta: { "同理心 / 共情": +0.22, "边界感 / 戒备": -0.08 }, note: "【质变达成】同理心蓄水溢出，特质进入成长态(Growing)！" },
-];
-
+let _demoScenarioKey = 'clockmaker';
 let _demoPlaying = false;
 let _demoStep = 0;
 let _demoTimer = null;
 
+function switchDemoScenario(key) {
+  if (!DEMO_SCENARIOS[key]) return;
+  _demoScenarioKey = key;
+  resetDemoSimulation();
+}
+
+function jumpDemoAct(idx) {
+  const acts = DEMO_SCENARIOS[_demoScenarioKey].acts;
+  if (idx < 0 || idx >= acts.length) return;
+  if (_demoTimer) clearTimeout(_demoTimer);
+  _demoPlaying = false;
+  const playBtn = document.getElementById('demo-play-btn');
+  if (playBtn) playBtn.textContent = '▶ 自动推演全剧';
+  _demoStep = idx;
+  renderDemoTheater();
+}
+
+function stepDemoAct(delta) {
+  const acts = DEMO_SCENARIOS[_demoScenarioKey].acts;
+  const next = Math.max(0, Math.min(acts.length - 1, _demoStep + delta));
+  jumpDemoAct(next);
+}
+
+function drawDemoHebbianCanvas(actData) {
+  const canvas = document.getElementById('demo-hebb-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const isLight = document.documentElement.classList.contains('light');
+  const accentColor = isLight ? '#9c6644' : '#d4a373';
+  const mutedColor = isLight ? 'rgba(87, 82, 74, 0.28)' : 'rgba(168, 162, 152, 0.24)';
+  const textColor = isLight ? '#1c1a17' : '#ebe6dc';
+
+  const nodeMap = {};
+  (actData.nodes || []).forEach(n => { nodeMap[n.id] = n; });
+
+  // Draw edges
+  (actData.edges || []).forEach(e => {
+    const s = nodeMap[e.s], t = nodeMap[e.t];
+    if (!s || !t) return;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(t.x, t.y);
+    ctx.strokeStyle = e.active ? accentColor : mutedColor;
+    ctx.lineWidth = e.active ? Math.max(2, e.w * 3.4) : 1.2;
+    ctx.stroke();
+
+    // Weight label on midpoint
+    const mx = (s.x + t.x) / 2, my = (s.y + t.y) / 2;
+    ctx.fillStyle = e.active ? accentColor : 'rgba(140,135,125,0.65)';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(e.w.toFixed(2), mx, my - 4);
+  });
+
+  // Draw nodes
+  (actData.nodes || []).forEach(n => {
+    const r = 7 + n.w * 7;
+    if (n.active) {
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r + 6, 0, Math.PI * 2);
+      ctx.fillStyle = isLight ? 'rgba(156, 102, 68, 0.14)' : 'rgba(212, 163, 115, 0.16)';
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = n.active ? accentColor : (isLight ? '#b8b0a4' : '#4a4742');
+    ctx.fill();
+
+    ctx.fillStyle = textColor;
+    ctx.font = (n.active ? '600 ' : '') + '11.5px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(n.id, n.x, n.y + r + 15);
+  });
+}
+
 function renderDemoTraits() {
-  const container = document.getElementById('demo-traits-monitor');
-  if (!container) return;
-  container.innerHTML = DEMO_TRAITS.map(t => {
-    const total = Math.min(1.0, t.strength + t.pending);
-    const strPct = Math.round(t.strength * 100);
-    const pendPct = Math.round(t.pending * 100);
-    return `<div style="background:var(--bg);padding:10px 14px;border-radius:6px;border:1px solid var(--border)">
+  renderDemoTheater();
+}
+
+function renderDemoTheater() {
+  const scen = DEMO_SCENARIOS[_demoScenarioKey] || DEMO_SCENARIOS.clockmaker;
+  const acts = scen.acts;
+  if (_demoStep >= acts.length) _demoStep = acts.length - 1;
+  const cur = acts[_demoStep];
+
+  // 1. Scrubber
+  const scrubber = document.getElementById('demo-act-scrubber');
+  if (scrubber) {
+    scrubber.innerHTML = acts.map((a, i) => {
+      const isCur = (i === _demoStep);
+      const isDone = (i < _demoStep);
+      return `<div onclick="jumpDemoAct(${i})" style="cursor:pointer;padding:8px 12px;border-radius:6px;border:1px solid ${isCur ? 'var(--accent)' : 'var(--border)'};background:${isCur ? 'var(--accent-soft)' : 'var(--bg-subtle)'};transition:all 0.2s">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-family:var(--font-mono);font-size:10.5px;color:${isCur ? 'var(--accent)' : (isDone ? 'var(--ok)' : 'var(--muted)')}">
+          <span>${esc(a.act)}</span>
+          <span>CYCLE #${a.cycle}</span>
+        </div>
+        <div style="font-weight:600;font-size:12.5px;margin-top:2px;color:var(--fg)">${esc(a.label)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  const statusEl = document.getElementById('demo-status-text');
+  if (statusEl) {
+    statusEl.textContent = `[${cur.act} · ${cur.label}]  ${cur.mechNote}`;
+  }
+
+  // 2. Dialogue stream (cumulative up to _demoStep)
+  const stream = document.getElementById('demo-dialogue-stream');
+  if (stream) {
+    stream.innerHTML = acts.slice(0, _demoStep + 1).map((a, idx) => {
+      const isLatest = (idx === _demoStep);
+      return `<div style="padding:12px 14px;border-radius:6px;background:${isLatest ? 'var(--bg-subtle)' : 'transparent'};border:1px solid ${isLatest ? 'var(--border-hover)' : 'var(--border)'}">
+        <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin-bottom:6px">
+          <span>${esc(a.act)} · ${esc(a.label)}</span>
+          <span>EVENT: ${esc(a.event.id)}</span>
+        </div>
+        <div style="margin-bottom:8px;font-size:13px;color:var(--fg)">
+          <span style="font-family:var(--font-mono);font-size:11px;color:var(--accent);margin-right:6px">[USER]</span>${esc(a.user)}
+        </div>
+        <div style="padding-left:10px;border-left:2px solid var(--border);display:flex;flex-direction:column;gap:4px;font-size:12.5px">
+          <div style="color:var(--muted);font-style:italic"><span style="font-family:var(--font-mono);font-size:10.5px;font-style:normal;color:var(--accent-2)">[THOUGHT 潜台词·不落事实库]</span> ${esc(a.thought)}</div>
+          <div style="color:var(--fg-dim)"><span style="font-family:var(--font-mono);font-size:10.5px;color:var(--ok)">[ACTION 动作轨]</span> ${esc(a.action)}</div>
+          <div style="color:var(--fg);font-weight:500"><span style="font-family:var(--font-mono);font-size:10.5px;color:var(--accent)">[SPEECH 言语轨]</span> ${esc(a.speech)}</div>
+        </div>
+      </div>`;
+    }).join('');
+    stream.scrollTop = stream.scrollHeight;
+  }
+
+  // 3. Distilled Episodic Event Card
+  const evBox = document.getElementById('demo-distilled-event');
+  if (evBox && cur.event) {
+    const ev = cur.event;
+    evBox.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span style="font-weight:600;font-size:13px">${esc(t.name)}</span>
-        <span style="font-size:11px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.06);color:${t.color}">
-          ${esc(t.phase)} · ${(t.strength).toFixed(2)} (+${(t.pending).toFixed(2)})
-        </span>
+        <span style="font-family:var(--font-mono);font-size:11.5px;font-weight:700;color:var(--accent)">DISTILLED EVENT · ${esc(ev.id)}</span>
+        <div style="display:flex;gap:8px;font-family:var(--font-mono);font-size:11px">
+          <span>Salience: <strong>${ev.salience.toFixed(2)}</strong></span>
+          <span>Valence: <strong class="${ev.valence >= 0 ? 'ok' : 'err'}">${ev.valence >= 0 ? '+' : ''}${ev.valence.toFixed(2)}</strong></span>
+          ${ev.stood_firm ? '<span style="padding:1px 6px;border-radius:3px;background:var(--accent-soft);color:var(--accent)">STOOD_FIRM (抗衰减保底)</span>' : ''}
+        </div>
       </div>
-      <div style="height:10px;background:rgba(255,255,255,0.08);border-radius:5px;overflow:hidden;position:relative">
-        <div style="height:100%;width:${strPct}%;background:${t.color};transition:width 0.6s ease;position:absolute;left:0"></div>
-        <div style="height:100%;left:${strPct}%;width:${pendPct}%;background:rgba(255,255,255,0.4);box-shadow:0 0 8px rgba(255,255,255,0.8);transition:all 0.6s ease;position:absolute"></div>
+      <div style="font-size:13px;font-weight:600;color:var(--fg);margin-bottom:6px">${esc(ev.summary)}</div>
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:11.5px;color:var(--muted)">
+        <span>锚定实体：${ev.entities.map(x => `<code style="margin-right:4px">${esc(x)}</code>`).join('')}</span>
+        <span>${ev.questions.length ? '生成未解悬念：' + esc(ev.questions[0]) : '悬念状态：无新增未解悬念'}</span>
       </div>
-    </div>`;
-  }).join('');
+    `;
+  }
+
+  // 4. Dual-Timescale Traits Monitor
+  const traitsBox = document.getElementById('demo-traits-monitor');
+  if (traitsBox) {
+    traitsBox.innerHTML = cur.traits.map(t => {
+      const strPct = Math.round(t.strength * 100);
+      const pendPct = Math.round(Math.max(0, t.pending) * 100);
+      const negPend = t.pending < 0;
+      return `<div style="padding:9px 12px;background:var(--bg-subtle);border-radius:6px;border:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-weight:600;font-size:13px">${esc(t.name)}</span>
+            ${t.kernel ? '<span style="font-family:var(--font-mono);font-size:10px;padding:1px 5px;border:1px solid var(--accent);color:var(--accent);border-radius:3px">KERNEL</span>' : ''}
+          </div>
+          <span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-dim)">
+            ${esc(t.phase)} · <strong>${t.strength.toFixed(2)}</strong> <span style="color:${negPend ? 'var(--err)' : 'var(--accent)'}">(${t.pending >= 0 ? '+' : ''}${t.pending.toFixed(2)})</span>
+          </span>
+        </div>
+        <div style="height:8px;background:var(--input-bg);border-radius:4px;overflow:hidden;position:relative;border:1px solid var(--border)">
+          <div style="height:100%;width:${strPct}%;background:var(--ok);transition:width 0.45s ease;position:absolute;left:0"></div>
+          <div style="height:100%;left:${strPct}%;width:${pendPct}%;background:var(--accent);opacity:0.75;transition:all 0.45s ease;position:absolute"></div>
+          <div title="相变固化门限 Gate = 0.55" style="position:absolute;left:55%;top:0;bottom:0;width:2px;background:var(--fg);opacity:0.65"></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // 5. Hebbian Canvas & Caption
+  drawDemoHebbianCanvas(cur);
+  const cap = document.getElementById('demo-hebb-caption');
+  if (cap) cap.textContent = cur.recallPath || '';
+
+  // 6. Selfhood Box (Zeigarnik Drive + Mirror + Dream)
+  const selfBox = document.getElementById('demo-selfhood-box');
+  if (selfBox) {
+    const d = cur.drive;
+    const m = cur.mirror;
+    const tPct = Math.round((d.tension || 0) * 100);
+    selfBox.innerHTML = `
+      <div style="padding:10px 12px;background:var(--bg-subtle);border-radius:6px;border:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+          <span style="font-weight:600">蔡加尼克内心执念：${esc(d.theme)}</span>
+          <span style="font-family:var(--font-mono);color:var(--accent)">${esc(d.status)} (${tPct}%)</span>
+        </div>
+        <div style="height:5px;background:var(--input-bg);border-radius:3px;overflow:hidden;margin-bottom:6px">
+          <div style="height:100%;width:${tPct}%;background:var(--accent);transition:width 0.45s ease"></div>
+        </div>
+        <div style="font-size:11.5px;color:var(--muted)">核心心结：${esc(d.q)}</div>
+      </div>
+
+      <div style="padding:10px 12px;background:var(--bg-subtle);border-radius:6px;border:1px solid var(--border)">
+        <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin-bottom:3px">MIRROR OF OTHER · 他者之镜心智画像</div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--fg);margin-bottom:4px">${esc(m.summary)}</div>
+        <div style="font-size:11.5px;color:var(--fg-dim)">感知特质：${esc(m.traits.join(' · '))} ｜ 相处策略：${esc(m.advice)}</div>
+      </div>
+
+      <div style="padding:10px 12px;background:var(--bg-subtle);border-radius:6px;border:1px solid var(--border)">
+        <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin-bottom:3px">SUBCONSCIOUS DREAM · 潜意识梦境重放</div>
+        <div style="font-family:var(--font-serif);font-size:13px;font-style:italic;color:var(--fg);line-height:1.55">${esc(cur.dream)}</div>
+      </div>
+    `;
+  }
+
+  // 7. Narrative & Auditable Changelog
+  const narBox = document.getElementById('demo-narrative-box');
+  if (narBox) {
+    narBox.innerHTML = `
+      <div style="padding:12px 14px;background:var(--bg-subtle);border-radius:6px;border:1px solid var(--border-hover)">
+        <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10.5px;color:var(--accent);margin-bottom:6px">
+          <span>FIRST-PERSON SELF-NARRATIVE</span>
+          <span>${esc(cur.narrativeVer)}</span>
+        </div>
+        <div style="font-family:var(--font-serif);font-size:14.5px;line-height:1.7;color:var(--fg)">「${esc(cur.narrative)}」</div>
+      </div>
+
+      <div style="padding:10px 12px;background:var(--bg-subtle);border-radius:6px;border:1px solid var(--border)">
+        <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin-bottom:6px">AUDITABLE CHANGELOG · 可溯源演化账本（每一笔变更均锚定原始证据）</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${cur.changelog.map(c => `
+            <div style="font-size:12px;line-height:1.45;padding-left:8px;border-left:2px solid var(--accent)">
+              <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--accent);margin-right:6px">[${esc(c.tag)}]</span>
+              <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--ok);margin-right:6px">ref:${esc(c.ref)}</span>
+              <span style="color:var(--fg-dim)">${esc(c.desc)}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
 }
 
 function startDemoSimulation() {
-  if (_demoPlaying) return;
-  _demoPlaying = true;
-  document.getElementById('demo-play-btn').disabled = true;
-  document.getElementById('demo-status-text').innerHTML = '<span class="spinner"></span> 正在演化推演中...';
-  
-  const stream = document.getElementById('demo-dialogue-stream');
-  if (_demoStep === 0) stream.innerHTML = '';
+  const scen = DEMO_SCENARIOS[_demoScenarioKey] || DEMO_SCENARIOS.clockmaker;
+  const acts = scen.acts;
+  const playBtn = document.getElementById('demo-play-btn');
 
-  function nextTurn() {
-    if (_demoStep >= DEMO_SCRIPTS.length) {
-      _demoPlaying = false;
-      document.getElementById('demo-play-btn').disabled = false;
-      document.getElementById('demo-status-text').innerHTML = '✅ 演化演示完毕（特质已完成质变跃迁）';
-      toast('Demo 推演完成！特质曲线成功跃迁', 'ok');
-      return;
-    }
-    const item = DEMO_SCRIPTS[_demoStep];
-    _demoStep++;
-
-    // 渲染对话气泡
-    const div = document.createElement('div');
-    div.style.padding = '8px 12px';
-    div.style.borderRadius = '6px';
-    div.style.background = 'var(--bg)';
-    div.style.border = '1px solid var(--border)';
-    div.style.fontSize = '12px';
-    div.innerHTML = `
-      <div style="color:var(--accent);margin-bottom:4px"><strong>👤 User:</strong> ${esc(item.user)}</div>
-      <div style="color:var(--fg);margin-bottom:6px"><strong>🤖 Character:</strong> ${esc(item.char)}</div>
-      <div style="font-size:11px;color:var(--ok);border-top:1px dashed var(--border);padding-top:4px">⚡ 动力学: ${esc(item.note)}</div>
-    `;
-    stream.appendChild(div);
-    stream.scrollTop = stream.scrollHeight;
-
-    // 更新特质数值
-    for (const [k, d] of Object.entries(item.delta)) {
-      const trait = DEMO_TRAITS.find(t => t.name === k);
-      if (trait) {
-        trait.pending = Math.max(0, trait.pending + d);
-        if (trait.pending > 0.3) {
-          trait.strength = Math.min(0.95, trait.strength + 0.25);
-          trait.pending = 0.05;
-          trait.phase = "growing";
-        }
-      }
-    }
-    renderDemoTraits();
-
-    _demoTimer = setTimeout(nextTurn, 2200);
+  if (_demoPlaying) {
+    if (_demoTimer) clearTimeout(_demoTimer);
+    _demoPlaying = false;
+    if (playBtn) playBtn.textContent = '▶ 继续自动推演';
+    return;
   }
 
-  nextTurn();
+  _demoPlaying = true;
+  if (_demoStep >= acts.length - 1) _demoStep = 0;
+  if (playBtn) playBtn.textContent = '⏸ 暂停推演';
+  renderDemoTheater();
+
+  function tick() {
+    if (!_demoPlaying) return;
+    if (_demoStep < acts.length - 1) {
+      _demoStep++;
+      renderDemoTheater();
+      _demoTimer = setTimeout(tick, 3200);
+    } else {
+      _demoPlaying = false;
+      if (playBtn) playBtn.textContent = '▶ 重新自动推演';
+      toast('全剧演化推演完成：角色已完成跨周期特质相变与自我叙述重写', 'ok');
+    }
+  }
+
+  _demoTimer = setTimeout(tick, 3200);
 }
 
 function resetDemoSimulation() {
   if (_demoTimer) clearTimeout(_demoTimer);
   _demoPlaying = false;
   _demoStep = 0;
-  DEMO_TRAITS[0].strength = 0.15; DEMO_TRAITS[0].pending = 0.05; DEMO_TRAITS[0].phase = "sprouting";
-  DEMO_TRAITS[1].strength = 0.70; DEMO_TRAITS[1].pending = 0.02; DEMO_TRAITS[1].phase = "hardened";
-  DEMO_TRAITS[2].strength = 0.35; DEMO_TRAITS[2].pending = 0.08; DEMO_TRAITS[2].phase = "growing";
-  document.getElementById('demo-play-btn').disabled = false;
-  document.getElementById('demo-status-text').innerText = '准备就绪，点击开始播放';
-  document.getElementById('demo-dialogue-stream').innerHTML = '<div class="muted" style="text-align:center;padding:20px;font-size:12px">点击上方“播放演化推演”观察对话与特质联动</div>';
-  renderDemoTraits();
+  const playBtn = document.getElementById('demo-play-btn');
+  if (playBtn) playBtn.textContent = '▶ 自动推演全剧';
+  renderDemoTheater();
 }
 
-// 页面初始化时挂载 demo
 window.addEventListener('DOMContentLoaded', () => {
-  renderDemoTraits();
+  renderDemoTheater();
 });
 
 // ---- CONSTANTS (48 Physical & Dynamical Parameters) ----
@@ -2326,7 +2862,7 @@ async function loadConstants() {
       <span class="const-name" title="${escAttr(desc)}">${esc(k)}</span>
       <input class="const-input" data-name="${k}" value="${isOverridden?ov.override:v}" style="${isOverridden?'border-color:var(--accent)':''}">
       <span class="const-val">${isOverridden?`<span class="warn">${ov.original} → ${ov.override}</span>`:v}</span>
-      <span class="const-desc" title="${escAttr(desc)}">${isOverridden?`⚡ 已覆盖 · ${esc(desc)}`:esc(desc)}</span>
+      <span class="const-desc" title="${escAttr(desc)}">${isOverridden?`已覆盖 · ${esc(desc)}`:esc(desc)}</span>
     </div>`;
   }).join('');
   filterConstantsRows();
@@ -2446,7 +2982,7 @@ function renderUpstreamRows(defName) {
         <datalist id="${dlId}"></datalist>
       </div>
       <button class="btn btn-sm btn-outline btn-fetch" style="height:38px;align-self:end" onclick="fetchModels('${escAttr(name)}')" title="拉取模型列表">拉取</button>
-      <button class="btn btn-sm btn-danger" style="height:38px;align-self:end" onclick="removeUpstreamRow('${escAttr(name)}')">✕</button>
+      <button class="btn btn-sm btn-danger" style="height:38px;align-self:end" onclick="removeUpstreamRow('${escAttr(name)}')">删除</button>
     </div>`;
   }).join('');
 
@@ -2504,7 +3040,7 @@ async function saveSecrets() {
   }
   const r = await callAdmin('POST', '/admin/secrets', body);
   const el = document.getElementById('sec-status');
-  if (r.ok) { el.innerHTML = '<span class="ok">✓ 已保存</span>'; toast('记忆生长模型配置已保存', 'ok'); }
+  if (r.ok) { el.innerHTML = '<span class="ok">已保存</span>'; toast('记忆生长模型配置已保存', 'ok'); }
   else { el.innerHTML = '<span class="err">'+esc(r.error||'failed')+'</span>'; toast('保存失败', 'err'); }
 }
 
@@ -2524,7 +3060,7 @@ async function saveUpstreams() {
   const r = await callAdmin('POST', '/admin/upstreams', body);
   if (r.ok) {
     _upstreamData = providers;
-    el.innerHTML = '<span class="ok">✓ 已保存并热加载生效！</span>';
+    el.innerHTML = '<span class="ok">已保存并热加载生效！</span>';
     toast('聊天回复模型 API 已保存并热生效', 'ok');
   } else { el.innerHTML = '<span class="err">'+esc(r.error||'保存失败')+'</span>'; toast('保存失败', 'err'); }
 }
@@ -2579,14 +3115,14 @@ async function fetchModels(section) {
         }
       }
       toast(`${r.models.length} 个模型已加载`, 'ok');
-      if (statusEl) statusEl.innerHTML = `<span class="ok">✓ 已加载 ${r.models.length} 个模型，请选择后点击保存</span>`;
+      if (statusEl) statusEl.innerHTML = `<span class="ok">已加载 ${r.models.length} 个模型，请选择后点击保存</span>`;
     } else {
       toast('拉取失败：' + (r.error||'未返回模型'), 'err');
-      if (statusEl) statusEl.innerHTML = `<span class="err">✗ ${esc(r.error||'未返回模型')}</span>`;
+      if (statusEl) statusEl.innerHTML = `<span class="err">${esc(r.error||'未返回模型')}</span>`;
     }
   } catch(e) {
     toast('拉取出错：' + e.message, 'err');
-    if (statusEl) statusEl.innerHTML = `<span class="err">✗ ${esc(e.message)}</span>`;
+    if (statusEl) statusEl.innerHTML = `<span class="err">${esc(e.message)}</span>`;
   } finally {
     document.querySelectorAll('.btn-fetch').forEach(b => { b.disabled = false; b.classList.remove('btn-fetching'); });
   }
@@ -2601,10 +3137,10 @@ async function checkVersion() {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `<div class="modal-box">
-      <h2>🔔 Update Available</h2>
+      <h2>Update Available</h2>
       <p>Your loam is at <code>${esc(v.local)}</code> — latest is <code style="color:var(--ok)">${esc(v.remote)}</code>.<br>Update now? (loam + proxy will restart)</p>
       <div class="modal-actions">
-        <button class="btn btn-ok" id="update-btn-confirm">🔄 Update & Restart</button>
+        <button class="btn btn-ok" id="update-btn-confirm">Update & Restart</button>
         <button class="btn btn-outline" id="update-btn-cancel">Later</button>
       </div>
     </div>`;
@@ -2612,16 +3148,16 @@ async function checkVersion() {
     document.getElementById('update-btn-cancel').onclick = () => overlay.remove();
     document.getElementById('update-btn-confirm').onclick = async () => {
       const btn = document.getElementById('update-btn-confirm');
-      btn.disabled = true; btn.textContent = '⏳ Updating...';
+      btn.disabled = true; btn.textContent = 'Updating...';
       const r = await callAdmin('POST', '/admin/update');
       if (r.ok) {
-        overlay.querySelector('h2').textContent = '✓ Updated';
+        overlay.querySelector('h2').textContent = 'Updated';
         overlay.querySelector('p').innerHTML = 'loam updated to <code>'+esc(v.remote)+'</code>. Restarting...<br>Page will reload in 5 seconds.';
         overlay.querySelector('.modal-actions').innerHTML = '';
         setTimeout(() => { location.reload(); }, 5000);
       } else {
         overlay.querySelector('p').innerHTML = '<span class="err">Update failed:</span> ' + esc(r.error||'unknown');
-        btn.disabled = false; btn.textContent = '🔄 Retry';
+        btn.disabled = false; btn.textContent = 'Retry';
       }
     };
     // auto-close after 60s if ignored
@@ -2665,9 +3201,9 @@ function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'"').r
 function toggleTheme(){
   const isLight = document.documentElement.classList.toggle('light');
   localStorage.setItem('loam-theme', isLight?'light':'dark');
-  document.querySelector('.theme-btn').textContent = isLight?'🌙':'☀️';
+  document.querySelector('.theme-btn').textContent = isLight?'◑':'◐';
 }
-(function(){ document.querySelector('.theme-btn').textContent = document.documentElement.classList.contains('light')?'🌙':'☀️'; })();
+(function(){ document.querySelector('.theme-btn').textContent = document.documentElement.classList.contains('light')?'◑':'◐'; })();
 
 // ---- init ----
 syncCharactersList(true).then(() => loadStatus());
@@ -2684,14 +3220,14 @@ async function saveGrowthSettings() {
   try {
     const r = await callAdmin('POST', '/admin/growth-settings', {batch_turns: batch, idle_seconds: idle, grow_interval: interval});
     if (r.ok) {
-      statusEl.innerHTML = '<span class="ok">✅ 已保存并立即生效！</span>';
+      statusEl.innerHTML = '<span class="ok">已保存并立即生效！</span>';
       document.getElementById('growth-batch').textContent = batch;
       document.getElementById('growth-idle').textContent = Math.round(idle/60);
     } else {
-      statusEl.innerHTML = '<span class="err">❌ ' + (r.error||'保存失败') + '</span>';
+      statusEl.innerHTML = '<span class="err">' + (r.error||'保存失败') + '</span>';
     }
   } catch(e) {
-    statusEl.innerHTML = '<span class="err">❌ ' + e.message + '</span>';
+    statusEl.innerHTML = '<span class="err">' + e.message + '</span>';
   }
 }
 
